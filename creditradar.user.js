@@ -1,11 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-<<<<<<< HEAD
-// @version      18.7
-=======
 // @version      18.8
->>>>>>> f6710d4 (Animaciones en botón | Brillo, pulso y destello)
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       
 // @match        https://pulse.disputeprocess.com/*
@@ -14,16 +10,10 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-<<<<<<< HEAD
-const SCRIPT_VERSION = "18.7";
-
-const VERSION_NOTES = {
-=======
 const SCRIPT_VERSION = "18.8";
 
 const VERSION_NOTES = {
   "18.8": "🎬 Animaciones en botón | Brillo, pulso y destello",
->>>>>>> f6710d4 (Animaciones en botón | Brillo, pulso y destello)
   "18.7": "✨ Nueva función de clasificación | Mejoras en el rendimiento",
   "18.6": "🔧 Optimizaciones de rendimiento",
   "18.5": "✨ Versión debajo del botón | Interfaz mejorada",
