@@ -10,7 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "18.1";
+const SCRIPT_VERSION = "18.3";
 
 (function () {
 'use strict';
