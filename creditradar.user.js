@@ -12,6 +12,14 @@
 
 const SCRIPT_VERSION = "18.6";
 
+const VERSION_NOTES = {
+  "18.5": "✨ Versión debajo del botón | Interfaz mejorada",
+  "18.4": "🔧 Optimizaciones de rendimiento",
+  "18.3": "🎨 Mejoras visuales",
+  "18.2": "🚀 Sistema de alertas",
+  "18.1": "📋 Versión visible en botón"
+};
+
 (function () {
 'use strict';
 
