@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      18.1
+// @version      18.2
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       
 // @match        https://pulse.disputeprocess.com/*
@@ -9,6 +9,8 @@
 // @updateURL    https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
+
+const SCRIPT_VERSION = "18.1";
 
 (function () {
 'use strict';
@@ -379,11 +381,12 @@ function addButton() {
   if (document.getElementById("clasificadorBTN")) return;
   const btn = document.createElement("button");
   btn.id = "clasificadorBTN";
-  btn.innerText = "📋";
-  btn.setAttribute("aria-label", "Ejecutar clasificador");
+  btn.innerHTML = `📋<br><span style="font-size:10px">${SCRIPT_VERSION}</span>`;
+  btn.setAttribute("aria-label", `Ejecutar clasificador (v${SCRIPT_VERSION})`);
   Object.assign(btn.style, {
     position: "fixed", top: "120px", right: "20px", zIndex: "99999",
-    padding: "12px", background: "#111", color: "#fff", borderRadius: "8px", cursor: "pointer"
+    padding: "12px", background: "#111", color: "#fff", borderRadius: "8px", cursor: "pointer",
+    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: "1.2"
   });
   btn.onclick = run;
   btn.addEventListener("contextmenu", e => { e.preventDefault(); openConfigPanel(); });
