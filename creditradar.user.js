@@ -1,10 +1,20 @@
 // ==UserScript==
-// @name         mejoras
+// @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
 // @version      18.0
+// @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
+// @author       
 // @match        https://pulse.disputeprocess.com/*
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
+// @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
+```
+
+**Para instalar en cada equipo:**
+1. Abre esta URL en Chrome:
+```
+https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 
 (function () {
 'use strict';
