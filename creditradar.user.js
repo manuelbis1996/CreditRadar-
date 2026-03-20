@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         CreditRadar 📶
+// @name         CreditRadar 
 // @namespace    http://tampermonkey.net/
 // @version      18.2
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
