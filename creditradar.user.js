@@ -1,7 +1,11 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
+<<<<<<< HEAD
 // @version      18.7
+=======
+// @version      18.8
+>>>>>>> f6710d4 (Animaciones en botón | Brillo, pulso y destello)
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       
 // @match        https://pulse.disputeprocess.com/*
@@ -10,9 +14,16 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
+<<<<<<< HEAD
 const SCRIPT_VERSION = "18.7";
 
 const VERSION_NOTES = {
+=======
+const SCRIPT_VERSION = "18.8";
+
+const VERSION_NOTES = {
+  "18.8": "🎬 Animaciones en botón | Brillo, pulso y destello",
+>>>>>>> f6710d4 (Animaciones en botón | Brillo, pulso y destello)
   "18.7": "✨ Nueva función de clasificación | Mejoras en el rendimiento",
   "18.6": "🔧 Optimizaciones de rendimiento",
   "18.5": "✨ Versión debajo del botón | Interfaz mejorada",
@@ -385,6 +396,56 @@ function openConfigPanel() {
   };
 }
 
+/* ===================== BUTTON ANIMATIONS ===================== */
+
+const buttonAnimationStyles = `
+  @keyframes clasificadorGlow {
+    0%, 100% { box-shadow: 0 0 10px #00ff88, 0 0 20px #00ff8844; }
+    50% { box-shadow: 0 0 20px #00ff88, 0 0 30px #00ff8866; }
+  }
+  @keyframes clasificadorPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 5px #ff6600, 0 0 15px #ff660044; }
+    50% { transform: scale(1.05); box-shadow: 0 0 15px #ff6600, 0 0 25px #ff660066; }
+  }
+  @keyframes clasificadorSuccess {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  .clasificador-glow { animation: clasificadorGlow 2s ease-in-out infinite; }
+  .clasificador-pulse { animation: clasificadorPulse 0.8s ease-in-out infinite; }
+  .clasificador-success { animation: clasificadorSuccess 0.6s ease-in-out; }
+`;
+
+const styleEl = document.createElement('style');
+styleEl.textContent = buttonAnimationStyles;
+document.head.appendChild(styleEl);
+
+function setButtonAnimation(status) {
+  const btn = document.getElementById('clasificadorBTN');
+  if (!btn) return;
+  
+  btn.classList.remove('clasificador-glow', 'clasificador-pulse', 'clasificador-success');
+  
+  if (status === 'pulse') {
+    btn.classList.add('clasificador-pulse');
+    btn.style.cursor = 'not-allowed';
+    btn.disabled = true;
+  } else if (status === 'success') {
+    btn.classList.add('clasificador-success');
+    setTimeout(() => {
+      btn.classList.remove('clasificador-success');
+      btn.classList.add('clasificador-glow');
+      btn.style.cursor = 'pointer';
+      btn.disabled = false;
+    }, 600);
+  } else if (status === 'idle') {
+    btn.classList.add('clasificador-glow');
+    btn.style.cursor = 'pointer';
+    btn.disabled = false;
+  }
+}
+
 /* ===================== UI HELPERS ===================== */
 
 function addButton() {
@@ -396,11 +457,13 @@ function addButton() {
   Object.assign(btn.style, {
     position: "fixed", top: "120px", right: "20px", zIndex: "99999",
     padding: "12px", background: "#111", color: "#fff", borderRadius: "8px", cursor: "pointer",
-    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: "1.2"
+    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: "1.2",
+    transition: "all 0.3s ease", border: "2px solid #00ff8844"
   });
   btn.onclick = run;
   btn.addEventListener("contextmenu", e => { e.preventDefault(); openConfigPanel(); });
   document.body.appendChild(btn);
+  setButtonAnimation('idle');
 }
 
 function highlight(item, color) {
@@ -901,6 +964,7 @@ function getDisputeType(item) {
 async function run() {
   console.clear();
   console.log("🚀 CLASIFICADOR V18.0");
+  setButtonAnimation('pulse');
 
   try {
     CONFIG = loadConfig();
@@ -1042,6 +1106,7 @@ async function run() {
     const orig = ORIGINAL_ACCOUNTS.length;
     const inq = INQUIRIES.length;
     showToast(`📋 Copiado — ${col} Collections, ${orig} Creditors, ${inq} Inquiries`, "#00ff88", 5000);
+    setButtonAnimation('success');
 
     queryOne(".disputes-tab-choose-viewCompact")?.click();
 
@@ -1049,6 +1114,7 @@ async function run() {
     console.error("[Clasificador] Error fatal:", error);
     removeProgressPanel();
     showToast(`❌ Error: ${error.message}`, "#ff4444", 8000);
+    setButtonAnimation('idle');
   }
 }
 
