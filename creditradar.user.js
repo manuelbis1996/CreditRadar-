@@ -9,12 +9,6 @@
 // @updateURL    https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
-```
-
-**Para instalar en cada equipo:**
-1. Abre esta URL en Chrome:
-```
-https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 
 (function () {
 'use strict';
