@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      18.5
+// @version      18.6
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       
 // @match        https://pulse.disputeprocess.com/*
@@ -10,7 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "18.5";
+const SCRIPT_VERSION = "18.6";
 
 (function () {
 'use strict';
@@ -429,6 +429,17 @@ function showToast(message, color = "#00ff88", duration = 5000) {
     toast.style.opacity = "0";
     setTimeout(() => toast.remove(), 500);
   }, duration);
+}
+
+function checkVersionUpdate() {
+  const versionKey = "clasificador_lastVersion";
+  const lastVersion = localStorage.getItem(versionKey);
+  
+  if (lastVersion !== SCRIPT_VERSION) {
+    const notes = VERSION_NOTES[SCRIPT_VERSION] || "Versión actualizada";
+    showToast(`🎉 ¿Qué hay de nuevo?<br>${notes}`, "#ffcc00", 6000);
+    localStorage.setItem(versionKey, SCRIPT_VERSION);
+  }
 }
 
 function createProgressPanel() {
@@ -1031,6 +1042,9 @@ async function run() {
   }
 }
 
-window.addEventListener("load", () => setTimeout(addButton, 3000));
+window.addEventListener("load", () => {
+  checkVersionUpdate();
+  setTimeout(addButton, 3000);
+});
 
 })();
