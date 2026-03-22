@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      18.8
+// @version      19.0
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       
 // @match        https://pulse.disputeprocess.com/*
@@ -10,9 +10,11 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "18.8";
+const SCRIPT_VERSION = "19.0";
 
 const VERSION_NOTES = {
+  "19.0": "👤 Formato de info personal configurable | Campos on/off y reordenables",
+  "18.9": "🎨 UI interactiva | Tabs, tag chips, drag & drop, output preview",
   "18.8": "🎬 Animaciones en botón | Brillo, pulso y destello",
   "18.7": "✨ Nueva función de clasificación | Mejoras en el rendimiento",
   "18.6": "🔧 Optimizaciones de rendimiento",
@@ -153,6 +155,17 @@ const DEFAULT_CONFIG = {
     inquiryLinked: "#ffcc00"
   },
   fieldOrder: ["name", "number", "balance", "dateOpened"],
+  personalFields: [
+    { key: "name",    label: "Name",    enabled: true  },
+    { key: "address", label: "Address", enabled: true  },
+    { key: "ssn",     label: "SSN",     enabled: true  },
+    { key: "dob",     label: "DOB",     enabled: true  },
+    { key: "cell",    label: "Cell",    enabled: true  },
+    { key: "home",    label: "Home",    enabled: false },
+    { key: "email",   label: "Email",   enabled: true  },
+    { key: "started", label: "Started", enabled: false },
+    { key: "id",      label: "ID",      enabled: false }
+  ],
   aliases: DEFAULT_ALIASES
 };
 
@@ -164,6 +177,7 @@ function loadConfig() {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (!parsed.fieldOrder) parsed.fieldOrder = DEFAULT_CONFIG.fieldOrder;
+      if (!parsed.personalFields) parsed.personalFields = DEFAULT_CONFIG.personalFields;
       if (parsed.aliases === undefined) parsed.aliases = DEFAULT_ALIASES;
       return parsed;
     }
@@ -254,7 +268,10 @@ const SELECTORS = {
     ssn: "#customer-side-panel-ssn-right",
     dob: "#customer-side-panel-ssn-right-dob",
     cell: "#customer-side-panel-ssn-right-cellnumber",
-    email: "#customer-side-panel-ssn-right-email"
+    home: "#customer-side-panel-ssn-right-home-phone-number",
+    email: "#customer-side-panel-ssn-right-email",
+    started: "#customer-side-panel-ssn-right-started",
+    id: "#customer-side-panel-client-id-right-started"
   },
   sections: {
     disputed: "#append-dispute-item-div-disputed",
@@ -263,148 +280,486 @@ const SELECTORS = {
   disputeType: 'input[id^="dispute-item-dispute-type-for-move"]'
 };
 
-/* ===================== CONFIG PANEL ===================== */
+/* ===================== UI HELPERS — TAG CHIPS ===================== */
 
-const CONFIG_FIELDS = [
-  { id: "agencies", label: "🏦 Agencias Colectoras", color: "#ffcc00", key: "agencies", height: 120, hint: "Una agencia por línea" },
-  { id: "closedStatuses", label: "📋 Account Status (Cerrada Positiva)", color: "#00aaff", key: "closedStatuses", height: 80, hint: "Un estado por línea" },
-  { id: "paymentStatuses", label: "💳 Payment Status (Cerrada Positiva)", color: "#00aaff", key: "paymentStatuses", height: 60, hint: "Un estado por línea" },
-  { id: "negativeStatuses", label: "🚫 Estados Negativos", color: "#ff4444", key: "negativeStatuses", height: 80, hint: "Si cualquier buró tiene este estado → no es positiva" },
-];
-
-function buildFieldOrderHTML() {
-  const current = CONFIG.fieldOrder;
-  return `
-    <div style="margin-bottom:15px">
-      <b style="color:#aaffaa">📝 Orden de Campos</b>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
-        ${ACCOUNT_FIELDS.map(f => `
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;color:#ccc">${f.label}</span>
-            <select id="fieldOrder_${f.key}" style="background:#111;color:#fff;border:1px solid #333;border-radius:4px;padding:4px 8px;font-size:12px;cursor:pointer">
-              ${[1, 2, 3, 4].map(pos => `
-                <option value="${pos}" ${current.indexOf(f.key) + 1 === pos ? "selected" : ""}>Posición ${pos}</option>
-              `).join("")}
-            </select>
-          </div>`).join("")}
-      </div>
-      <small style="color:#aaa">Elige la posición de cada campo en el output</small>
-    </div>`;
+function getTagValues(container) {
+  return [...container.querySelectorAll('.cr-chip-del')].map(b => b.dataset.val);
 }
 
-function buildAliasHTML() {
-  return `
-    <div style="margin-bottom:15px">
-      <b style="color:#ff99ff">🔗 Diccionario de Alias</b>
-      <textarea id="cfg_aliases" style="width:100%;margin-top:8px;background:#111;color:#fff;
-        border:1px solid #333;border-radius:6px;padding:8px;font-size:11px;
-        height:120px;box-sizing:border-box;resize:vertical;font-family:monospace"
-      >${CONFIG.aliases || ""}</textarea>
-      <small style="color:#aaa">
-        Formato: <b style="color:#ff99ff">nombre = alias1, alias2</b><br>
-        Ejemplo: westlake = westlake fin, westlake service
-      </small>
-    </div>`;
-}
-
-function openConfigPanel() {
-  document.getElementById("clasificadorConfigPanel")?.remove();
-  const panel = document.createElement("div");
-  panel.id = "clasificadorConfigPanel";
-  Object.assign(panel.style, {
-    position: "fixed", top: "80px", right: "60px",
-    background: "#1a1a1a", color: "#fff", padding: "20px",
-    borderRadius: "12px", zIndex: "999999", fontSize: "13px",
-    width: "340px", boxShadow: "0 0 20px rgba(0,0,0,0.7)",
-    maxHeight: "80vh", overflowY: "auto"
+function setupTagInput(container, initialValues) {
+  const input = container.querySelector('.cr-tags-in');
+  initialValues.forEach(val => {
+    const chip = document.createElement('span');
+    chip.className = 'cr-chip';
+    chip.innerHTML = `${val}<button class="cr-chip-del" data-val="${val}">×</button>`;
+    chip.querySelector('.cr-chip-del').onclick = () => chip.remove();
+    container.insertBefore(chip, input);
   });
+  input.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ',') && input.value.trim()) {
+      e.preventDefault();
+      const val = input.value.trim().replace(/,$/, '').toLowerCase();
+      if (val && !getTagValues(container).includes(val)) {
+        const chip = document.createElement('span');
+        chip.className = 'cr-chip';
+        chip.innerHTML = `${val}<button class="cr-chip-del" data-val="${val}">×</button>`;
+        chip.querySelector('.cr-chip-del').onclick = () => chip.remove();
+        container.insertBefore(chip, input);
+      }
+      input.value = '';
+    } else if (e.key === 'Backspace' && !input.value) {
+      const chips = container.querySelectorAll('.cr-chip');
+      if (chips.length) chips[chips.length - 1].remove();
+    }
+  });
+  container.addEventListener('click', () => input.focus());
+}
 
-  const header = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">
-      <b style="font-size:15px">⚙️ Configuraciones</b>
-      <span id="configCloseBtn" style="cursor:pointer;font-size:18px;color:#aaa" role="button" aria-label="Cerrar">✕</span>
-    </div>`;
+/* ===================== UI HELPERS — DRAG & DROP ===================== */
 
-  const fields = CONFIG_FIELDS.map(f => `
-    <div style="margin-bottom:15px">
-      <b style="color:${f.color}">${f.label}</b>
-      <textarea id="cfg_${f.id}" style="width:100%;margin-top:8px;background:#111;color:#fff;
-        border:1px solid #333;border-radius:6px;padding:8px;font-size:12px;
-        height:${f.height}px;box-sizing:border-box;resize:vertical"
-      >${CONFIG[f.key].join("\n")}</textarea>
-      <small style="color:#aaa">${f.hint}</small>
-    </div>`).join("");
+function setupFieldDrag(list) {
+  let dragged = null;
+  list.querySelectorAll('.cr-fitem').forEach(item => {
+    item.setAttribute('draggable', 'true');
+    item.addEventListener('dragstart', () => {
+      dragged = item;
+      setTimeout(() => item.classList.add('cr-dragging'), 0);
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('cr-dragging');
+      list.querySelectorAll('.cr-fitem').forEach(i => i.classList.remove('cr-dragover'));
+      list.querySelectorAll('.cr-fitem-num').forEach((num, i) => { num.textContent = `#${i + 1}`; });
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (dragged === item) return;
+      list.querySelectorAll('.cr-fitem').forEach(i => i.classList.remove('cr-dragover'));
+      item.classList.add('cr-dragover');
+    });
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!dragged || dragged === item) return;
+      const items = [...list.querySelectorAll('.cr-fitem')];
+      const dragIdx = items.indexOf(dragged);
+      const dropIdx = items.indexOf(item);
+      if (dragIdx < dropIdx) item.after(dragged);
+      else item.before(dragged);
+    });
+  });
+}
 
-  const colorPickers = `
-    <div style="margin-bottom:15px">
-      <b style="color:#00ff88">🎨 Colores de Resaltado</b>
-      <div style="margin-top:8px;display:flex;gap:15px;align-items:center;flex-wrap:wrap">
-        <label>Open<br><input type="color" id="cfg_colorOpen" value="${CONFIG.colors.open}" style="margin-top:4px;cursor:pointer"></label>
-        <label>Closed Positive<br><input type="color" id="cfg_colorClosed" value="${CONFIG.colors.closedPositive}" style="margin-top:4px;cursor:pointer"></label>
-        <label>Inquiry Linked<br><input type="color" id="cfg_colorInquiry" value="${CONFIG.colors.inquiryLinked || '#ffcc00'}" style="margin-top:4px;cursor:pointer"></label>
+function makeDraggable(panel, handle) {
+  let ox = 0, oy = 0, mx = 0, my = 0;
+  handle.addEventListener('mousedown', e => {
+    if (e.target.closest('button')) return;
+    e.preventDefault();
+    const rect = panel.getBoundingClientRect();
+    ox = rect.left; oy = rect.top; mx = e.clientX; my = e.clientY;
+    panel.style.right = 'auto';
+    panel.style.left = ox + 'px';
+    panel.style.top = oy + 'px';
+    const move = e2 => {
+      panel.style.top = (oy + e2.clientY - my) + 'px';
+      panel.style.left = (ox + e2.clientX - mx) + 'px';
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
+
+/* ===================== ALIAS UI ===================== */
+
+function parseAliasGroups(text) {
+  if (!text) return [];
+  return text.split('\n').map(l => l.trim()).filter(l => l && l.includes('=')).map(l => {
+    const eqIdx = l.indexOf('=');
+    const main = l.slice(0, eqIdx).trim();
+    const aliases = l.slice(eqIdx + 1).split(',').map(a => a.trim()).filter(Boolean);
+    return { main, aliases };
+  });
+}
+
+function serializeAliasGroups(groups) {
+  return groups.map(g => `${g.main} = ${g.aliases.join(', ')}`).join('\n');
+}
+
+function buildAliasCard(group) {
+  const card = document.createElement('div');
+  card.className = 'cr-alias-card';
+
+  const chipsHTML = group.aliases.map(a => `<span class="cr-chip-xs">${a}</span>`).join('');
+  const editChipsHTML = group.aliases.map(a =>
+    `<span class="cr-chip">${a}<button class="cr-chip-del" data-val="${a}">×</button></span>`
+  ).join('');
+
+  card.innerHTML = `
+    <div class="cr-alias-head">
+      <span class="cr-alias-main">${group.main || '<sin nombre>'}</span>
+      <span class="cr-alias-count">${group.aliases.length} alias</span>
+      <div class="cr-alias-actions">
+        <button class="cr-alias-toggle" title="Editar">✏️</button>
+        <button class="cr-alias-remove" title="Eliminar">✕</button>
       </div>
-    </div>`;
+    </div>
+    <div class="cr-alias-chips-row">${chipsHTML}</div>
+    <div class="cr-alias-edit-form">
+      <div class="cr-alias-label-sm">Nombre principal</div>
+      <input class="cr-alias-main-input" value="${group.main}" placeholder="ej: capital one">
+      <div class="cr-alias-label-sm">Aliases — Enter o coma para agregar</div>
+      <div class="cr-tags cr-alias-chips-edit">${editChipsHTML}<input class="cr-tags-in" placeholder="alias..."></div>
+    </div>
+  `;
 
-  const buttons = `
-    <div style="display:flex;gap:10px;margin-top:10px">
-      <button id="configSaveBtn" style="flex:1;padding:10px;background:#00ff88;color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:bold">💾 Guardar</button>
-      <button id="configResetBtn" style="flex:1;padding:10px;background:#333;color:#fff;border:none;border-radius:8px;cursor:pointer">🔄 Restaurar</button>
-    </div>`;
+  const editContainer = card.querySelector('.cr-alias-chips-edit');
+  editContainer.querySelectorAll('.cr-chip-del').forEach(btn => {
+    btn.onclick = () => btn.closest('.cr-chip').remove();
+  });
+  const editInput = editContainer.querySelector('.cr-tags-in');
+  editInput.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ',') && editInput.value.trim()) {
+      e.preventDefault();
+      const val = editInput.value.trim().replace(/,$/, '').toLowerCase();
+      if (val && !getTagValues(editContainer).includes(val)) {
+        const chip = document.createElement('span');
+        chip.className = 'cr-chip';
+        chip.innerHTML = `${val}<button class="cr-chip-del" data-val="${val}">×</button>`;
+        chip.querySelector('.cr-chip-del').onclick = () => chip.remove();
+        editContainer.insertBefore(chip, editInput);
+      }
+      editInput.value = '';
+    } else if (e.key === 'Backspace' && !editInput.value) {
+      const chips = editContainer.querySelectorAll('.cr-chip');
+      if (chips.length) chips[chips.length - 1].remove();
+    }
+  });
+  editContainer.addEventListener('click', () => editInput.focus());
 
-  panel.innerHTML = header + fields + colorPickers + buildFieldOrderHTML() + buildAliasHTML() + buttons;
-  document.body.appendChild(panel);
-
-  document.getElementById("configCloseBtn").onclick = () => panel.remove();
-  document.getElementById("configSaveBtn").onclick = () => {
-    CONFIG_FIELDS.forEach(f => {
-      CONFIG[f.key] = document.getElementById(`cfg_${f.id}`).value
-        .split("\n").map(s => s.trim().toLowerCase()).filter(Boolean);
-    });
-    CONFIG.colors.open = document.getElementById("cfg_colorOpen").value;
-    CONFIG.colors.closedPositive = document.getElementById("cfg_colorClosed").value;
-    CONFIG.colors.inquiryLinked = document.getElementById("cfg_colorInquiry").value;
-    const order = new Array(4);
-    ACCOUNT_FIELDS.forEach(f => {
-      const pos = parseInt(document.getElementById(`fieldOrder_${f.key}`).value) - 1;
-      order[pos] = f.key;
-    });
-    CONFIG.fieldOrder = order.filter(Boolean);
-    ACCOUNT_FIELDS.forEach(f => { if (!CONFIG.fieldOrder.includes(f.key)) CONFIG.fieldOrder.push(f.key); });
-    CONFIG.aliases = document.getElementById("cfg_aliases").value.trim();
-    saveConfig(CONFIG);
-    panel.remove();
-    showToast("✅ Configuración guardada", "#00ff88");
+  card.querySelector('.cr-alias-toggle').onclick = () => {
+    const form = card.querySelector('.cr-alias-edit-form');
+    const isOpen = form.classList.toggle('open');
+    card.classList.toggle('expanded', isOpen);
+    if (!isOpen) {
+      const mainVal = card.querySelector('.cr-alias-main-input').value.trim();
+      const aliases = getTagValues(editContainer);
+      card.querySelector('.cr-alias-main').textContent = mainVal || '<sin nombre>';
+      card.querySelector('.cr-alias-count').textContent = `${aliases.length} alias`;
+      card.querySelector('.cr-alias-chips-row').innerHTML = aliases.map(a => `<span class="cr-chip-xs">${a}</span>`).join('');
+    }
   };
 
-  document.getElementById("configResetBtn").onclick = () => {
-    if (confirm("¿Restaurar configuración por defecto?")) {
+  card.querySelector('.cr-alias-remove').onclick = () => card.remove();
+
+  return card;
+}
+
+function setupAliasPane(pane, initialText) {
+  const list = pane.querySelector('#crAliasList');
+  const search = pane.querySelector('#crAliasSearch');
+  const addBtn = pane.querySelector('#crAliasAddBtn');
+
+  parseAliasGroups(initialText).forEach(g => list.appendChild(buildAliasCard(g)));
+
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    list.querySelectorAll('.cr-alias-card').forEach(card => {
+      const main = card.querySelector('.cr-alias-main-input').value.toLowerCase();
+      const aliases = getTagValues(card.querySelector('.cr-alias-chips-edit')).join(' ').toLowerCase();
+      card.style.display = (!q || main.includes(q) || aliases.includes(q)) ? '' : 'none';
+    });
+    list.querySelector('.cr-alias-empty')?.remove();
+    const visible = [...list.querySelectorAll('.cr-alias-card')].filter(c => c.style.display !== 'none');
+    if (q && !visible.length) {
+      const empty = document.createElement('div');
+      empty.className = 'cr-alias-empty';
+      empty.textContent = `Sin resultados para "${search.value}"`;
+      list.appendChild(empty);
+    }
+  });
+
+  addBtn.onclick = () => {
+    search.value = '';
+    list.querySelectorAll('.cr-alias-card').forEach(c => c.style.display = '');
+    list.querySelector('.cr-alias-empty')?.remove();
+    const card = buildAliasCard({ main: '', aliases: [] });
+    list.insertBefore(card, list.firstChild);
+    card.querySelector('.cr-alias-toggle').click();
+    card.querySelector('.cr-alias-main-input').focus();
+  };
+}
+
+function getAliasesText(pane) {
+  return serializeAliasGroups(
+    [...pane.querySelectorAll('.cr-alias-card')].map(card => ({
+      main: card.querySelector('.cr-alias-main-input').value.trim(),
+      aliases: getTagValues(card.querySelector('.cr-alias-chips-edit'))
+    })).filter(g => g.main)
+  );
+}
+
+/* ===================== CONFIG PANEL ===================== */
+
+function openConfigPanel() {
+  document.getElementById('clasificadorConfigPanel')?.remove();
+  const panel = document.createElement('div');
+  panel.id = 'clasificadorConfigPanel';
+
+  const sortedFields = [...ACCOUNT_FIELDS].sort((a, b) => {
+    const ia = CONFIG.fieldOrder.indexOf(a.key);
+    const ib = CONFIG.fieldOrder.indexOf(b.key);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
+  const fieldItemsHTML = sortedFields.map((f, i) => `
+    <div class="cr-fitem" data-key="${f.key}">
+      <span class="cr-fitem-grip">⠿</span>
+      <span class="cr-fitem-name">${f.label}</span>
+      <span class="cr-fitem-num">#${i + 1}</span>
+    </div>`).join('');
+
+  const personalFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
+  const personalItemsHTML = personalFields.map(f => `
+    <div class="cr-fitem" data-key="${f.key}" data-label="${f.label}">
+      <span class="cr-fitem-grip">⠿</span>
+      <label class="cr-toggle-wrap">
+        <input type="checkbox" class="cr-fitem-toggle" ${f.enabled ? 'checked' : ''}>
+        <span class="cr-toggle-ui"></span>
+      </label>
+      <span class="cr-fitem-name">${f.label}</span>
+    </div>`).join('');
+
+  panel.innerHTML = `
+    <div class="cr-ph" id="crCfgHandle">
+      <div class="cr-ph-title">⚙️ Configuraciones</div>
+      <button class="cr-x" id="crCfgClose">✕</button>
+    </div>
+    <div class="cr-tabs">
+      <button class="cr-tab active" data-tab="agencies">Agencias</button>
+      <button class="cr-tab" data-tab="statuses">Estados</button>
+      <button class="cr-tab" data-tab="colors">Colores</button>
+      <button class="cr-tab" data-tab="fields">Campos</button>
+      <button class="cr-tab" data-tab="aliases">Aliases</button>
+      <button class="cr-tab" data-tab="personal">Personal</button>
+    </div>
+    <div class="cr-body">
+      <div class="cr-pane active" id="cr-pane-agencies">
+        <div class="cr-lbl">Agencias Colectoras — Enter o coma para agregar</div>
+        <div class="cr-tags" id="crTagsAgencies"><input class="cr-tags-in" placeholder="ej: lvnv, midland..."></div>
+        <div class="cr-tag-hint">Backspace para eliminar el último</div>
+      </div>
+      <div class="cr-pane" id="cr-pane-statuses">
+        <div class="cr-lbl">Account Status — Cerrada Positiva</div>
+        <textarea class="cr-ta" id="cfg_closedStatuses" rows="3">${CONFIG.closedStatuses.join('\n')}</textarea>
+        <div class="cr-lbl">Payment Status — Cerrada Positiva</div>
+        <textarea class="cr-ta" id="cfg_paymentStatuses" rows="2">${CONFIG.paymentStatuses.join('\n')}</textarea>
+        <div class="cr-lbl">Estados Negativos</div>
+        <textarea class="cr-ta" id="cfg_negativeStatuses" rows="4">${CONFIG.negativeStatuses.join('\n')}</textarea>
+      </div>
+      <div class="cr-pane" id="cr-pane-colors">
+        <div class="cr-lbl">Colores de Resaltado</div>
+        <div class="cr-colors">
+          <div class="cr-clr"><input type="color" id="cfg_colorOpen" value="${CONFIG.colors.open}"><span>Open</span></div>
+          <div class="cr-clr"><input type="color" id="cfg_colorClosed" value="${CONFIG.colors.closedPositive}"><span>Closed+</span></div>
+          <div class="cr-clr"><input type="color" id="cfg_colorInquiry" value="${CONFIG.colors.inquiryLinked || '#ffcc00'}"><span>Inquiry</span></div>
+        </div>
+      </div>
+      <div class="cr-pane" id="cr-pane-fields">
+        <div class="cr-lbl">Arrastrá para reordenar los campos del output</div>
+        <div class="cr-fields" id="crFieldList">${fieldItemsHTML}</div>
+      </div>
+      <div class="cr-pane" id="cr-pane-aliases">
+        <div class="cr-alias-search-row">
+          <input id="crAliasSearch" placeholder="Buscar acreedor o alias...">
+          <button class="cr-alias-add-btn" id="crAliasAddBtn">+ Agregar</button>
+        </div>
+        <div id="crAliasList"></div>
+      </div>
+      <div class="cr-pane" id="cr-pane-personal">
+        <div class="cr-lbl">Activá y reordenná los campos del cliente en el output</div>
+        <div class="cr-fields" id="crPersonalList">${personalItemsHTML}</div>
+      </div>
+    </div>
+    <div class="cr-footer">
+      <button class="cr-btn cr-btn-ok" id="crCfgSave">💾 Guardar</button>
+      <button class="cr-btn cr-btn-rst" id="crCfgReset">🔄 Restaurar</button>
+    </div>
+  `;
+
+  document.body.appendChild(panel);
+
+  panel.querySelectorAll('.cr-tab').forEach(tab => {
+    tab.onclick = () => {
+      panel.querySelectorAll('.cr-tab').forEach(t => t.classList.remove('active'));
+      panel.querySelectorAll('.cr-pane').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      panel.querySelector(`#cr-pane-${tab.dataset.tab}`)?.classList.add('active');
+    };
+  });
+
+  setupTagInput(document.getElementById('crTagsAgencies'), CONFIG.agencies);
+  setupFieldDrag(document.getElementById('crFieldList'));
+  setupFieldDrag(document.getElementById('crPersonalList'));
+  setupAliasPane(panel.querySelector('#cr-pane-aliases'), CONFIG.aliases || '');
+  makeDraggable(panel, panel.querySelector('#crCfgHandle'));
+
+  document.getElementById('crCfgClose').onclick = () => panel.remove();
+
+  document.getElementById('crCfgSave').onclick = () => {
+    CONFIG.agencies = getTagValues(document.getElementById('crTagsAgencies'));
+    CONFIG.closedStatuses = document.getElementById('cfg_closedStatuses').value
+      .split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
+    CONFIG.paymentStatuses = document.getElementById('cfg_paymentStatuses').value
+      .split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
+    CONFIG.negativeStatuses = document.getElementById('cfg_negativeStatuses').value
+      .split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
+    CONFIG.colors.open = document.getElementById('cfg_colorOpen').value;
+    CONFIG.colors.closedPositive = document.getElementById('cfg_colorClosed').value;
+    CONFIG.colors.inquiryLinked = document.getElementById('cfg_colorInquiry').value;
+    CONFIG.aliases = getAliasesText(panel.querySelector('#cr-pane-aliases'));
+    CONFIG.fieldOrder = [...document.getElementById('crFieldList').querySelectorAll('.cr-fitem')]
+      .map(item => item.dataset.key);
+    CONFIG.personalFields = [...document.getElementById('crPersonalList').querySelectorAll('.cr-fitem')]
+      .map(item => ({
+        key: item.dataset.key,
+        label: item.dataset.label,
+        enabled: item.querySelector('.cr-fitem-toggle').checked
+      }));
+    saveConfig(CONFIG);
+    panel.remove();
+    showToast('✅ Configuración guardada', '#00ff88');
+  };
+
+  document.getElementById('crCfgReset').onclick = () => {
+    if (confirm('¿Restaurar configuración por defecto?')) {
       CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
       saveConfig(CONFIG);
       panel.remove();
-      showToast("🔄 Configuración restaurada", "#ffcc00");
+      showToast('🔄 Configuración restaurada', '#ffcc00');
     }
   };
 }
 
-/* ===================== BUTTON ANIMATIONS ===================== */
+/* ===================== STYLES ===================== */
 
 const buttonAnimationStyles = `
-  @keyframes clasificadorGlow {
-    0%, 100% { box-shadow: 0 0 10px #00ff88, 0 0 20px #00ff8844; }
-    50% { box-shadow: 0 0 20px #00ff88, 0 0 30px #00ff8866; }
-  }
-  @keyframes clasificadorPulse {
-    0%, 100% { transform: scale(1); box-shadow: 0 0 5px #ff6600, 0 0 15px #ff660044; }
-    50% { transform: scale(1.05); box-shadow: 0 0 15px #ff6600, 0 0 25px #ff660066; }
-  }
-  @keyframes clasificadorSuccess {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-  }
-  .clasificador-glow { animation: clasificadorGlow 2s ease-in-out infinite; }
-  .clasificador-pulse { animation: clasificadorPulse 0.8s ease-in-out infinite; }
-  .clasificador-success { animation: clasificadorSuccess 0.6s ease-in-out; }
+  @keyframes crGlow { 0%,100%{box-shadow:0 0 10px #00ff88,0 0 20px #00ff8844} 50%{box-shadow:0 0 20px #00ff88,0 0 30px #00ff8866} }
+  @keyframes crPulse { 0%,100%{transform:scale(1);box-shadow:0 0 5px #ff6600,0 0 15px #ff660044} 50%{transform:scale(1.05);box-shadow:0 0 15px #ff6600,0 0 25px #ff660066} }
+  @keyframes crSuccessAnim { 0%{transform:scale(1)} 50%{transform:scale(1.1)} 100%{transform:scale(1)} }
+  @keyframes crSlideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
+  @keyframes crFadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes crScaleIn { from{opacity:0;transform:translate(-50%,-50%) scale(0.93)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
+
+  /* Toolbar */
+  #crToolbar { position:fixed; top:120px; right:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; gap:5px; }
+  #clasificadorBTN { width:48px; height:48px; background:#111; color:#fff; border:2px solid #00ff8844; border-radius:12px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
+  #clasificadorBTN:hover:not(:disabled) { background:#1a1a1a; border-color:#00ff88; }
+  #clasificadorBTN:disabled { cursor:not-allowed; opacity:0.8; }
+  #clasificadorBTN .cr-ver { font-size:9px; color:#555; font-family:monospace; margin-top:2px; }
+  #crSettingsBtn { width:36px; height:36px; background:#111; color:#555; border:1px solid #222; border-radius:8px; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; transition:all 0.25s ease; }
+  #crSettingsBtn:hover { color:#fff; border-color:#444; background:#1a1a1a; transform:rotate(45deg); }
+  .clasificador-glow { animation:crGlow 2s ease-in-out infinite; }
+  .clasificador-pulse { animation:crPulse 0.8s ease-in-out infinite; }
+  .clasificador-success { animation:crSuccessAnim 0.6s ease-in-out; }
+
+  /* Config Panel */
+  #clasificadorConfigPanel { position:fixed; top:70px; right:70px; z-index:999999; background:#161616; color:#fff; border-radius:14px; width:440px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 20px 50px rgba(0,0,0,0.75); animation:crSlideIn 0.25s ease; overflow:hidden; }
+  .cr-ph { padding:15px 16px 0; display:flex; justify-content:space-between; align-items:center; cursor:grab; flex-shrink:0; }
+  .cr-ph:active { cursor:grabbing; }
+  .cr-ph-title { font-size:14px; font-weight:bold; }
+  .cr-x { width:26px; height:26px; border-radius:50%; background:#222; border:none; color:#666; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+  .cr-x:hover { background:#ff4444; color:#fff; }
+  .cr-tabs { display:flex; gap:2px; padding:12px 16px 0; border-bottom:1px solid #222; margin-top:10px; overflow-x:auto; flex-shrink:0; }
+  .cr-tabs::-webkit-scrollbar { height:0; }
+  .cr-tab { padding:6px 10px; border:none; background:transparent; color:#555; cursor:pointer; font-size:12px; border-radius:6px 6px 0 0; transition:all 0.2s; white-space:nowrap; position:relative; bottom:-1px; flex:1; text-align:center; }
+  .cr-tab:hover { color:#bbb; background:#1c1c1c; }
+  .cr-tab.active { color:#fff; background:#1c1c1c; border-bottom:2px solid #00ff88; }
+  .cr-body { flex:1; overflow-y:auto; padding:14px 16px; min-height:0; }
+  .cr-body::-webkit-scrollbar { width:3px; }
+  .cr-body::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
+  .cr-pane { display:none; animation:crFadeIn 0.18s ease; }
+  .cr-pane.active { display:block; }
+  .cr-lbl { font-size:11px; color:#666; margin-bottom:5px; margin-top:12px; }
+  .cr-lbl:first-child { margin-top:0; }
+  .cr-ta { width:100%; background:#111; color:#ddd; border:1px solid #222; border-radius:7px; padding:9px; font-size:12px; box-sizing:border-box; resize:vertical; font-family:monospace; transition:border-color 0.2s; }
+  .cr-ta:focus { outline:none; border-color:#333; }
+  .cr-tags { background:#111; border:1px solid #222; border-radius:7px; padding:7px; display:flex; flex-wrap:wrap; gap:5px; min-height:52px; cursor:text; transition:border-color 0.2s; }
+  .cr-tags:focus-within { border-color:#333; }
+  .cr-chip { background:#1d1d1d; border:1px solid #2a2a2a; color:#ccc; padding:3px 8px 3px 9px; border-radius:20px; font-size:11px; display:flex; align-items:center; gap:5px; animation:crFadeIn 0.15s; }
+  .cr-chip-del { cursor:pointer; color:#444; line-height:1; background:none; border:none; padding:0; font-size:13px; transition:color 0.15s; }
+  .cr-chip-del:hover { color:#ff4444; }
+  .cr-tags-in { background:transparent; border:none; outline:none; color:#ccc; font-size:11px; flex:1; min-width:80px; padding:2px 3px; }
+  .cr-tag-hint { font-size:10px; color:#444; margin-top:4px; }
+  .cr-colors { display:flex; gap:14px; flex-wrap:wrap; margin-top:4px; }
+  .cr-clr { display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .cr-clr span { font-size:10px; color:#666; }
+  .cr-clr input[type=color] { width:42px; height:34px; border-radius:7px; border:1px solid #2a2a2a; cursor:pointer; background:none; padding:2px; }
+  .cr-fields { display:flex; flex-direction:column; gap:6px; margin-top:4px; }
+  .cr-fitem { background:#1a1a1a; border:1px solid #222; border-radius:8px; padding:9px 12px; display:flex; align-items:center; gap:9px; cursor:grab; font-size:12px; transition:all 0.2s; user-select:none; }
+  .cr-fitem:active { cursor:grabbing; }
+  .cr-fitem.cr-dragging { opacity:0.35; }
+  .cr-fitem.cr-dragover { border-color:#00ff88; background:#121f15; }
+  .cr-fitem-grip { color:#333; }
+  .cr-fitem-name { flex:1; color:#bbb; }
+  .cr-fitem-num { font-size:10px; color:#444; font-family:monospace; }
+  .cr-toggle-wrap { display:flex; align-items:center; flex-shrink:0; cursor:pointer; }
+  .cr-fitem-toggle { display:none; }
+  .cr-toggle-ui { width:28px; height:16px; background:#222; border:1px solid #2a2a2a; border-radius:8px; position:relative; transition:background 0.2s; }
+  .cr-toggle-ui::after { content:''; position:absolute; width:10px; height:10px; background:#444; border-radius:50%; top:2px; left:2px; transition:all 0.2s; }
+  .cr-fitem-toggle:checked + .cr-toggle-ui { background:#003a20; border-color:#00ff8855; }
+  .cr-fitem-toggle:checked + .cr-toggle-ui::after { left:14px; background:#00ff88; }
+  .cr-footer { padding:12px 16px; border-top:1px solid #1e1e1e; display:flex; gap:9px; flex-shrink:0; }
+  .cr-btn { flex:1; padding:10px; border:none; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:5px; }
+  .cr-btn-ok { background:#00ff88; color:#000; }
+  .cr-btn-ok:hover { background:#00d970; }
+  .cr-btn-rst { background:#1e1e1e; color:#666; border:1px solid #2a2a2a; }
+  .cr-btn-rst:hover { background:#252525; color:#ccc; }
+
+  /* Output Preview */
+  #crOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999997; animation:crFadeIn 0.2s ease; }
+  #crOutputPanel { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:14px; z-index:999999; width:540px; max-width:92vw; max-height:82vh; box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,0.8); display:flex; flex-direction:column; animation:crScaleIn 0.22s ease; }
+  .cr-out-head { padding:15px 18px; border-bottom:1px solid #1e1e1e; display:flex; justify-content:space-between; align-items:center; }
+  .cr-out-stats { padding:10px 18px; border-bottom:1px solid #1a1a1a; display:flex; gap:8px; flex-wrap:wrap; }
+  .cr-stat { background:#1a1a1a; border:1px solid #222; border-radius:20px; padding:3px 10px; font-size:11px; color:#888; }
+  .cr-stat b { color:#ddd; }
+  #crOutputPanel textarea { flex:1; background:#0d0d0d; color:#aaa; border:none; padding:14px 18px; font-family:monospace; font-size:12px; resize:none; outline:none; line-height:1.7; min-height:220px; }
+  #crOutputPanel textarea::-webkit-scrollbar { width:3px; }
+  #crOutputPanel textarea::-webkit-scrollbar-thumb { background:#2a2a2a; }
+  .cr-out-foot { padding:12px 18px; border-top:1px solid #1e1e1e; display:flex; gap:9px; }
+  .cr-copy-btn { flex:1; padding:11px; background:#00ff88; color:#000; border:none; border-radius:9px; cursor:pointer; font-weight:bold; font-size:13px; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:7px; }
+  .cr-copy-btn:hover { background:#00d970; }
+  .cr-copy-btn.copied { background:#00aaff; color:#fff; }
+  .cr-dismiss-btn { padding:11px 16px; background:#1e1e1e; color:#666; border:1px solid #2a2a2a; border-radius:9px; cursor:pointer; font-size:13px; transition:all 0.2s; }
+  .cr-dismiss-btn:hover { background:#252525; color:#ccc; }
+
+  /* Alias Cards */
+  .cr-alias-card { background:#1a1a1a; border:1px solid #222; border-radius:9px; margin-bottom:7px; overflow:hidden; transition:border-color 0.2s; }
+  .cr-alias-card.expanded { border-color:#2e2e2e; }
+  .cr-alias-head { display:flex; align-items:center; gap:8px; padding:9px 12px; }
+  .cr-alias-main { flex:1; font-size:12px; color:#ccc; font-weight:600; }
+  .cr-alias-count { font-size:10px; color:#444; font-family:monospace; white-space:nowrap; }
+  .cr-alias-actions { display:flex; gap:4px; }
+  .cr-alias-toggle, .cr-alias-remove { width:22px; height:22px; border-radius:5px; border:none; cursor:pointer; font-size:11px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; padding:0; }
+  .cr-alias-toggle { background:#222; color:#666; }
+  .cr-alias-toggle:hover { background:#2a2a2a; color:#ccc; }
+  .cr-alias-remove { background:#1e1e1e; color:#555; }
+  .cr-alias-remove:hover { background:#ff4444; color:#fff; }
+  .cr-alias-chips-row { padding:0 12px 8px; display:flex; flex-wrap:wrap; gap:4px; }
+  .cr-chip-xs { background:#111; border:1px solid #222; color:#777; padding:2px 7px; border-radius:20px; font-size:10px; }
+  .cr-alias-edit-form { border-top:1px solid #1e1e1e; padding:10px 12px; display:none; background:#141414; }
+  .cr-alias-edit-form.open { display:block; animation:crFadeIn 0.15s ease; }
+  .cr-alias-label-sm { font-size:10px; color:#555; margin-bottom:4px; margin-top:8px; }
+  .cr-alias-label-sm:first-child { margin-top:0; }
+  .cr-alias-main-input { width:100%; background:#111; color:#ddd; border:1px solid #222; border-radius:6px; padding:6px 8px; font-size:12px; box-sizing:border-box; outline:none; transition:border-color 0.2s; margin-bottom:6px; }
+  .cr-alias-main-input:focus { border-color:#333; }
+  .cr-alias-search-row { display:flex; gap:7px; margin-bottom:10px; }
+  .cr-alias-search-row input { flex:1; background:#111; color:#ccc; border:1px solid #222; border-radius:7px; padding:7px 10px; font-size:12px; outline:none; transition:border-color 0.2s; }
+  .cr-alias-search-row input:focus { border-color:#333; }
+  .cr-alias-add-btn { background:#00ff88; color:#000; border:none; border-radius:7px; padding:7px 12px; font-size:11px; font-weight:bold; cursor:pointer; white-space:nowrap; transition:background 0.2s; }
+  .cr-alias-add-btn:hover { background:#00d970; }
+  .cr-alias-empty { text-align:center; color:#444; font-size:12px; padding:20px 0; }
 `;
 
 const styleEl = document.createElement('style');
@@ -439,20 +794,18 @@ function setButtonAnimation(status) {
 /* ===================== UI HELPERS ===================== */
 
 function addButton() {
-  if (document.getElementById("clasificadorBTN")) return;
-  const btn = document.createElement("button");
-  btn.id = "clasificadorBTN";
-  btn.innerHTML = `📋<br><span style="font-size:10px">${SCRIPT_VERSION}</span>`;
-  btn.setAttribute("aria-label", `Ejecutar clasificador (v${SCRIPT_VERSION})`);
-  Object.assign(btn.style, {
-    position: "fixed", top: "120px", right: "20px", zIndex: "99999",
-    padding: "12px", background: "#111", color: "#fff", borderRadius: "8px", cursor: "pointer",
-    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", lineHeight: "1.2",
-    transition: "all 0.3s ease", border: "2px solid #00ff8844"
-  });
-  btn.onclick = run;
-  btn.addEventListener("contextmenu", e => { e.preventDefault(); openConfigPanel(); });
-  document.body.appendChild(btn);
+  if (document.getElementById('crToolbar')) return;
+  const toolbar = document.createElement('div');
+  toolbar.id = 'crToolbar';
+  toolbar.innerHTML = `
+    <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
+      📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
+    </button>
+    <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
+  `;
+  document.body.appendChild(toolbar);
+  document.getElementById('clasificadorBTN').onclick = run;
+  document.getElementById('crSettingsBtn').onclick = openConfigPanel;
   setButtonAnimation('idle');
 }
 
@@ -527,25 +880,49 @@ function removeProgressPanel() {
   document.getElementById("clasificadorProgress")?.remove();
 }
 
-function showStats({ accounts, inquiries, personal, skippedOpen, skippedClosed, linkedInquiries }) {
-  const panel = document.createElement("div");
-  Object.assign(panel.style, {
-    position: "fixed", top: "200px", right: "20px",
-    background: "#111", color: "#fff", padding: "15px",
-    borderRadius: "10px", zIndex: "99999", fontSize: "14px",
-    boxShadow: "0 0 10px rgba(0,0,0,0.4)"
-  });
+function showOutputPreview(output, stats) {
+  document.getElementById('crOverlay')?.remove();
+  document.getElementById('crOutputPanel')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'crOverlay';
+  document.body.appendChild(overlay);
+
+  const { accounts, inquiries, personal, skippedOpen, skippedClosed, linkedInquiries } = stats;
+  const panel = document.createElement('div');
+  panel.id = 'crOutputPanel';
   panel.innerHTML = `
-    <b>📊 Pulse Stats</b><br><br>
-    Accounts: ${accounts}<br>
-    Inquiries: ${inquiries}<br>
-    Personal Info: ${personal}<br>
-    <span style="color:${CONFIG.colors.open}">Skipped (Open): ${skippedOpen}</span><br>
-    <span style="color:${CONFIG.colors.closedPositive}">Skipped (Closed Positive): ${skippedClosed}</span><br>
-    <span style="color:${CONFIG.colors.inquiryLinked || '#ffcc00'}">Inquiries (Linked Open): ${linkedInquiries}</span>
+    <div class="cr-out-head">
+      <b>📋 Resultado</b>
+      <button class="cr-x" id="crOutClose">✕</button>
+    </div>
+    <div class="cr-out-stats">
+      <span class="cr-stat"><b>${accounts}</b> cuentas</span>
+      <span class="cr-stat"><b>${inquiries}</b> inquiries</span>
+      <span class="cr-stat"><b>${personal}</b> personal</span>
+      <span class="cr-stat" style="color:${CONFIG.colors.open}"><b>${skippedOpen}</b> open</span>
+      <span class="cr-stat" style="color:${CONFIG.colors.closedPositive}"><b>${skippedClosed}</b> closed+</span>
+      <span class="cr-stat" style="color:${CONFIG.colors.inquiryLinked || '#ffcc00'}"><b>${linkedInquiries}</b> linked</span>
+    </div>
+    <textarea readonly>${output}</textarea>
+    <div class="cr-out-foot">
+      <button class="cr-copy-btn" id="crCopyBtn">📋 Copiar al Clipboard</button>
+      <button class="cr-dismiss-btn" id="crOutDismiss">Cerrar</button>
+    </div>
   `;
   document.body.appendChild(panel);
-  setTimeout(() => panel.remove(), 8000);
+
+  const close = () => { overlay.remove(); panel.remove(); };
+  overlay.onclick = close;
+  document.getElementById('crOutClose').onclick = close;
+  document.getElementById('crOutDismiss').onclick = close;
+  document.getElementById('crCopyBtn').onclick = async () => {
+    await navigator.clipboard.writeText(output);
+    const btn = document.getElementById('crCopyBtn');
+    btn.textContent = '✅ Copiado!';
+    btn.classList.add('copied');
+    setTimeout(() => close(), 800);
+  };
 }
 
 /* ===================== DOM HELPERS ===================== */
@@ -929,12 +1306,15 @@ function formatAccountList(label, accounts, NL) {
  */
 function getClientData() {
   return {
-    name: queryOne(SELECTORS.client.name)?.innerText.trim() || "",
+    name:    queryOne(SELECTORS.client.name)?.innerText.trim() || "",
     address: queryOne(SELECTORS.client.address)?.innerText.replace(/\n/g, ", ").trim() || "",
-    ssn: queryOne(SELECTORS.client.ssn)?.innerText.trim() || "",
-    dob: queryOne(SELECTORS.client.dob)?.innerText.trim() || "",
-    cell: queryOne(SELECTORS.client.cell)?.innerText.trim() || "",
-    email: queryOne(SELECTORS.client.email)?.innerText.trim() || ""
+    ssn:     queryOne(SELECTORS.client.ssn)?.innerText.trim() || "",
+    dob:     queryOne(SELECTORS.client.dob)?.innerText.trim() || "",
+    cell:    queryOne(SELECTORS.client.cell)?.innerText.trim() || "",
+    home:    queryOne(SELECTORS.client.home)?.innerText.trim() || "",
+    email:   queryOne(SELECTORS.client.email)?.innerText.trim() || "",
+    started: queryOne(SELECTORS.client.started)?.innerText.trim() || "",
+    id:      queryOne(SELECTORS.client.id)?.innerText.trim() || ""
   };
 }
 
@@ -1060,12 +1440,12 @@ async function run() {
     removeProgressPanel();
 
     let output = "";
-    output += `Name: ${CLIENT.name}` + NL;
-    output += `Address: ${CLIENT.address}` + NL;
-    output += `SSN: ${CLIENT.ssn}` + NL;
-    output += `DOB: ${CLIENT.dob}` + NL;
-    output += `Cell: ${CLIENT.cell}` + NL;
-    output += `Email: ${CLIENT.email}` + NL + NL;
+    const pFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
+    pFields.filter(f => f.enabled).forEach(f => {
+      const val = CLIENT[f.key];
+      if (val) output += `${f.label}: ${val}` + NL;
+    });
+    output += NL;
     output += formatAccountList("COLLECTION AGENCIES", COLLECTION_ACCOUNTS, NL);
     output += formatAccountList("ORIGINAL CREDITORS", ORIGINAL_ACCOUNTS, NL);
 
@@ -1080,7 +1460,8 @@ async function run() {
       PERSONAL.forEach(p => output += p + NL);
     }
 
-    showStats({
+    console.log(output);
+    showOutputPreview(output, {
       accounts: COLLECTION_ACCOUNTS.length + ORIGINAL_ACCOUNTS.length,
       inquiries: INQUIRIES.length,
       personal: PERSONAL.length,
@@ -1088,14 +1469,6 @@ async function run() {
       skippedClosed: SKIPPED_CLOSED,
       linkedInquiries: LINKED_INQUIRIES
     });
-
-    await navigator.clipboard.writeText(output);
-    console.log(output);
-
-    const col = COLLECTION_ACCOUNTS.length;
-    const orig = ORIGINAL_ACCOUNTS.length;
-    const inq = INQUIRIES.length;
-    showToast(`📋 Copiado — ${col} Collections, ${orig} Creditors, ${inq} Inquiries`, "#00ff88", 5000);
     setButtonAnimation('success');
 
     queryOne(".disputes-tab-choose-viewCompact")?.click();
