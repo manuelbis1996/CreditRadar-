@@ -1,18 +1,25 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      19.0
+// @version      19.5
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
-// @author       
+// @author
 // @match        https://pulse.disputeprocess.com/*
-// @grant        none
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_deleteValue
 // @updateURL    https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "19.0";
+const SCRIPT_VERSION = "19.5";
 
 const VERSION_NOTES = {
+  "19.5": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
+  "19.4": "🏷️ Toggle de etiqueta individual por campo en Campos",
+  "19.3": "🏷️ Toggle etiquetas en Campos y Personal | Fix toggle UI",
+  "19.2": "🔖 Etiquetas opcionales en info personal | SSN últimos 4 dígitos",
+  "19.1": "💾 Config persistente con GM_setValue | No se borra al cerrar el navegador",
   "19.0": "👤 Formato de info personal configurable | Campos on/off y reordenables",
   "18.9": "🎨 UI interactiva | Tabs, tag chips, drag & drop, output preview",
   "18.8": "🎬 Animaciones en botón | Brillo, pulso y destello",
@@ -154,7 +161,13 @@ const DEFAULT_CONFIG = {
     closedPositive: "#00aaff",
     inquiryLinked: "#ffcc00"
   },
-  fieldOrder: ["name", "number", "balance", "dateOpened"],
+  fieldOrder: [
+    { key: "name",       showLabel: true },
+    { key: "number",     showLabel: true },
+    { key: "balance",    showLabel: true },
+    { key: "dateOpened", showLabel: true }
+  ],
+  showPersonalLabels: true,
   personalFields: [
     { key: "name",    label: "Name",    enabled: true  },
     { key: "address", label: "Address", enabled: true  },
@@ -173,12 +186,17 @@ const DEFAULT_CONFIG = {
 
 function loadConfig() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = GM_getValue(STORAGE_KEY, null);
     if (saved) {
-      const parsed = JSON.parse(saved);
-      if (!parsed.fieldOrder) parsed.fieldOrder = DEFAULT_CONFIG.fieldOrder;
+      const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
+      if (!parsed.fieldOrder) {
+        parsed.fieldOrder = DEFAULT_CONFIG.fieldOrder;
+      } else if (parsed.fieldOrder.length && typeof parsed.fieldOrder[0] === "string") {
+        parsed.fieldOrder = parsed.fieldOrder.map(key => ({ key, showLabel: true }));
+      }
       if (!parsed.personalFields) parsed.personalFields = DEFAULT_CONFIG.personalFields;
       if (parsed.aliases === undefined) parsed.aliases = DEFAULT_ALIASES;
+      if (parsed.showPersonalLabels === undefined) parsed.showPersonalLabels = DEFAULT_CONFIG.showPersonalLabels;
       return parsed;
     }
   } catch (e) {
@@ -189,7 +207,7 @@ function loadConfig() {
 
 function saveConfig(config) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    GM_setValue(STORAGE_KEY, JSON.stringify(config));
   } catch (e) {
     console.error("[Clasificador] Error saving config:", e);
   }
@@ -508,17 +526,24 @@ function openConfigPanel() {
   panel.id = 'clasificadorConfigPanel';
 
   const sortedFields = [...ACCOUNT_FIELDS].sort((a, b) => {
-    const ia = CONFIG.fieldOrder.indexOf(a.key);
-    const ib = CONFIG.fieldOrder.indexOf(b.key);
+    const ia = CONFIG.fieldOrder.findIndex(f => f.key === a.key);
+    const ib = CONFIG.fieldOrder.findIndex(f => f.key === b.key);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
   });
 
-  const fieldItemsHTML = sortedFields.map((f, i) => `
+  const fieldItemsHTML = sortedFields.map((f, i) => {
+    const fc = CONFIG.fieldOrder.find(o => o.key === f.key) || { showLabel: true };
+    return `
     <div class="cr-fitem" data-key="${f.key}">
       <span class="cr-fitem-grip">⠿</span>
+      <label class="cr-toggle-wrap" title="Mostrar etiqueta">
+        <input type="checkbox" class="cr-fitem-label-toggle" ${fc.showLabel !== false ? 'checked' : ''}>
+        <span class="cr-toggle-ui"></span>
+      </label>
       <span class="cr-fitem-name">${f.label}</span>
       <span class="cr-fitem-num">#${i + 1}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   const personalFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
   const personalItemsHTML = personalFields.map(f => `
@@ -567,7 +592,7 @@ function openConfigPanel() {
         </div>
       </div>
       <div class="cr-pane" id="cr-pane-fields">
-        <div class="cr-lbl">Arrastrá para reordenar los campos del output</div>
+        <div class="cr-lbl">Toggle para mostrar/ocultar etiqueta por campo — Arrastrá para reordenar</div>
         <div class="cr-fields" id="crFieldList">${fieldItemsHTML}</div>
       </div>
       <div class="cr-pane" id="cr-pane-aliases">
@@ -578,6 +603,14 @@ function openConfigPanel() {
         <div id="crAliasList"></div>
       </div>
       <div class="cr-pane" id="cr-pane-personal">
+        <div class="cr-lbl">Opciones</div>
+        <div class="cr-fitem" style="margin-bottom:6px">
+          <label class="cr-toggle-wrap">
+            <input type="checkbox" class="cr-fitem-toggle" id="cfg_showPersonalLabels" ${CONFIG.showPersonalLabels ? 'checked' : ''}>
+            <span class="cr-toggle-ui"></span>
+          </label>
+          <span class="cr-fitem-name" style="margin-left:8px">Mostrar etiquetas (ej: Name: John)</span>
+        </div>
         <div class="cr-lbl">Activá y reordenná los campos del cliente en el output</div>
         <div class="cr-fields" id="crPersonalList">${personalItemsHTML}</div>
       </div>
@@ -620,7 +653,11 @@ function openConfigPanel() {
     CONFIG.colors.inquiryLinked = document.getElementById('cfg_colorInquiry').value;
     CONFIG.aliases = getAliasesText(panel.querySelector('#cr-pane-aliases'));
     CONFIG.fieldOrder = [...document.getElementById('crFieldList').querySelectorAll('.cr-fitem')]
-      .map(item => item.dataset.key);
+      .map(item => ({
+        key: item.dataset.key,
+        showLabel: item.querySelector('.cr-fitem-label-toggle').checked
+      }));
+    CONFIG.showPersonalLabels = document.getElementById('cfg_showPersonalLabels').checked;
     CONFIG.personalFields = [...document.getElementById('crPersonalList').querySelectorAll('.cr-fitem')]
       .map(item => ({
         key: item.dataset.key,
@@ -716,6 +753,27 @@ const buttonAnimationStyles = `
   .cr-btn-ok:hover { background:#00d970; }
   .cr-btn-rst { background:#1e1e1e; color:#666; border:1px solid #2a2a2a; }
   .cr-btn-rst:hover { background:#252525; color:#ccc; }
+
+  /* Version Modal */
+  #crVersionModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:18px; z-index:9999999; width:420px; max-width:94vw; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 30px 80px rgba(0,0,0,0.9); animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1); overflow:hidden; }
+  .cr-vm-header { padding:28px 26px 20px; background:linear-gradient(135deg,#0d1f12 0%,#111 60%); border-bottom:1px solid #1e1e1e; position:relative; }
+  .cr-vm-badge { display:inline-flex; align-items:center; gap:6px; background:#00ff8818; border:1px solid #00ff8840; color:#00ff88; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; margin-bottom:10px; }
+  .cr-vm-title { font-size:22px; font-weight:700; letter-spacing:-0.5px; }
+  .cr-vm-subtitle { font-size:12px; color:#555; margin-top:4px; }
+  .cr-vm-close { position:absolute; top:16px; right:16px; width:28px; height:28px; border-radius:50%; background:#222; border:none; color:#666; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+  .cr-vm-close:hover { background:#ff4444; color:#fff; }
+  .cr-vm-body { flex:1; overflow-y:auto; padding:18px 26px; }
+  .cr-vm-body::-webkit-scrollbar { width:3px; }
+  .cr-vm-body::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:2px; }
+  .cr-vm-entry { display:flex; gap:14px; padding:12px 0; border-bottom:1px solid #1a1a1a; }
+  .cr-vm-entry:last-child { border-bottom:none; }
+  .cr-vm-entry.current .cr-vm-ver { color:#00ff88; border-color:#00ff8840; background:#00ff8810; }
+  .cr-vm-ver { font-size:10px; font-family:monospace; font-weight:700; color:#444; border:1px solid #2a2a2a; border-radius:6px; padding:2px 7px; white-space:nowrap; align-self:flex-start; margin-top:1px; min-width:38px; text-align:center; }
+  .cr-vm-note { font-size:13px; color:#bbb; line-height:1.5; flex:1; }
+  .cr-vm-entry.current .cr-vm-note { color:#fff; }
+  .cr-vm-footer { padding:16px 26px; border-top:1px solid #1e1e1e; }
+  .cr-vm-btn { width:100%; padding:12px; background:#00ff88; color:#000; border:none; border-radius:10px; cursor:pointer; font-weight:700; font-size:14px; transition:all 0.2s; letter-spacing:0.2px; }
+  .cr-vm-btn:hover { background:#00d970; transform:translateY(-1px); box-shadow:0 4px 20px #00ff8840; }
 
   /* Output Preview */
   #crOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999997; animation:crFadeIn 0.2s ease; }
@@ -847,14 +905,50 @@ function showToast(message, color = "#00ff88", duration = 5000) {
   }, duration);
 }
 
+function showVersionModal() {
+  document.getElementById('crVersionOverlay')?.remove();
+  document.getElementById('crVersionModal')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'crVersionOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999998;animation:crFadeIn 0.2s ease';
+  document.body.appendChild(overlay);
+
+  const entriesHTML = Object.entries(VERSION_NOTES).map(([ver, note]) => `
+    <div class="cr-vm-entry${ver === SCRIPT_VERSION ? ' current' : ''}">
+      <span class="cr-vm-ver">v${ver}</span>
+      <span class="cr-vm-note">${note}</span>
+    </div>`).join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'crVersionModal';
+  modal.innerHTML = `
+    <div class="cr-vm-header">
+      <div class="cr-vm-badge">📶 CreditRadar</div>
+      <div class="cr-vm-title">¿Qué hay de nuevo?</div>
+      <div class="cr-vm-subtitle">Versión actual — v${SCRIPT_VERSION}</div>
+      <button class="cr-vm-close" id="crVmClose">✕</button>
+    </div>
+    <div class="cr-vm-body">${entriesHTML}</div>
+    <div class="cr-vm-footer">
+      <button class="cr-vm-btn" id="crVmOk">Entendido 🚀</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const close = () => { overlay.remove(); modal.remove(); };
+  overlay.onclick = close;
+  document.getElementById('crVmClose').onclick = close;
+  document.getElementById('crVmOk').onclick = close;
+}
+
 function checkVersionUpdate() {
   const versionKey = "clasificador_lastVersion";
-  const lastVersion = localStorage.getItem(versionKey);
-  
+  const lastVersion = GM_getValue(versionKey, null);
+
   if (lastVersion !== SCRIPT_VERSION) {
-    const notes = VERSION_NOTES[SCRIPT_VERSION] || "Versión actualizada";
-    showToast(`🎉 ¿Qué hay de nuevo?<br>${notes}`, "#ffcc00", 6000);
-    localStorage.setItem(versionKey, SCRIPT_VERSION);
+    GM_setValue(versionKey, SCRIPT_VERSION);
+    setTimeout(showVersionModal, 1200);
   }
 }
 
@@ -1281,14 +1375,24 @@ async function loadRoundDisputes() {
 /* ===================== OUTPUT FORMATTER ===================== */
 
 function formatAccount(a, NL) {
-  const fieldMap = {
-    name: `Account Name: ${a.name}`,
-    number: `Account Number: ${a.number || ""}`,
-    balance: `Balance: ${a.balance || ""}`,
-    dateOpened: `Date Opened: ${a.dateOpened || ""}`
-  };
   const order = CONFIG.fieldOrder || DEFAULT_CONFIG.fieldOrder;
-  let out = order.map(key => fieldMap[key]).filter(Boolean).join(NL) + NL;
+  const fieldValues = {
+    name: a.name,
+    number: a.number || "",
+    balance: a.balance || "",
+    dateOpened: a.dateOpened || ""
+  };
+  const fieldLabels = {
+    name: "Account Name",
+    number: "Account Number",
+    balance: "Balance",
+    dateOpened: "Date Opened"
+  };
+  let out = order.map(f => {
+    const val = fieldValues[f.key];
+    if (!val) return null;
+    return f.showLabel !== false ? `${fieldLabels[f.key]}: ${val}` : val;
+  }).filter(Boolean).join(NL) + NL;
   if (a.addresses?.length === 1) out += `Address: ${a.addresses[0]}${NL}`;
   else if (a.addresses?.length > 1) a.addresses.forEach((addr, i) => { out += `Address ${i + 1}: ${addr}${NL}`; });
   return out + NL;
@@ -1307,7 +1411,7 @@ function formatAccountList(label, accounts, NL) {
 function getClientData() {
   return {
     name:    queryOne(SELECTORS.client.name)?.innerText.trim() || "",
-    address: queryOne(SELECTORS.client.address)?.innerText.replace(/\n/g, ", ").trim() || "",
+    address: queryOne(SELECTORS.client.address)?.innerText.trim() || "",
     ssn:     queryOne(SELECTORS.client.ssn)?.innerText.trim() || "",
     dob:     queryOne(SELECTORS.client.dob)?.innerText.trim() || "",
     cell:    queryOne(SELECTORS.client.cell)?.innerText.trim() || "",
@@ -1441,9 +1545,16 @@ async function run() {
 
     let output = "";
     const pFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
+    const showLabels = CONFIG.showPersonalLabels !== false;
     pFields.filter(f => f.enabled).forEach(f => {
-      const val = CLIENT[f.key];
-      if (val) output += `${f.label}: ${val}` + NL;
+      let val = CLIENT[f.key];
+      if (!val) return;
+      if (f.key === "ssn") {
+        const digits = val.replace(/\D/g, "");
+        val = digits.slice(-4);
+      }
+      val = val.replace(/\n/g, NL);
+      output += showLabels ? `${f.label}: ${val}` + NL : val + NL;
     });
     output += NL;
     output += formatAccountList("COLLECTION AGENCIES", COLLECTION_ACCOUNTS, NL);
