@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      19.5
+// @version      19.6
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
-// @author
+// @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -12,9 +12,10 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "19.5";
+const SCRIPT_VERSION = "19.6";
 
 const VERSION_NOTES = {
+  "19.6": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
   "19.5": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
   "19.4": "🏷️ Toggle de etiqueta individual por campo en Campos",
   "19.3": "🏷️ Toggle etiquetas en Campos y Personal | Fix toggle UI",
