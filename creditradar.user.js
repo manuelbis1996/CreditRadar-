@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      19.7
+// @version      20.0
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -14,9 +14,10 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "19.7";
+const SCRIPT_VERSION = "20.0";
 
 const VERSION_NOTES = {
+  "20.0": "⚡ Turbocarga con MutationObservers y botonera flotante de cristal arrastrable",
   "19.7": "🚀 Notificación automática de actualizaciones con modal interactivo",
   "19.6": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
   "19.5": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
@@ -181,9 +182,10 @@ upgrade = upgrade bank, upgrade lending
       { key: "home", label: "Home", enabled: false },
       { key: "email", label: "Email", enabled: true },
       { key: "started", label: "Started", enabled: false },
-      { key: "id", label: "ID", enabled: false }
+      { key: "id",      label: "ID",      enabled: false }
     ],
-    aliases: DEFAULT_ALIASES
+    aliases: DEFAULT_ALIASES,
+    toolbarPos: { top: "120px", left: "calc(100vw - 80px)" }
   };
 
   /* ===================== CONFIG STORAGE ===================== */
@@ -201,6 +203,7 @@ upgrade = upgrade bank, upgrade lending
         if (!parsed.personalFields) parsed.personalFields = DEFAULT_CONFIG.personalFields;
         if (parsed.aliases === undefined) parsed.aliases = DEFAULT_ALIASES;
         if (parsed.showPersonalLabels === undefined) parsed.showPersonalLabels = DEFAULT_CONFIG.showPersonalLabels;
+        if (!parsed.toolbarPos) parsed.toolbarPos = DEFAULT_CONFIG.toolbarPos;
         return parsed;
       }
     } catch (e) {
@@ -370,28 +373,29 @@ upgrade = upgrade bank, upgrade lending
     });
   }
 
-  function makeDraggable(panel, handle) {
-    let ox = 0, oy = 0, mx = 0, my = 0;
-    handle.addEventListener('mousedown', e => {
-      if (e.target.closest('button')) return;
-      e.preventDefault();
-      const rect = panel.getBoundingClientRect();
-      ox = rect.left; oy = rect.top; mx = e.clientX; my = e.clientY;
-      panel.style.right = 'auto';
-      panel.style.left = ox + 'px';
-      panel.style.top = oy + 'px';
-      const move = e2 => {
-        panel.style.top = (oy + e2.clientY - my) + 'px';
-        panel.style.left = (ox + e2.clientX - mx) + 'px';
-      };
-      const up = () => {
-        document.removeEventListener('mousemove', move);
-        document.removeEventListener('mouseup', up);
-      };
-      document.addEventListener('mousemove', move);
-      document.addEventListener('mouseup', up);
-    });
-  }
+function makeDraggable(panel, handle, onDragEnd) {
+  let ox = 0, oy = 0, mx = 0, my = 0;
+  handle.addEventListener('mousedown', e => {
+    if (e.target.closest('button') && e.target !== handle) return;
+    e.preventDefault();
+    const rect = panel.getBoundingClientRect();
+    ox = rect.left; oy = rect.top; mx = e.clientX; my = e.clientY;
+    panel.style.right = 'auto';
+    panel.style.left = ox + 'px';
+    panel.style.top = oy + 'px';
+    const move = e2 => {
+      panel.style.top = (oy + e2.clientY - my) + 'px';
+      panel.style.left = (ox + e2.clientX - mx) + 'px';
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      if (onDragEnd) onDragEnd(panel.style.left, panel.style.top);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
 
   /* ===================== ALIAS UI ===================== */
 
@@ -694,7 +698,9 @@ upgrade = upgrade bank, upgrade lending
   @keyframes crScaleIn { from{opacity:0;transform:translate(-50%,-50%) scale(0.93)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
 
   /* Toolbar */
-  #crToolbar { position:fixed; top:120px; right:20px; z-index:99999; display:flex; flex-direction:column; align-items:center; gap:5px; }
+  #crToolbar { position:fixed; z-index:99999; display:flex; flex-direction:column; align-items:center; gap:5px; background:rgba(20,20,20,0.8); backdrop-filter:blur(8px); padding:8px 6px; border-radius:16px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 10px 30px rgba(0,0,0,0.5); transition: opacity 0.2s ease; }
+  #crToolbarGrip { width:100%; height:12px; cursor:grab; display:flex; justify-content:center; align-items:center; color:#555; font-size:10px; margin-bottom:2px; user-select:none; }
+  #crToolbarGrip:active { cursor:grabbing; color:#00ff88; }
   #clasificadorBTN { width:48px; height:48px; background:#111; color:#fff; border:2px solid #00ff8844; border-radius:12px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
   #clasificadorBTN:hover:not(:disabled) { background:#1a1a1a; border-color:#00ff88; }
   #clasificadorBTN:disabled { cursor:not-allowed; opacity:0.8; }
@@ -855,21 +861,34 @@ upgrade = upgrade bank, upgrade lending
 
   /* ===================== UI HELPERS ===================== */
 
-  function addButton() {
-    if (document.getElementById('crToolbar')) return;
-    const toolbar = document.createElement('div');
-    toolbar.id = 'crToolbar';
-    toolbar.innerHTML = `
+function addButton() {
+  if (document.getElementById('crToolbar')) return;
+  const toolbar = document.createElement('div');
+  toolbar.id = 'crToolbar';
+  
+  const tPos = CONFIG.toolbarPos || { top: "120px", left: "calc(100vw - 80px)" };
+  toolbar.style.top = tPos.top;
+  if (tPos.left) toolbar.style.left = tPos.left;
+  else toolbar.style.right = "20px";
+
+  toolbar.innerHTML = `
+    <div id="crToolbarGrip" title="Púlsame para arrastrar">⠿</div>
     <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
       📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
     </button>
     <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
   `;
-    document.body.appendChild(toolbar);
-    document.getElementById('clasificadorBTN').onclick = run;
-    document.getElementById('crSettingsBtn').onclick = openConfigPanel;
-    setButtonAnimation('idle');
-  }
+  document.body.appendChild(toolbar);
+  
+  makeDraggable(toolbar, document.getElementById('crToolbarGrip'), (left, top) => {
+    CONFIG.toolbarPos = { left, top };
+    saveConfig(CONFIG);
+  });
+  
+  document.getElementById('clasificadorBTN').onclick = run;
+  document.getElementById('crSettingsBtn').onclick = openConfigPanel;
+  setButtonAnimation('idle');
+}
 
   function highlight(item, color) {
     item.style.border = `3px solid ${color}`;
@@ -1102,27 +1121,38 @@ upgrade = upgrade bank, upgrade lending
 
   /* ===================== DOM HELPERS ===================== */
 
-  /**
-   * @template T
-   * @param {string} selector
-   * @param {ParentNode} parent
-   * @param {number} timeout
-   * @returns {Promise<T|null>}
-   */
-  async function waitForElement(selector, parent = document, timeout = 8000) {
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-      try {
-        const el = parent.querySelector(selector);
-        if (el) return el;
-      } catch (e) {
-        console.warn("[Clasificador] Query error:", e);
-      }
-      await SLEEP(120);
+/**
+ * @template T
+ * @param {string} selector
+ * @param {ParentNode} parent
+ * @param {number} timeout
+ * @returns {Promise<T|null>}
+ */
+function waitForElement(selector, parent = document, timeout = 8000) {
+  return new Promise(resolve => {
+    try {
+      const el = parent.querySelector(selector);
+      if (el) return resolve(el);
+
+      const observer = new MutationObserver(() => {
+        const found = parent.querySelector(selector);
+        if (found) {
+          observer.disconnect();
+          resolve(found);
+        }
+      });
+      observer.observe(parent, { childList: true, subtree: true });
+
+      setTimeout(() => {
+        observer.disconnect();
+        resolve(parent.querySelector(selector));
+      }, timeout);
+    } catch (e) {
+      console.warn("[Clasificador] Query error:", e);
+      resolve(null);
     }
-    console.warn(`[Clasificador] Timeout waiting for: ${selector}`);
-    return null;
-  }
+  });
+}
 
   /**
    * @param {string} selector
@@ -1518,7 +1548,7 @@ upgrade = upgrade bank, upgrade lending
 
   async function run() {
     console.clear();
-    console.log("🚀 CLASIFICADOR V18.0");
+    console.log("🚀 CLASIFICADOR V" + SCRIPT_VERSION);
     setButtonAnimation('pulse');
 
     try {
