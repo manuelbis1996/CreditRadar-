@@ -1672,10 +1672,16 @@ async function run() {
   }
 }
 
-window.addEventListener("load", () => {
+function initClasificador() {
   checkVersionUpdate();
   setTimeout(checkForUpdates, 2000);
   setTimeout(addButton, 3000);
-});
+}
+
+if (document.readyState === 'complete') {
+  initClasificador();
+} else {
+  window.addEventListener("load", initClasificador);
+}
 
 })();
