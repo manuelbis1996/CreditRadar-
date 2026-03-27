@@ -1,20 +1,22 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      19.6
+// @version      19.7
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
+// @grant        GM_xmlhttpRequest
 // @updateURL    https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "19.6";
+const SCRIPT_VERSION = "19.7";
 
 const VERSION_NOTES = {
+  "19.7": "🚀 Notificación automática de actualizaciones con modal interactivo",
   "19.6": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
   "19.5": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
   "19.4": "🏷️ Toggle de etiqueta individual por campo en Campos",
@@ -953,6 +955,83 @@ function checkVersionUpdate() {
   }
 }
 
+function showUpdateAvailableModal(latestVer) {
+  document.getElementById('crUpdateOverlay')?.remove();
+  document.getElementById('crUpdateModal')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'crUpdateOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999998;animation:crFadeIn 0.2s ease';
+  document.body.appendChild(overlay);
+
+  const modal = document.createElement('div');
+  modal.id = 'crUpdateModal';
+  modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:18px;z-index:9999999;width:400px;max-width:94vw;box-shadow:0 0 0 1px #2a2a2a,0 30px 80px rgba(0,0,0,0.9);animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1);overflow:hidden;';
+  
+  modal.innerHTML = `
+    <div class="cr-vm-header" style="background:linear-gradient(135deg,#021426 0%,#111 60%);">
+      <div class="cr-vm-badge" style="background:#00aaff18;border-color:#00aaff40;color:#00aaff;">🚀 Actualización Disponible</div>
+      <div class="cr-vm-title">¡Nueva versión encontrada!</div>
+      <div class="cr-vm-subtitle">La versión v\${latestVer} está lista. (Actual: v\${SCRIPT_VERSION})</div>
+      <button class="cr-vm-close" id="crUpClose">✕</button>
+    </div>
+    <div class="cr-vm-body" style="text-align:center;padding:34px 20px;">
+      <div style="font-size:48px;margin-bottom:18px;animation:crPulse 2s infinite;border-radius:50%;width:80px;height:80px;line-height:80px;margin:0 auto 18px;background:#1a1a1a;box-shadow: 0 0 20px #00aaff33;">✨</div>
+      <p style="color:#ddd;font-size:14px;line-height:1.6;margin-bottom:0;">Da clic en el botón de abajo para instalar la nueva versión.<br><span style="color:#888;font-size:12px;display:block;margin-top:8px;">(Tampermonkey te pedirá confirmación)</span></p>
+    </div>
+    <div class="cr-vm-footer" style="display:flex;gap:12px;">
+      <button class="cr-vm-btn" id="crUpInstall" style="background:#00aaff;color:#fff;flex:2;box-shadow:0 4px 15px #00aaff40;">Instalar v\${latestVer}</button>
+      <button class="cr-vm-btn" id="crUpLater" style="background:#1e1e1e;color:#888;border:1px solid #2a2a2a;flex:1;">Más tarde</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const close = () => { overlay.remove(); modal.remove(); };
+  overlay.onclick = close;
+  document.getElementById('crUpClose').onclick = close;
+  document.getElementById('crUpLater').onclick = close;
+  document.getElementById('crUpInstall').onclick = () => {
+    window.location.href = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
+    close();
+  };
+}
+
+function checkForUpdates() {
+  const GITHUB_URL = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
+  
+  if (typeof GM_xmlhttpRequest !== "undefined") {
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: GITHUB_URL + "?t=" + Date.now(),
+      onload: function(response) {
+        if (response.status === 200) {
+          const match = response.responseText.match(/@version\\s+([0-9.]+)/);
+          if (match && match[1]) {
+            const remoteVersion = parseFloat(match[1]);
+            const currentVersion = parseFloat(SCRIPT_VERSION);
+            if (remoteVersion > currentVersion) {
+              setTimeout(() => showUpdateAvailableModal(match[1]), 2500);
+            }
+          }
+        }
+      }
+    });
+  } else {
+    fetch(GITHUB_URL + "?t=" + Date.now())
+      .then(res => res.text())
+      .then(text => {
+        const match = text.match(/@version\\s+([0-9.]+)/);
+        if (match && match[1]) {
+          const remoteVersion = parseFloat(match[1]);
+          const currentVersion = parseFloat(SCRIPT_VERSION);
+          if (remoteVersion > currentVersion) {
+            setTimeout(() => showUpdateAvailableModal(match[1]), 2500);
+          }
+        }
+      }).catch(e => console.warn("[Clasificador] Error verificando update en github", e));
+  }
+}
+
 function createProgressPanel() {
   const panel = document.createElement("div");
   panel.id = "clasificadorProgress";
@@ -1595,6 +1674,7 @@ async function run() {
 
 window.addEventListener("load", () => {
   checkVersionUpdate();
+  setTimeout(checkForUpdates, 2000);
   setTimeout(addButton, 3000);
 });
 
