@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.0
+// @version      20.1
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -14,9 +14,10 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "20.0";
+const SCRIPT_VERSION = "20.1";
 
 const VERSION_NOTES = {
+  "20.1": "🛡️ Escudo Anti-Disputas: Exclusión automática de Inquiries vinculadas a cuentas positivas",
   "20.0": "⚡ Turbocarga con MutationObservers y botonera flotante de cristal arrastrable",
   "19.7": "🚀 Notificación automática de actualizaciones con modal interactivo",
   "19.6": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
@@ -1328,25 +1329,18 @@ function waitForElement(selector, parent = document, timeout = 8000) {
     return CONFIG.agencies.some(a => clean.includes(a));
   }
 
-  /* ===================== POSITIVE OPEN MAP ===================== */
+  /* ===================== POSITIVE ACCOUNTS MAP ===================== */
 
   /**
    * @returns {Map<string, Element>}
    */
-  function buildPositiveOpenMap() {
+  function buildPositiveAccountsMap() {
     const map = new Map();
     const section = queryOne(SELECTORS.sections.positive);
     if (!section) return map;
 
     const items = queryAll(SELECTORS.compact.container, section);
     for (const item of items) {
-      const rows = queryAll(SELECTORS.compactRow.label, item);
-      const hasOpen = rows.some(row => {
-        const label = row.innerText.trim().toLowerCase();
-        const value = row.nextElementSibling?.innerText.trim().toLowerCase();
-        return label === "open" && value === "yes";
-      });
-      if (!hasOpen) continue;
       const fullName = queryOne(SELECTORS.compact.name, item)?.innerText.trim().toLowerCase() || "";
       const creditor = fullName.split(" - ")[0].trim();
       if (creditor) map.set(creditor, item);
@@ -1560,8 +1554,8 @@ function waitForElement(selector, parent = document, timeout = 8000) {
       const CLIENT = getClientData();
 
       const aliasMap = buildAliasMap();
-      const positiveOpenMap = buildPositiveOpenMap();
-      console.log(`✅ Aliases: ${aliasMap.size} | Positive open: ${positiveOpenMap.size}`);
+      const positiveAccountsMap = buildPositiveAccountsMap();
+      console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
       updateProgress(0, "?", "Cargando disputes...");
       const links = await loadRoundDisputes();
@@ -1594,14 +1588,17 @@ function waitForElement(selector, parent = document, timeout = 8000) {
             continue;
           }
 
-          const linkedItem = getLinkedAccount(compactName, positiveOpenMap, aliasMap);
+          const linkedItem = getLinkedAccount(compactName, positiveAccountsMap, aliasMap);
           if (linkedItem) {
-            const color = CONFIG.colors.inquiryLinked || "#ffcc00";
+            console.log(`🛡️ Escudo Protector: Inquiry omitido por estar ligado a cuenta positiva: ${compactName}`);
+            const color = "#ff4444"; // Rojo para alertar peligro de disputa (cuenta buena atada)
             highlight(item, color);
             highlight(linkedItem, color);
             LINKED_INQUIRIES++;
+            // NO AGREGAMOS a INQUIRIES.push(compactName) para protegerla
+          } else {
+            INQUIRIES.push(compactName);
           }
-          INQUIRIES.push(compactName);
           continue;
         }
 
