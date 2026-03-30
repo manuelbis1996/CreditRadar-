@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.1
+// @version      20.3
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -14,9 +14,11 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "20.1";
+const SCRIPT_VERSION = "20.3";
 
 const VERSION_NOTES = {
+  "20.3": "📚 Historial de clientes: revisa, re-copia y filtra por rango de fechas",
+  "20.2": "✏️ Panel de output interactivo: edita, reordena y elimina cuentas antes de copiar",
   "20.1": "🛡️ Escudo Anti-Disputas: Exclusión automática de Inquiries vinculadas a cuentas positivas",
   "20.0": "⚡ Turbocarga con MutationObservers y botonera flotante de cristal arrastrable",
   "19.7": "🚀 Notificación automática de actualizaciones con modal interactivo",
@@ -43,7 +45,6 @@ const VERSION_NOTES = {
 
   /* ===================== CONSTANTS ===================== */
 
-  const SLEEP = ms => new Promise(r => setTimeout(r, ms));
   const STORAGE_KEY = "pulse_clasificador_config";
   const BUROS = ["equifax", "experian", "transunion"];
   const STOP_WORDS = new Set(["the", "of", "and", "for", "inc", "llc", "na", "bank", "usa", "corp", "co", "ltd"]);
@@ -183,11 +184,36 @@ upgrade = upgrade bank, upgrade lending
       { key: "home", label: "Home", enabled: false },
       { key: "email", label: "Email", enabled: true },
       { key: "started", label: "Started", enabled: false },
-      { key: "id",      label: "ID",      enabled: false }
+      { key: "id", label: "ID", enabled: false }
     ],
     aliases: DEFAULT_ALIASES,
     toolbarPos: { top: "120px", left: "calc(100vw - 80px)" }
   };
+
+  /* ===================== HISTORY STORAGE ===================== */
+
+  const HISTORY_KEY = "cr_history";
+  const HISTORY_MAX = 50;
+
+  function loadHistory() {
+    try {
+      const raw = GM_getValue(HISTORY_KEY, '[]');
+      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch (e) { return []; }
+  }
+
+  function saveHistory(entries) {
+    try { GM_setValue(HISTORY_KEY, JSON.stringify(entries)); } catch (e) { }
+  }
+
+  function addHistoryEntry(output, stats, personalHeader) {
+    const firstLine = (personalHeader || '').split('\n').map(l => l.trim()).find(l => l) || 'Cliente';
+    const clientName = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim() || 'Cliente';
+    const entries = loadHistory();
+    entries.unshift({ id: Date.now(), clientName, output, stats });
+    if (entries.length > HISTORY_MAX) entries.length = HISTORY_MAX;
+    saveHistory(entries);
+  }
 
   /* ===================== CONFIG STORAGE ===================== */
 
@@ -312,25 +338,26 @@ upgrade = upgrade bank, upgrade lending
     return [...container.querySelectorAll('.cr-chip-del')].map(b => b.dataset.val);
   }
 
+  function createChip(val) {
+    const chip = document.createElement('span');
+    chip.className = 'cr-chip';
+    const safeVal = val.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    chip.innerHTML = `${safeVal}<button class="cr-chip-del" data-val="${safeVal}">×</button>`;
+    chip.querySelector('.cr-chip-del').onclick = () => chip.remove();
+    return chip;
+  }
+
   function setupTagInput(container, initialValues) {
     const input = container.querySelector('.cr-tags-in');
     initialValues.forEach(val => {
-      const chip = document.createElement('span');
-      chip.className = 'cr-chip';
-      chip.innerHTML = `${val}<button class="cr-chip-del" data-val="${val}">×</button>`;
-      chip.querySelector('.cr-chip-del').onclick = () => chip.remove();
-      container.insertBefore(chip, input);
+      container.insertBefore(createChip(val), input);
     });
     input.addEventListener('keydown', e => {
       if ((e.key === 'Enter' || e.key === ',') && input.value.trim()) {
         e.preventDefault();
         const val = input.value.trim().replace(/,$/, '').toLowerCase();
         if (val && !getTagValues(container).includes(val)) {
-          const chip = document.createElement('span');
-          chip.className = 'cr-chip';
-          chip.innerHTML = `${val}<button class="cr-chip-del" data-val="${val}">×</button>`;
-          chip.querySelector('.cr-chip-del').onclick = () => chip.remove();
-          container.insertBefore(chip, input);
+          container.insertBefore(createChip(val), input);
         }
         input.value = '';
       } else if (e.key === 'Backspace' && !input.value) {
@@ -374,29 +401,29 @@ upgrade = upgrade bank, upgrade lending
     });
   }
 
-function makeDraggable(panel, handle, onDragEnd) {
-  let ox = 0, oy = 0, mx = 0, my = 0;
-  handle.addEventListener('mousedown', e => {
-    if (e.target.closest('button') && e.target !== handle) return;
-    e.preventDefault();
-    const rect = panel.getBoundingClientRect();
-    ox = rect.left; oy = rect.top; mx = e.clientX; my = e.clientY;
-    panel.style.right = 'auto';
-    panel.style.left = ox + 'px';
-    panel.style.top = oy + 'px';
-    const move = e2 => {
-      panel.style.top = (oy + e2.clientY - my) + 'px';
-      panel.style.left = (ox + e2.clientX - mx) + 'px';
-    };
-    const up = () => {
-      document.removeEventListener('mousemove', move);
-      document.removeEventListener('mouseup', up);
-      if (onDragEnd) onDragEnd(panel.style.left, panel.style.top);
-    };
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', up);
-  });
-}
+  function makeDraggable(panel, handle, onDragEnd) {
+    let ox = 0, oy = 0, mx = 0, my = 0;
+    handle.addEventListener('mousedown', e => {
+      if (e.target.closest('button') && e.target !== handle) return;
+      e.preventDefault();
+      const rect = panel.getBoundingClientRect();
+      ox = rect.left; oy = rect.top; mx = e.clientX; my = e.clientY;
+      panel.style.right = 'auto';
+      panel.style.left = ox + 'px';
+      panel.style.top = oy + 'px';
+      const move = e2 => {
+        panel.style.top = (oy + e2.clientY - my) + 'px';
+        panel.style.left = (ox + e2.clientX - mx) + 'px';
+      };
+      const up = () => {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        if (onDragEnd) onDragEnd(panel.style.left, panel.style.top);
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+  }
 
   /* ===================== ALIAS UI ===================== */
 
@@ -414,18 +441,20 @@ function makeDraggable(panel, handle, onDragEnd) {
     return groups.map(g => `${g.main} = ${g.aliases.join(', ')}`).join('\n');
   }
 
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   function buildAliasCard(group) {
     const card = document.createElement('div');
     card.className = 'cr-alias-card';
 
-    const chipsHTML = group.aliases.map(a => `<span class="cr-chip-xs">${a}</span>`).join('');
-    const editChipsHTML = group.aliases.map(a =>
-      `<span class="cr-chip">${a}<button class="cr-chip-del" data-val="${a}">×</button></span>`
-    ).join('');
+    const safeMain = escapeHtml(group.main || '');
+    const chipsHTML = group.aliases.map(a => `<span class="cr-chip-xs">${escapeHtml(a)}</span>`).join('');
 
     card.innerHTML = `
     <div class="cr-alias-head">
-      <span class="cr-alias-main">${group.main || '<sin nombre>'}</span>
+      <span class="cr-alias-main">${safeMain || '&lt;sin nombre&gt;'}</span>
       <span class="cr-alias-count">${group.aliases.length} alias</span>
       <div class="cr-alias-actions">
         <button class="cr-alias-toggle" title="Editar">✏️</button>
@@ -435,27 +464,24 @@ function makeDraggable(panel, handle, onDragEnd) {
     <div class="cr-alias-chips-row">${chipsHTML}</div>
     <div class="cr-alias-edit-form">
       <div class="cr-alias-label-sm">Nombre principal</div>
-      <input class="cr-alias-main-input" value="${group.main}" placeholder="ej: capital one">
+      <input class="cr-alias-main-input" value="${safeMain}" placeholder="ej: capital one">
       <div class="cr-alias-label-sm">Aliases — Enter o coma para agregar</div>
-      <div class="cr-tags cr-alias-chips-edit">${editChipsHTML}<input class="cr-tags-in" placeholder="alias..."></div>
+      <div class="cr-tags cr-alias-chips-edit"><input class="cr-tags-in" placeholder="alias..."></div>
     </div>
   `;
 
     const editContainer = card.querySelector('.cr-alias-chips-edit');
+    const editInput = editContainer.querySelector('.cr-tags-in');
+    group.aliases.forEach(a => editContainer.insertBefore(createChip(a), editInput));
     editContainer.querySelectorAll('.cr-chip-del').forEach(btn => {
       btn.onclick = () => btn.closest('.cr-chip').remove();
     });
-    const editInput = editContainer.querySelector('.cr-tags-in');
     editInput.addEventListener('keydown', e => {
       if ((e.key === 'Enter' || e.key === ',') && editInput.value.trim()) {
         e.preventDefault();
         const val = editInput.value.trim().replace(/,$/, '').toLowerCase();
         if (val && !getTagValues(editContainer).includes(val)) {
-          const chip = document.createElement('span');
-          chip.className = 'cr-chip';
-          chip.innerHTML = `${val}<button class="cr-chip-del" data-val="${val}">×</button>`;
-          chip.querySelector('.cr-chip-del').onclick = () => chip.remove();
-          editContainer.insertBefore(chip, editInput);
+          editContainer.insertBefore(createChip(val), editInput);
         }
         editInput.value = '';
       } else if (e.key === 'Backspace' && !editInput.value) {
@@ -546,7 +572,7 @@ function makeDraggable(panel, handle, onDragEnd) {
     <div class="cr-fitem" data-key="${f.key}">
       <span class="cr-fitem-grip">⠿</span>
       <label class="cr-toggle-wrap" title="Mostrar etiqueta">
-        <input type="checkbox" class="cr-fitem-label-toggle" ${fc.showLabel !== false ? 'checked' : ''}>
+        <input type="checkbox" class="cr-fitem-toggle cr-fitem-label-toggle" ${fc.showLabel !== false ? 'checked' : ''}>
         <span class="cr-toggle-ui"></span>
       </label>
       <span class="cr-fitem-name">${f.label}</span>
@@ -613,7 +639,7 @@ function makeDraggable(panel, handle, onDragEnd) {
       </div>
       <div class="cr-pane" id="cr-pane-personal">
         <div class="cr-lbl">Opciones</div>
-        <div class="cr-fitem" style="margin-bottom:6px">
+        <div class="cr-fitem" style="margin-bottom:6px;cursor:default">
           <label class="cr-toggle-wrap">
             <input type="checkbox" class="cr-fitem-toggle" id="cfg_showPersonalLabels" ${CONFIG.showPersonalLabels ? 'checked' : ''}>
             <span class="cr-toggle-ui"></span>
@@ -664,7 +690,7 @@ function makeDraggable(panel, handle, onDragEnd) {
       CONFIG.fieldOrder = [...document.getElementById('crFieldList').querySelectorAll('.cr-fitem')]
         .map(item => ({
           key: item.dataset.key,
-          showLabel: item.querySelector('.cr-fitem-label-toggle').checked
+          showLabel: item.querySelector('.cr-fitem-toggle').checked
         }));
       CONFIG.showPersonalLabels = document.getElementById('cfg_showPersonalLabels').checked;
       CONFIG.personalFields = [...document.getElementById('crPersonalList').querySelectorAll('.cr-fitem')]
@@ -721,7 +747,7 @@ function makeDraggable(panel, handle, onDragEnd) {
   .cr-x:hover { background:#ff4444; color:#fff; }
   .cr-tabs { display:flex; gap:2px; padding:12px 16px 0; border-bottom:1px solid #222; margin-top:10px; overflow-x:auto; flex-shrink:0; }
   .cr-tabs::-webkit-scrollbar { height:0; }
-  .cr-tab { padding:6px 10px; border:none; background:transparent; color:#555; cursor:pointer; font-size:12px; border-radius:6px 6px 0 0; transition:all 0.2s; white-space:nowrap; position:relative; bottom:-1px; flex:1; text-align:center; }
+  .cr-tab { padding:6px 12px; border:none; background:transparent; color:#555; cursor:pointer; font-size:12px; border-radius:6px 6px 0 0; transition:all 0.2s; white-space:nowrap; position:relative; bottom:-1px; flex:0 0 auto; }
   .cr-tab:hover { color:#bbb; background:#1c1c1c; }
   .cr-tab.active { color:#fff; background:#1c1c1c; border-bottom:2px solid #00ff88; }
   .cr-body { flex:1; overflow-y:auto; padding:14px 16px; min-height:0; }
@@ -749,7 +775,8 @@ function makeDraggable(panel, handle, onDragEnd) {
   .cr-fitem:active { cursor:grabbing; }
   .cr-fitem.cr-dragging { opacity:0.35; }
   .cr-fitem.cr-dragover { border-color:#00ff88; background:#121f15; }
-  .cr-fitem-grip { color:#333; }
+  .cr-fitem-grip { color:#444; transition:color 0.2s; }
+  .cr-fitem:hover .cr-fitem-grip { color:#666; }
   .cr-fitem-name { flex:1; color:#bbb; }
   .cr-fitem-num { font-size:10px; color:#444; font-family:monospace; }
   .cr-toggle-wrap { display:flex; align-items:center; flex-shrink:0; cursor:pointer; }
@@ -762,8 +789,8 @@ function makeDraggable(panel, handle, onDragEnd) {
   .cr-btn { flex:1; padding:10px; border:none; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:5px; }
   .cr-btn-ok { background:#00ff88; color:#000; }
   .cr-btn-ok:hover { background:#00d970; }
-  .cr-btn-rst { background:#1e1e1e; color:#666; border:1px solid #2a2a2a; }
-  .cr-btn-rst:hover { background:#252525; color:#ccc; }
+  .cr-btn-rst { background:transparent; color:#555; border:1px solid #2a2a2a; flex:0 0 auto; padding:10px 18px; }
+  .cr-btn-rst:hover { background:#1e1e1e; color:#ccc; }
 
   /* Version Modal */
   #crVersionModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:18px; z-index:9999999; width:420px; max-width:94vw; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 30px 80px rgba(0,0,0,0.9); animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1); overflow:hidden; }
@@ -788,7 +815,7 @@ function makeDraggable(panel, handle, onDragEnd) {
 
   /* Output Preview */
   #crOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999997; animation:crFadeIn 0.2s ease; }
-  #crOutputPanel { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:14px; z-index:999999; width:540px; max-width:92vw; max-height:82vh; box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,0.8); display:flex; flex-direction:column; animation:crScaleIn 0.22s ease; }
+  #crOutputPanel { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:14px; z-index:999999; width:540px; max-width:92vw; max-height:90vh; box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,0.8); display:flex; flex-direction:column; animation:crScaleIn 0.22s ease; }
   .cr-out-head { padding:15px 18px; border-bottom:1px solid #1e1e1e; display:flex; justify-content:space-between; align-items:center; }
   .cr-out-stats { padding:10px 18px; border-bottom:1px solid #1a1a1a; display:flex; gap:8px; flex-wrap:wrap; }
   .cr-stat { background:#1a1a1a; border:1px solid #222; border-radius:20px; padding:3px 10px; font-size:11px; color:#888; }
@@ -810,7 +837,8 @@ function makeDraggable(panel, handle, onDragEnd) {
   .cr-alias-main { flex:1; font-size:12px; color:#ccc; font-weight:600; }
   .cr-alias-count { font-size:10px; color:#444; font-family:monospace; white-space:nowrap; }
   .cr-alias-actions { display:flex; gap:4px; }
-  .cr-alias-toggle, .cr-alias-remove { width:22px; height:22px; border-radius:5px; border:none; cursor:pointer; font-size:11px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; padding:0; }
+  .cr-alias-toggle, .cr-alias-remove { width:26px; height:26px; border-radius:5px; border:none; cursor:pointer; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center; transition:all 0.15s; padding:0; }
+  .cr-alias-toggle:active, .cr-alias-remove:active { transform:scale(0.9); }
   .cr-alias-toggle { background:#222; color:#666; }
   .cr-alias-toggle:hover { background:#2a2a2a; color:#ccc; }
   .cr-alias-remove { background:#1e1e1e; color:#555; }
@@ -826,9 +854,76 @@ function makeDraggable(panel, handle, onDragEnd) {
   .cr-alias-search-row { display:flex; gap:7px; margin-bottom:10px; }
   .cr-alias-search-row input { flex:1; background:#111; color:#ccc; border:1px solid #222; border-radius:7px; padding:7px 10px; font-size:12px; outline:none; transition:border-color 0.2s; }
   .cr-alias-search-row input:focus { border-color:#333; }
-  .cr-alias-add-btn { background:#00ff88; color:#000; border:none; border-radius:7px; padding:7px 12px; font-size:11px; font-weight:bold; cursor:pointer; white-space:nowrap; transition:background 0.2s; }
+  .cr-alias-add-btn { background:#00ff88; color:#000; border:none; border-radius:7px; padding:7px 12px; font-size:12px; font-weight:bold; cursor:pointer; white-space:nowrap; transition:background 0.2s; }
   .cr-alias-add-btn:hover { background:#00d970; }
   .cr-alias-empty { text-align:center; color:#444; font-size:12px; padding:20px 0; }
+
+  /* Output Editor */
+  .cr-editor-section { margin-bottom:16px; }
+  .cr-editor-section-head { display:flex; align-items:center; gap:8px; margin-bottom:7px; padding-bottom:6px; border-bottom:1px solid #1e1e1e; }
+  .cr-editor-section-title { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:0.5px; flex:1; }
+  .cr-editor-section-badge { background:#1a1a1a; border:1px solid #222; color:#555; font-size:10px; font-family:monospace; padding:1px 7px; border-radius:10px; }
+  .cr-editor-card { background:#1a1a1a; border:1px solid #222; border-radius:8px; margin-bottom:4px; overflow:hidden; transition:border-color 0.15s; }
+  .cr-editor-card:hover { border-color:#2e2e2e; }
+  .cr-editor-card-head { display:flex; align-items:center; gap:7px; padding:8px 10px; cursor:grab; user-select:none; }
+  .cr-editor-card-head:active { cursor:grabbing; }
+  .cr-editor-grip { color:#444; font-size:10px; flex-shrink:0; }
+  .cr-editor-card:hover .cr-editor-grip { color:#666; }
+  .cr-editor-name { flex:1; font-size:12px; color:#ccc; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .cr-editor-meta { font-size:10px; color:#444; font-family:monospace; white-space:nowrap; flex-shrink:0; }
+  .cr-editor-actions { display:flex; gap:4px; flex-shrink:0; }
+  .cr-editor-edit-btn, .cr-editor-del-btn { width:24px; height:24px; border-radius:5px; border:none; cursor:pointer; font-size:13px; line-height:1; display:flex; align-items:center; justify-content:center; transition:all 0.15s; padding:0; }
+  .cr-editor-edit-btn:active, .cr-editor-del-btn:active { transform:scale(0.9); }
+  .cr-editor-edit-btn { background:#222; color:#666; }
+  .cr-editor-edit-btn:hover { background:#2a2a2a; color:#ccc; }
+  .cr-editor-del-btn { background:#1e1e1e; color:#555; }
+  .cr-editor-del-btn:hover { background:#ff4444; color:#fff; }
+  .cr-editor-form { border-top:1px solid #1e1e1e; padding:8px 10px; background:#141414; display:none; animation:crFadeIn 0.15s; }
+  .cr-editor-form.open { display:block; }
+  .cr-editor-field { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
+  .cr-editor-field:last-child { margin-bottom:0; }
+  .cr-editor-field-lbl { font-size:10px; color:#555; width:82px; flex-shrink:0; }
+  .cr-editor-field-in { flex:1; background:#111; border:1px solid #222; border-radius:5px; padding:4px 7px; color:#ddd; font-size:12px; outline:none; transition:border-color 0.2s; }
+  .cr-editor-field-in:focus { border-color:#333; }
+  .cr-editor-str-item { display:flex; align-items:center; gap:8px; padding:6px 10px; background:#1a1a1a; border:1px solid #222; border-radius:7px; margin-bottom:4px; }
+  .cr-editor-str-val { flex:1; font-size:12px; color:#ccc; }
+  .cr-editor-str-del { width:22px; height:22px; border-radius:4px; border:none; background:#1e1e1e; color:#555; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+  .cr-editor-str-del:hover { background:#ff4444; color:#fff; }
+  .cr-editor-dragging { opacity:0.35; }
+  .cr-editor-dragover { border-color:#00ff88 !important; background:#0d1f12; }
+
+  /* History Panel */
+  #crHistoryPanel { position:fixed; top:70px; right:130px; z-index:999999; background:#161616; color:#fff; border-radius:14px; width:440px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 20px 50px rgba(0,0,0,0.75); animation:crSlideIn 0.25s ease; overflow:hidden; }
+  #crHistoryBtn { width:36px; height:36px; background:#111; color:#555; border:1px solid #222; border-radius:8px; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; transition:all 0.25s ease; }
+  #crHistoryBtn:hover { color:#fff; border-color:#444; background:#1a1a1a; }
+  .cr-hist-filter { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid #1e1e1e; flex-shrink:0; }
+  .cr-hist-date-in { background:#111; border:1px solid #222; border-radius:6px; padding:5px 8px; color:#ddd; font-size:11px; outline:none; transition:border-color 0.2s; width:110px; }
+  .cr-hist-date-in:focus { border-color:#333; }
+  .cr-hist-chips { display:flex; gap:5px; }
+  .cr-hist-chip { padding:3px 10px; border-radius:20px; border:1px solid #222; background:#1a1a1a; color:#555; font-size:11px; cursor:pointer; transition:all 0.15s; }
+  .cr-hist-chip.active { background:#003a20; border-color:#00ff8855; color:#00ff88; }
+  .cr-hist-count { font-size:10px; color:#444; margin-left:auto; font-family:monospace; }
+  .cr-hist-body { flex:1; overflow-y:auto; padding:12px 16px; min-height:0; }
+  .cr-hist-body::-webkit-scrollbar { width:3px; }
+  .cr-hist-body::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
+  .cr-hist-entry { background:#1a1a1a; border:1px solid #222; border-radius:9px; margin-bottom:7px; padding:10px 12px; transition:border-color 0.2s; }
+  .cr-hist-entry:hover { border-color:#2a2a2a; }
+  .cr-hist-row { display:flex; align-items:baseline; gap:8px; margin-bottom:5px; }
+  .cr-hist-name { flex:1; font-size:13px; color:#ccc; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cr-hist-date { font-size:10px; color:#444; font-family:monospace; white-space:nowrap; flex-shrink:0; }
+  .cr-hist-stats { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:8px; }
+  .cr-hist-actions { display:flex; gap:5px; justify-content:flex-end; }
+  .cr-hist-btn { padding:4px 10px; border-radius:6px; border:none; cursor:pointer; font-size:11px; font-weight:bold; transition:all 0.15s; }
+  .cr-hist-btn-view { background:#222; color:#888; }
+  .cr-hist-btn-view:hover { background:#2a2a2a; color:#fff; }
+  .cr-hist-btn-copy { background:#003a20; color:#00ff88; border:1px solid #00ff8830; }
+  .cr-hist-btn-copy:hover { background:#00ff88; color:#000; }
+  .cr-hist-btn-del { background:#1e1e1e; color:#555; }
+  .cr-hist-btn-del:hover { background:#ff4444; color:#fff; }
+  .cr-hist-empty { text-align:center; color:#444; font-size:12px; padding:40px 0; }
+  .cr-hist-footer { padding:12px 16px; border-top:1px solid #1e1e1e; flex-shrink:0; }
+  .cr-hist-clear-btn { width:100%; padding:9px; background:transparent; color:#555; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; }
+  .cr-hist-clear-btn:hover { background:#ff444422; color:#ff4444; border-color:#ff444444; }
 `;
 
   const styleEl = document.createElement('style');
@@ -862,34 +957,36 @@ function makeDraggable(panel, handle, onDragEnd) {
 
   /* ===================== UI HELPERS ===================== */
 
-function addButton() {
-  if (document.getElementById('crToolbar')) return;
-  const toolbar = document.createElement('div');
-  toolbar.id = 'crToolbar';
-  
-  const tPos = CONFIG.toolbarPos || { top: "120px", left: "calc(100vw - 80px)" };
-  toolbar.style.top = tPos.top;
-  if (tPos.left) toolbar.style.left = tPos.left;
-  else toolbar.style.right = "20px";
+  function addButton() {
+    if (document.getElementById('crToolbar')) return;
+    const toolbar = document.createElement('div');
+    toolbar.id = 'crToolbar';
 
-  toolbar.innerHTML = `
-    <div id="crToolbarGrip" title="Púlsame para arrastrar">⠿</div>
-    <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
-      📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
-    </button>
-    <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
-  `;
-  document.body.appendChild(toolbar);
-  
-  makeDraggable(toolbar, document.getElementById('crToolbarGrip'), (left, top) => {
-    CONFIG.toolbarPos = { left, top };
-    saveConfig(CONFIG);
-  });
-  
-  document.getElementById('clasificadorBTN').onclick = run;
-  document.getElementById('crSettingsBtn').onclick = openConfigPanel;
-  setButtonAnimation('idle');
-}
+    const tPos = CONFIG.toolbarPos || { top: "120px", left: "calc(100vw - 80px)" };
+    toolbar.style.top = tPos.top;
+    if (tPos.left) toolbar.style.left = tPos.left;
+    else toolbar.style.right = "20px";
+
+    toolbar.innerHTML = `
+      <div id="crToolbarGrip" title="Púlsame para arrastrar">⠿</div>
+      <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
+        📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
+      </button>
+      <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
+      <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
+    `;
+    document.body.appendChild(toolbar);
+
+    makeDraggable(toolbar, document.getElementById('crToolbarGrip'), (left, top) => {
+      CONFIG.toolbarPos = { left, top };
+      saveConfig(CONFIG);
+    });
+
+    document.getElementById('clasificadorBTN').onclick = run;
+    document.getElementById('crHistoryBtn').onclick = showHistoryPanel;
+    document.getElementById('crSettingsBtn').onclick = openConfigPanel;
+    setButtonAnimation('idle');
+  }
 
   function highlight(item, color) {
     item.style.border = `3px solid ${color}`;
@@ -929,14 +1026,35 @@ function addButton() {
     }, duration);
   }
 
-  function showVersionModal() {
-    document.getElementById('crVersionOverlay')?.remove();
-    document.getElementById('crVersionModal')?.remove();
+  /* ===================== COMPONENT HELPERS ===================== */
 
+  function createOverlay(id) {
+    document.getElementById(id)?.remove();
     const overlay = document.createElement('div');
-    overlay.id = 'crVersionOverlay';
+    overlay.id = id;
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999998;animation:crFadeIn 0.2s ease';
     document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function createModal(id, cssText) {
+    document.getElementById(id)?.remove();
+    const modal = document.createElement('div');
+    modal.id = id;
+    if (cssText) modal.style.cssText = cssText;
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  function bindClose(closeFn, ...elements) {
+    elements.forEach(el => { if (el) el.onclick = closeFn; });
+  }
+
+  /* ===================== MODALS ===================== */
+
+  function showVersionModal() {
+    const overlay = createOverlay('crVersionOverlay');
+    const modal = createModal('crVersionModal');
 
     const entriesHTML = Object.entries(VERSION_NOTES).map(([ver, note]) => `
     <div class="cr-vm-entry${ver === SCRIPT_VERSION ? ' current' : ''}">
@@ -944,8 +1062,6 @@ function addButton() {
       <span class="cr-vm-note">${note}</span>
     </div>`).join('');
 
-    const modal = document.createElement('div');
-    modal.id = 'crVersionModal';
     modal.innerHTML = `
     <div class="cr-vm-header">
       <div class="cr-vm-badge">📶 CreditRadar</div>
@@ -958,12 +1074,9 @@ function addButton() {
       <button class="cr-vm-btn" id="crVmOk">Entendido 🚀</button>
     </div>
   `;
-    document.body.appendChild(modal);
 
     const close = () => { overlay.remove(); modal.remove(); };
-    overlay.onclick = close;
-    document.getElementById('crVmClose').onclick = close;
-    document.getElementById('crVmOk').onclick = close;
+    bindClose(close, overlay, document.getElementById('crVmClose'), document.getElementById('crVmOk'));
   }
 
   function checkVersionUpdate() {
@@ -977,17 +1090,8 @@ function addButton() {
   }
 
   function showUpdateAvailableModal(latestVer) {
-    document.getElementById('crUpdateOverlay')?.remove();
-    document.getElementById('crUpdateModal')?.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'crUpdateOverlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999998;animation:crFadeIn 0.2s ease';
-    document.body.appendChild(overlay);
-
-    const modal = document.createElement('div');
-    modal.id = 'crUpdateModal';
-    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:18px;z-index:9999999;width:400px;max-width:94vw;box-shadow:0 0 0 1px #2a2a2a,0 30px 80px rgba(0,0,0,0.9);animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1);overflow:hidden;';
+    const overlay = createOverlay('crUpdateOverlay');
+    const modal = createModal('crUpdateModal', 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:18px;z-index:9999999;width:400px;max-width:94vw;box-shadow:0 0 0 1px #2a2a2a,0 30px 80px rgba(0,0,0,0.9);animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1);overflow:hidden;');
 
     modal.innerHTML = `
     <div class="cr-vm-header" style="background:linear-gradient(135deg,#021426 0%,#111 60%);">
@@ -997,7 +1101,7 @@ function addButton() {
       <button class="cr-vm-close" id="crUpClose">✕</button>
     </div>
     <div class="cr-vm-body" style="text-align:center;padding:34px 20px;">
-      <div style="font-size:48px;margin-bottom:18px;animation:crPulse 2s infinite;border-radius:50%;width:80px;height:80px;line-height:80px;margin:0 auto 18px;background:#1a1a1a;box-shadow: 0 0 20px #00aaff33;">✨</div>
+      <div style="font-size:48px;animation:crPulse 2s infinite;border-radius:50%;width:80px;height:80px;line-height:80px;margin:0 auto 18px;background:#1a1a1a;box-shadow:0 0 20px #00aaff33;">✨</div>
       <p style="color:#ddd;font-size:14px;line-height:1.6;margin-bottom:0;">Da clic en el botón de abajo para instalar la nueva versión.<br><span style="color:#888;font-size:12px;display:block;margin-top:8px;">(Tampermonkey te pedirá confirmación)</span></p>
     </div>
     <div class="cr-vm-footer" style="display:flex;gap:12px;">
@@ -1005,16 +1109,25 @@ function addButton() {
       <button class="cr-vm-btn" id="crUpLater" style="background:#1e1e1e;color:#888;border:1px solid #2a2a2a;flex:1;">Más tarde</button>
     </div>
   `;
-    document.body.appendChild(modal);
 
     const close = () => { overlay.remove(); modal.remove(); };
-    overlay.onclick = close;
-    document.getElementById('crUpClose').onclick = close;
-    document.getElementById('crUpLater').onclick = close;
+    bindClose(close, overlay, document.getElementById('crUpClose'), document.getElementById('crUpLater'));
     document.getElementById('crUpInstall').onclick = () => {
       window.location.href = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
       close();
     };
+  }
+
+  function compareVersions(a, b) {
+    const pa = a.split(".").map(Number);
+    const pb = b.split(".").map(Number);
+    const len = Math.max(pa.length, pb.length);
+    for (let i = 0; i < len; i++) {
+      const na = pa[i] ?? 0;
+      const nb = pb[i] ?? 0;
+      if (na !== nb) return na - nb;
+    }
+    return 0;
   }
 
   function checkForUpdates() {
@@ -1028,9 +1141,7 @@ function addButton() {
           if (response.status === 200) {
             const match = response.responseText.match(/@version\s+([0-9.]+)/);
             if (match && match[1]) {
-              const remoteVersion = parseFloat(match[1]);
-              const currentVersion = parseFloat(SCRIPT_VERSION);
-              if (remoteVersion > currentVersion) {
+              if (compareVersions(match[1], SCRIPT_VERSION) > 0) {
                 setTimeout(() => showUpdateAvailableModal(match[1]), 2500);
               }
             }
@@ -1041,11 +1152,9 @@ function addButton() {
       fetch(GITHUB_URL + "?t=" + Date.now())
         .then(res => res.text())
         .then(text => {
-          const match = text.match(/@version\\s+([0-9.]+)/);
+          const match = text.match(/@version\s+([0-9.]+)/);
           if (match && match[1]) {
-            const remoteVersion = parseFloat(match[1]);
-            const currentVersion = parseFloat(SCRIPT_VERSION);
-            if (remoteVersion > currentVersion) {
+            if (compareVersions(match[1], SCRIPT_VERSION) > 0) {
               setTimeout(() => showUpdateAvailableModal(match[1]), 2500);
             }
           }
@@ -1075,43 +1184,239 @@ function addButton() {
     document.getElementById("clasificadorProgress")?.remove();
   }
 
-  function showOutputPreview(output, stats) {
+  function buildAccountEditorCard(acc, onRemove) {
+    const card = document.createElement('div');
+    card.className = 'cr-editor-card';
+    card.dataset.addresses = JSON.stringify(acc.addresses || []);
+
+    const meta = [acc.number ? `#${acc.number}` : '', acc.balance || ''].filter(Boolean).join(' · ');
+
+    card.innerHTML = `
+    <div class="cr-editor-card-head">
+      <span class="cr-editor-grip">⠿</span>
+      <span class="cr-editor-name">${escapeHtml(acc.name || '')}</span>
+      <span class="cr-editor-meta">${escapeHtml(meta)}</span>
+      <div class="cr-editor-actions">
+        <button class="cr-editor-edit-btn" title="Editar">✏️</button>
+        <button class="cr-editor-del-btn" title="Eliminar">✕</button>
+      </div>
+    </div>
+    <div class="cr-editor-form">
+      <div class="cr-editor-field">
+        <span class="cr-editor-field-lbl">Account Name</span>
+        <input class="cr-editor-field-in" data-field="name" value="${escapeHtml(acc.name || '')}">
+      </div>
+      <div class="cr-editor-field">
+        <span class="cr-editor-field-lbl">Acct Number</span>
+        <input class="cr-editor-field-in" data-field="number" value="${escapeHtml(acc.number || '')}">
+      </div>
+      <div class="cr-editor-field">
+        <span class="cr-editor-field-lbl">Balance</span>
+        <input class="cr-editor-field-in" data-field="balance" value="${escapeHtml(acc.balance || '')}">
+      </div>
+      <div class="cr-editor-field">
+        <span class="cr-editor-field-lbl">Date Opened</span>
+        <input class="cr-editor-field-in" data-field="dateOpened" value="${escapeHtml(acc.dateOpened || '')}">
+      </div>
+    </div>
+  `;
+
+    card.querySelector('.cr-editor-edit-btn').onclick = () => {
+      const form = card.querySelector('.cr-editor-form');
+      const opening = !form.classList.contains('open');
+      form.classList.toggle('open');
+      if (!opening) {
+        const name = card.querySelector('[data-field="name"]').value;
+        const number = card.querySelector('[data-field="number"]').value;
+        const balance = card.querySelector('[data-field="balance"]').value;
+        card.querySelector('.cr-editor-name').textContent = name;
+        card.querySelector('.cr-editor-meta').textContent =
+          [number ? `#${number}` : '', balance || ''].filter(Boolean).join(' · ');
+      }
+    };
+
+    card.querySelector('.cr-editor-del-btn').onclick = () => {
+      card.remove();
+      if (onRemove) onRemove();
+    };
+
+    return card;
+  }
+
+  function setupEditorDrag(list) {
+    let dragged = null;
+    list.addEventListener('dragstart', e => {
+      dragged = e.target.closest('.cr-editor-card');
+      if (dragged) setTimeout(() => dragged.classList.add('cr-editor-dragging'), 0);
+    });
+    list.addEventListener('dragend', () => {
+      if (dragged) dragged.classList.remove('cr-editor-dragging');
+      list.querySelectorAll('.cr-editor-card').forEach(c => c.classList.remove('cr-editor-dragover'));
+      dragged = null;
+    });
+    list.addEventListener('dragover', e => {
+      e.preventDefault();
+      const target = e.target.closest('.cr-editor-card');
+      if (!target || target === dragged) return;
+      list.querySelectorAll('.cr-editor-card').forEach(c => c.classList.remove('cr-editor-dragover'));
+      target.classList.add('cr-editor-dragover');
+    });
+    list.addEventListener('drop', e => {
+      e.preventDefault();
+      const target = e.target.closest('.cr-editor-card');
+      if (!target || !dragged || target === dragged) return;
+      const cards = [...list.querySelectorAll('.cr-editor-card')];
+      if (cards.indexOf(dragged) < cards.indexOf(target)) target.after(dragged);
+      else target.before(dragged);
+      list.querySelectorAll('.cr-editor-card').forEach(c => c.classList.remove('cr-editor-dragover'));
+    });
+  }
+
+  function buildCompactStats(stats) {
+    const chips = [];
+    if (stats.accounts) chips.push(`<span class="cr-stat"><b>${stats.accounts}</b> cuentas</span>`);
+    if (stats.collections) chips.push(`<span class="cr-stat" style="border-color:#ff664433"><b>${stats.collections}</b> colecciones</span>`);
+    if (stats.originals) chips.push(`<span class="cr-stat" style="border-color:#00aaff33"><b>${stats.originals}</b> originales</span>`);
+    if (stats.inquiries) chips.push(`<span class="cr-stat"><b>${stats.inquiries}</b> inquiries</span>`);
+    if (stats.personal) chips.push(`<span class="cr-stat"><b>${stats.personal}</b> personal</span>`);
+    const skipped = (stats.skippedOpen || 0) + (stats.skippedClosed || 0);
+    if (skipped) chips.push(`<span class="cr-stat" style="color:#555"><b>${skipped}</b> saltadas</span>`);
+    if (stats.linkedInquiries) chips.push(`<span class="cr-stat" style="border-color:#ffcc0033;color:#ffcc00"><b>${stats.linkedInquiries}</b> 🛡</span>`);
+    return `<div class="cr-out-stats">${chips.join('')}</div>`;
+  }
+
+  function showOutputEditor(data, stats) {
     document.getElementById('crOverlay')?.remove();
     document.getElementById('crOutputPanel')?.remove();
 
+    // No se usa createOverlay() aquí — ese helper aplica z-index:9999998 inline
+    // que quedaría por encima del panel (z-index:999999).
     const overlay = document.createElement('div');
     overlay.id = 'crOverlay';
     document.body.appendChild(overlay);
 
-    const { accounts, inquiries, personal, skippedOpen, skippedClosed, linkedInquiries } = stats;
     const panel = document.createElement('div');
     panel.id = 'crOutputPanel';
     panel.innerHTML = `
     <div class="cr-out-head">
-      <b>📋 Resultado</b>
+      <b>✏️ Revisar Output</b>
       <button class="cr-x" id="crOutClose">✕</button>
     </div>
-    <div class="cr-out-stats">
-      <span class="cr-stat"><b>${accounts}</b> cuentas</span>
-      <span class="cr-stat"><b>${inquiries}</b> inquiries</span>
-      <span class="cr-stat"><b>${personal}</b> personal</span>
-      <span class="cr-stat" style="color:${CONFIG.colors.open}"><b>${skippedOpen}</b> open</span>
-      <span class="cr-stat" style="color:${CONFIG.colors.closedPositive}"><b>${skippedClosed}</b> closed+</span>
-      <span class="cr-stat" style="color:${CONFIG.colors.inquiryLinked || '#ffcc00'}"><b>${linkedInquiries}</b> linked</span>
-    </div>
-    <textarea readonly>${output}</textarea>
+    ${buildCompactStats(stats)}
+    <div id="crEditorBody" style="flex:1;overflow-y:auto;padding:14px 16px;min-height:0;"></div>
     <div class="cr-out-foot">
-      <button class="cr-copy-btn" id="crCopyBtn">📋 Copiar al Clipboard</button>
+      <button class="cr-copy-btn" id="crCopyBtn">📋 Generar y Copiar</button>
       <button class="cr-dismiss-btn" id="crOutDismiss">Cerrar</button>
     </div>
   `;
     document.body.appendChild(panel);
 
+    const body = panel.querySelector('#crEditorBody');
+
+    function buildAccountSection(title, accounts) {
+      const section = document.createElement('div');
+      section.className = 'cr-editor-section';
+      section.dataset.sectionType = 'accounts';
+      section.dataset.sectionTitle = title;
+
+      const badge = document.createElement('span');
+      badge.className = 'cr-editor-section-badge';
+      const head = document.createElement('div');
+      head.className = 'cr-editor-section-head';
+      head.innerHTML = `<span class="cr-editor-section-title">${title}</span>`;
+      head.appendChild(badge);
+      section.appendChild(head);
+
+      const list = document.createElement('div');
+      list.className = 'cr-editor-list';
+      section.appendChild(list);
+
+      const updateBadge = () => {
+        badge.textContent = list.querySelectorAll('.cr-editor-card').length;
+      };
+      accounts.forEach(acc => {
+        const card = buildAccountEditorCard(acc, updateBadge);
+        card.setAttribute('draggable', 'true');
+        list.appendChild(card);
+      });
+      updateBadge();
+      setupEditorDrag(list);
+      return section;
+    }
+
+    function buildStringSection(title, items) {
+      const section = document.createElement('div');
+      section.className = 'cr-editor-section';
+      section.dataset.sectionType = 'strings';
+      section.dataset.sectionTitle = title;
+
+      const badge = document.createElement('span');
+      badge.className = 'cr-editor-section-badge';
+      const head = document.createElement('div');
+      head.className = 'cr-editor-section-head';
+      head.innerHTML = `<span class="cr-editor-section-title">${title}</span>`;
+      head.appendChild(badge);
+      section.appendChild(head);
+
+      const list = document.createElement('div');
+      list.className = 'cr-editor-list';
+      section.appendChild(list);
+
+      const updateBadge = () => {
+        badge.textContent = list.querySelectorAll('.cr-editor-str-item').length;
+      };
+      items.forEach(val => {
+        const item = document.createElement('div');
+        item.className = 'cr-editor-str-item';
+        item.innerHTML = `<span class="cr-editor-str-val">${escapeHtml(val)}</span>
+          <button class="cr-editor-str-del" title="Eliminar">✕</button>`;
+        item.querySelector('.cr-editor-str-del').onclick = () => { item.remove(); updateBadge(); };
+        list.appendChild(item);
+      });
+      updateBadge();
+      return section;
+    }
+
+    if (data.collections.length) body.appendChild(buildAccountSection('COLLECTION AGENCIES', data.collections));
+    if (data.originals.length) body.appendChild(buildAccountSection('ORIGINAL CREDITORS', data.originals));
+    if (data.inquiries.length) body.appendChild(buildStringSection('INQUIRIES', data.inquiries));
+    if (data.personal.length) body.appendChild(buildStringSection('PERSONAL INFORMATION', data.personal));
+
     const close = () => { overlay.remove(); panel.remove(); };
-    overlay.onclick = close;
-    document.getElementById('crOutClose').onclick = close;
-    document.getElementById('crOutDismiss').onclick = close;
+    bindClose(close, overlay, document.getElementById('crOutClose'), document.getElementById('crOutDismiss'));
+
     document.getElementById('crCopyBtn').onclick = async () => {
+      const NL = "\r\n";
+      let output = data.personalHeader || '';
+
+      body.querySelectorAll('.cr-editor-section').forEach(section => {
+        const type = section.dataset.sectionType;
+        const title = section.dataset.sectionTitle;
+
+        if (type === 'accounts') {
+          const cards = [...section.querySelectorAll('.cr-editor-card')];
+          if (!cards.length) return;
+          output += `${title} (${cards.length})${NL}${NL}`;
+          cards.forEach(card => {
+            const acc = {
+              name: card.querySelector('[data-field="name"]').value,
+              number: card.querySelector('[data-field="number"]').value,
+              balance: card.querySelector('[data-field="balance"]').value,
+              dateOpened: card.querySelector('[data-field="dateOpened"]').value,
+              addresses: JSON.parse(card.dataset.addresses || '[]')
+            };
+            output += formatAccount(acc, NL);
+          });
+        } else {
+          const items = [...section.querySelectorAll('.cr-editor-str-val')];
+          if (!items.length) return;
+          output += `${title} (${items.length})${NL}${NL}`;
+          items.forEach(el => { output += el.textContent + NL; });
+          output += NL + NL;
+        }
+      });
+
+      addHistoryEntry(output, stats, data.personalHeader);
       await navigator.clipboard.writeText(output);
       const btn = document.getElementById('crCopyBtn');
       btn.textContent = '✅ Copiado!';
@@ -1120,40 +1425,201 @@ function addButton() {
     };
   }
 
+  /* ===================== HISTORY PANEL ===================== */
+
+  function showHistoryPanel() {
+    document.getElementById('crHistoryPanel')?.remove();
+    const panel = document.createElement('div');
+    panel.id = 'crHistoryPanel';
+
+    panel.innerHTML = `
+    <div class="cr-ph" id="crHistHandle">
+      <div class="cr-ph-title">🕐 Historial</div>
+      <button class="cr-x" id="crHistClose">✕</button>
+    </div>
+    <div class="cr-hist-filter">
+      <input type="date" class="cr-hist-date-in" id="crHistFrom" title="Desde">
+      <input type="date" class="cr-hist-date-in" id="crHistTo" title="Hasta">
+      <div class="cr-hist-chips">
+        <button class="cr-hist-chip active" data-range="all">Todo</button>
+        <button class="cr-hist-chip" data-range="7">7 días</button>
+        <button class="cr-hist-chip" data-range="today">Hoy</button>
+      </div>
+      <span class="cr-hist-count" id="crHistCount"></span>
+    </div>
+    <div class="cr-hist-body" id="crHistBody"></div>
+    <div class="cr-hist-footer">
+      <button class="cr-hist-clear-btn" id="crHistClear">🗑 Limpiar historial</button>
+    </div>
+  `;
+    document.body.appendChild(panel);
+    makeDraggable(panel, panel.querySelector('#crHistHandle'));
+    document.getElementById('crHistClose').onclick = () => panel.remove();
+
+    let entries = loadHistory();
+
+    function formatDate(ts) {
+      const d = new Date(ts);
+      return d.toLocaleDateString('es-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        + ' ' + d.toLocaleTimeString('es-US', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderList(filtered) {
+      const body = document.getElementById('crHistBody');
+      document.getElementById('crHistCount').textContent = `${filtered.length} entrada${filtered.length !== 1 ? 's' : ''}`;
+      body.innerHTML = '';
+      if (!filtered.length) {
+        body.innerHTML = '<div class="cr-hist-empty">Sin entradas en este rango</div>';
+        return;
+      }
+      filtered.forEach(entry => {
+        const el = document.createElement('div');
+        el.className = 'cr-hist-entry';
+        const s = entry.stats || {};
+        el.innerHTML = `
+          <div class="cr-hist-row">
+            <span class="cr-hist-name">${escapeHtml(entry.clientName || 'Cliente')}</span>
+            <span class="cr-hist-date">${formatDate(entry.id)}</span>
+          </div>
+          <div class="cr-hist-stats">
+            ${s.collections ? `<span class="cr-stat"><b>${s.collections}</b> colecciones</span>` : ''}
+            ${s.originals ? `<span class="cr-stat"><b>${s.originals}</b> originales</span>` : ''}
+            ${s.inquiries ? `<span class="cr-stat"><b>${s.inquiries}</b> inquiries</span>` : ''}
+          </div>
+          <div class="cr-hist-actions">
+            <button class="cr-hist-btn cr-hist-btn-view">👁 Ver</button>
+            <button class="cr-hist-btn cr-hist-btn-copy">📋 Copiar</button>
+            <button class="cr-hist-btn cr-hist-btn-del">🗑</button>
+          </div>
+        `;
+
+        el.querySelector('.cr-hist-btn-view').onclick = () => {
+          const overlay = createOverlay('crHistDetailOverlay');
+          const modal = createModal('crHistDetailModal',
+            'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:14px;z-index:9999999;width:500px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,0.8);animation:crScaleIn 0.22s ease;');
+          modal.innerHTML = `
+            <div class="cr-out-head">
+              <div>
+                <b>${escapeHtml(entry.clientName || 'Cliente')}</b>
+                <span style="font-size:10px;color:#444;margin-left:8px;font-family:monospace">${formatDate(entry.id)}</span>
+              </div>
+              <button class="cr-x" id="crHistDetClose">✕</button>
+            </div>
+            <textarea readonly style="flex:1;background:#0d0d0d;color:#aaa;border:none;padding:14px 18px;font-family:monospace;font-size:12px;resize:none;outline:none;line-height:1.7;min-height:200px;">${escapeHtml(entry.output)}</textarea>
+            <div class="cr-out-foot">
+              <button class="cr-copy-btn" id="crHistDetCopy">📋 Copiar</button>
+              <button class="cr-dismiss-btn" id="crHistDetClose2">Cerrar</button>
+            </div>
+          `;
+          const closeDetail = () => { overlay.remove(); modal.remove(); };
+          bindClose(closeDetail, overlay,
+            document.getElementById('crHistDetClose'),
+            document.getElementById('crHistDetClose2'));
+          document.getElementById('crHistDetCopy').onclick = async () => {
+            await navigator.clipboard.writeText(entry.output);
+            showToast('📋 Copiado del historial', '#00aaff', 2500);
+            closeDetail();
+          };
+        };
+
+        el.querySelector('.cr-hist-btn-copy').onclick = async () => {
+          await navigator.clipboard.writeText(entry.output);
+          showToast('📋 Copiado del historial', '#00aaff', 2500);
+        };
+
+        el.querySelector('.cr-hist-btn-del').onclick = () => {
+          entries = entries.filter(e => e.id !== entry.id);
+          saveHistory(entries);
+          applyFilter();
+        };
+
+        body.appendChild(el);
+      });
+    }
+
+    function applyFilter() {
+      const from = document.getElementById('crHistFrom').value;
+      const to = document.getElementById('crHistTo').value;
+      const fromTs = from ? new Date(from).getTime() : 0;
+      const toTs = to ? new Date(to).getTime() + 86399999 : Infinity;
+      renderList(entries.filter(e => e.id >= fromTs && e.id <= toTs));
+    }
+
+    panel.querySelectorAll('.cr-hist-chip').forEach(chip => {
+      chip.onclick = () => {
+        panel.querySelectorAll('.cr-hist-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const range = chip.dataset.range;
+        const now = Date.now();
+        const fromIn = document.getElementById('crHistFrom');
+        const toIn = document.getElementById('crHistTo');
+        if (range === 'today') {
+          const today = new Date().toISOString().slice(0, 10);
+          fromIn.value = today; toIn.value = today;
+        } else if (range === '7') {
+          const d = new Date(now - 6 * 86400000).toISOString().slice(0, 10);
+          fromIn.value = d; toIn.value = '';
+        } else {
+          fromIn.value = ''; toIn.value = '';
+        }
+        applyFilter();
+      };
+    });
+
+    document.getElementById('crHistFrom').onchange = () => {
+      panel.querySelectorAll('.cr-hist-chip').forEach(c => c.classList.remove('active'));
+      applyFilter();
+    };
+    document.getElementById('crHistTo').onchange = () => {
+      panel.querySelectorAll('.cr-hist-chip').forEach(c => c.classList.remove('active'));
+      applyFilter();
+    };
+
+    document.getElementById('crHistClear').onclick = () => {
+      if (confirm('¿Eliminar todo el historial?')) {
+        entries = [];
+        saveHistory(entries);
+        applyFilter();
+      }
+    };
+
+    renderList(entries);
+  }
+
   /* ===================== DOM HELPERS ===================== */
 
-/**
- * @template T
- * @param {string} selector
- * @param {ParentNode} parent
- * @param {number} timeout
- * @returns {Promise<T|null>}
- */
-function waitForElement(selector, parent = document, timeout = 8000) {
-  return new Promise(resolve => {
-    try {
-      const el = parent.querySelector(selector);
-      if (el) return resolve(el);
+  /**
+   * @template T
+   * @param {string} selector
+   * @param {ParentNode} parent
+   * @param {number} timeout
+   * @returns {Promise<T|null>}
+   */
+  function waitForElement(selector, parent = document, timeout = 8000) {
+    return new Promise(resolve => {
+      try {
+        const el = parent.querySelector(selector);
+        if (el) return resolve(el);
 
-      const observer = new MutationObserver(() => {
-        const found = parent.querySelector(selector);
-        if (found) {
+        const observer = new MutationObserver(() => {
+          const found = parent.querySelector(selector);
+          if (found) {
+            observer.disconnect();
+            resolve(found);
+          }
+        });
+        observer.observe(parent, { childList: true, subtree: true });
+
+        setTimeout(() => {
           observer.disconnect();
-          resolve(found);
-        }
-      });
-      observer.observe(parent, { childList: true, subtree: true });
-
-      setTimeout(() => {
-        observer.disconnect();
-        resolve(parent.querySelector(selector));
-      }, timeout);
-    } catch (e) {
-      console.warn("[Clasificador] Query error:", e);
-      resolve(null);
-    }
-  });
-}
+          resolve(parent.querySelector(selector));
+        }, timeout);
+      } catch (e) {
+        console.warn("[Clasificador] Query error:", e);
+        resolve(null);
+      }
+    });
+  }
 
   /**
    * @param {string} selector
@@ -1402,23 +1868,25 @@ function waitForElement(selector, parent = document, timeout = 8000) {
       const wordsI = getWords(resolvedInquiry);
       const wordsC = getWords(resolvedCreditor);
 
+      // Require at least 2 significant words in common, or a single word that is
+      // both the only word present AND long enough (>= 7 chars) to be distinctive.
+      // This prevents generic words like "federal", "credit", "united" from
+      // triggering a false link between unrelated institutions.
       const exact = wordsI.filter(w => wordsC.includes(w));
       if (exact.length >= 2) return item;
-      if (exact.length === 1 && wordsI.length === 1) return item;
-      if (exact.length === 1 && exact[0].length > 5) return item;
+      if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 7) return item;
 
       const prefixesI = getPrefixes(resolvedInquiry);
       const prefixesC = getPrefixes(resolvedCreditor);
       const pfx = prefixesI.filter(p => prefixesC.includes(p));
       if (pfx.length >= 2) return item;
-      if (pfx.length === 1 && wordsI.length === 1 && prefixesI[0].length >= 4) return item;
-      if (pfx.length === 1 && wordsI[prefixesI.indexOf(pfx[0])]?.length > 5) return item;
 
-      if (resolvedInquiry.length >= 4 && resolvedCreditor.includes(resolvedInquiry)) return item;
-      if (resolvedCreditor.length >= 4 && resolvedInquiry.includes(resolvedCreditor)) return item;
+      // Substring containment: only when the contained string is reasonably long
+      if (resolvedInquiry.length >= 6 && resolvedCreditor.includes(resolvedInquiry)) return item;
+      if (resolvedCreditor.length >= 6 && resolvedInquiry.includes(resolvedCreditor)) return item;
 
       const sim = jaccardSimilarity(resolvedInquiry, resolvedCreditor);
-      if (sim >= 0.6) return item;
+      if (sim >= 0.7) return item;
     }
     return null;
   }
@@ -1501,11 +1969,6 @@ function waitForElement(selector, parent = document, timeout = 8000) {
     if (a.addresses?.length === 1) out += `Address: ${a.addresses[0]}${NL}`;
     else if (a.addresses?.length > 1) a.addresses.forEach((addr, i) => { out += `Address ${i + 1}: ${addr}${NL}`; });
     return out + NL;
-  }
-
-  function formatAccountList(label, accounts, NL) {
-    if (!accounts.length) return "";
-    return `${label} (${accounts.length})${NL}${NL}` + accounts.map(a => formatAccount(a, NL)).join("");
   }
 
   /* ===================== CLIENT DATA ===================== */
@@ -1651,7 +2114,7 @@ function waitForElement(selector, parent = document, timeout = 8000) {
 
       removeProgressPanel();
 
-      let output = "";
+      let personalHeader = "";
       const pFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
       const showLabels = CONFIG.showPersonalLabels !== false;
       pFields.filter(f => f.enabled).forEach(f => {
@@ -1662,26 +2125,20 @@ function waitForElement(selector, parent = document, timeout = 8000) {
           val = digits.slice(-4);
         }
         val = val.replace(/\n/g, NL);
-        output += showLabels ? `${f.label}: ${val}` + NL : val + NL;
+        personalHeader += showLabels ? `${f.label}: ${val}` + NL : val + NL;
       });
-      output += NL;
-      output += formatAccountList("COLLECTION AGENCIES", COLLECTION_ACCOUNTS, NL);
-      output += formatAccountList("ORIGINAL CREDITORS", ORIGINAL_ACCOUNTS, NL);
+      personalHeader += NL;
 
-      if (INQUIRIES.length) {
-        output += `INQUIRIES (${INQUIRIES.length})` + NL + NL;
-        INQUIRIES.forEach(i => output += i + NL);
-        output += NL + NL;
-      }
-
-      if (PERSONAL.length) {
-        output += `PERSONAL INFORMATION (${PERSONAL.length})` + NL + NL;
-        PERSONAL.forEach(p => output += p + NL);
-      }
-
-      console.log(output);
-      showOutputPreview(output, {
+      showOutputEditor({
+        collections: COLLECTION_ACCOUNTS,
+        originals: ORIGINAL_ACCOUNTS,
+        inquiries: INQUIRIES,
+        personal: PERSONAL,
+        personalHeader
+      }, {
         accounts: COLLECTION_ACCOUNTS.length + ORIGINAL_ACCOUNTS.length,
+        collections: COLLECTION_ACCOUNTS.length,
+        originals: ORIGINAL_ACCOUNTS.length,
         inquiries: INQUIRIES.length,
         personal: PERSONAL.length,
         skippedOpen: SKIPPED_OPEN,
