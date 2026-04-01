@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.3
+// @version      20.4
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -14,9 +14,10 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "20.3";
+const SCRIPT_VERSION = "20.4";
 
 const VERSION_NOTES = {
+  "20.4": "📐 El menú ya no se oculta al cambiar el tamaño de la ventana",
   "20.3": "📚 Historial de clientes: revisa, re-copia y filtra por rango de fechas",
   "20.2": "✏️ Panel de output interactivo: edita, reordena y elimina cuentas antes de copiar",
   "20.1": "🛡️ Escudo Anti-Disputas: Exclusión automática de Inquiries vinculadas a cuentas positivas",
@@ -423,6 +424,23 @@ upgrade = upgrade bank, upgrade lending
       document.addEventListener('mousemove', move);
       document.addEventListener('mouseup', up);
     });
+  }
+
+  function clampToolbar() {
+    const toolbar = document.getElementById('crToolbar');
+    if (!toolbar) return;
+    const rect = toolbar.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = parseFloat(toolbar.style.left);
+    let top = parseFloat(toolbar.style.top);
+    if (isNaN(left)) left = rect.left;
+    if (isNaN(top)) top = rect.top;
+    left = Math.min(Math.max(left, 0), vw - rect.width);
+    top = Math.min(Math.max(top, 0), vh - rect.height);
+    toolbar.style.left = left + 'px';
+    toolbar.style.right = 'auto';
+    toolbar.style.top = top + 'px';
   }
 
   /* ===================== ALIAS UI ===================== */
@@ -986,6 +1004,10 @@ upgrade = upgrade bank, upgrade lending
     document.getElementById('crHistoryBtn').onclick = showHistoryPanel;
     document.getElementById('crSettingsBtn').onclick = openConfigPanel;
     setButtonAnimation('idle');
+
+    // Ensure toolbar stays visible after window resize
+    setTimeout(clampToolbar, 0);
+    window.addEventListener('resize', clampToolbar);
   }
 
   function highlight(item, color) {
