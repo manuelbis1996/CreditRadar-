@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.4
+// @version      20.5
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -14,9 +14,10 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "20.4";
+const SCRIPT_VERSION = "20.5";
 
 const VERSION_NOTES = {
+  "20.5": "🛡️ Correcciones: clipboard, historial corrupto, XSS y filtros de fecha",
   "20.4": "📐 El menú ya no se oculta al cambiar el tamaño de la ventana",
   "20.3": "📚 Historial de clientes: revisa, re-copia y filtra por rango de fechas",
   "20.2": "✏️ Panel de output interactivo: edita, reordena y elimina cuentas antes de copiar",
@@ -200,11 +201,20 @@ upgrade = upgrade bank, upgrade lending
     try {
       const raw = GM_getValue(HISTORY_KEY, '[]');
       return typeof raw === 'string' ? JSON.parse(raw) : raw;
-    } catch (e) { return []; }
+    } catch (e) {
+      console.error('[CreditRadar] Historial corrupto, limpiando...', e);
+      GM_deleteValue(HISTORY_KEY);
+      return [];
+    }
   }
 
   function saveHistory(entries) {
-    try { GM_setValue(HISTORY_KEY, JSON.stringify(entries)); } catch (e) { }
+    try {
+      GM_setValue(HISTORY_KEY, JSON.stringify(entries));
+    } catch (e) {
+      console.error('[CreditRadar] Error guardando historial:', e);
+      showToast('⚠️ Error guardando historial', '#ff4444', 3000);
+    }
   }
 
   function addHistoryEntry(output, stats, personalHeader) {
@@ -267,6 +277,7 @@ upgrade = upgrade bank, upgrade lending
       if (!line || !line.includes("=")) return;
       const [main, ...rest] = line.split("=");
       const mainClean = cleanName(main.trim());
+      if (!mainClean) return;
       const mainNormalized = normalizeForMatch(mainClean);
       map.set(mainNormalized, mainClean);
       rest.join("=").split(",").forEach(alias => {
@@ -1007,7 +1018,11 @@ upgrade = upgrade bank, upgrade lending
 
     // Ensure toolbar stays visible after window resize
     setTimeout(clampToolbar, 0);
-    window.addEventListener('resize', clampToolbar);
+    let _resizeTid;
+    window.addEventListener('resize', () => {
+      clearTimeout(_resizeTid);
+      _resizeTid = setTimeout(clampToolbar, 100);
+    });
   }
 
   function highlight(item, color) {
@@ -1199,7 +1214,7 @@ upgrade = upgrade bank, upgrade lending
 
   function updateProgress(current, total, name) {
     const el = document.getElementById("progressText");
-    if (el) el.innerHTML = `Dispute ${current} / ${total}<br><span style="color:#aaa;font-size:12px">${name || ""}</span>`;
+    if (el) el.innerHTML = `Dispute ${current} / ${total}<br><span style="color:#aaa;font-size:12px">${escapeHtml(name || "")}</span>`;
   }
 
   function removeProgressPanel() {
@@ -1439,11 +1454,16 @@ upgrade = upgrade bank, upgrade lending
       });
 
       addHistoryEntry(output, stats, data.personalHeader);
-      await navigator.clipboard.writeText(output);
-      const btn = document.getElementById('crCopyBtn');
-      btn.textContent = '✅ Copiado!';
-      btn.classList.add('copied');
-      setTimeout(() => close(), 800);
+      try {
+        await navigator.clipboard.writeText(output);
+        const btn = document.getElementById('crCopyBtn');
+        btn.textContent = '✅ Copiado!';
+        btn.classList.add('copied');
+        setTimeout(() => close(), 800);
+      } catch (e) {
+        console.error('[CreditRadar] Clipboard error:', e);
+        showToast('⚠️ No se pudo copiar al portapapeles', '#ff4444', 3000);
+      }
     };
   }
 
@@ -1538,15 +1558,25 @@ upgrade = upgrade bank, upgrade lending
             document.getElementById('crHistDetClose'),
             document.getElementById('crHistDetClose2'));
           document.getElementById('crHistDetCopy').onclick = async () => {
-            await navigator.clipboard.writeText(entry.output);
-            showToast('📋 Copiado del historial', '#00aaff', 2500);
-            closeDetail();
+            try {
+              await navigator.clipboard.writeText(entry.output);
+              showToast('📋 Copiado del historial', '#00aaff', 2500);
+              closeDetail();
+            } catch (e) {
+              console.error('[CreditRadar] Clipboard error:', e);
+              showToast('⚠️ No se pudo copiar al portapapeles', '#ff4444', 3000);
+            }
           };
         };
 
         el.querySelector('.cr-hist-btn-copy').onclick = async () => {
-          await navigator.clipboard.writeText(entry.output);
-          showToast('📋 Copiado del historial', '#00aaff', 2500);
+          try {
+            await navigator.clipboard.writeText(entry.output);
+            showToast('📋 Copiado del historial', '#00aaff', 2500);
+          } catch (e) {
+            console.error('[CreditRadar] Clipboard error:', e);
+            showToast('⚠️ No se pudo copiar al portapapeles', '#ff4444', 3000);
+          }
         };
 
         el.querySelector('.cr-hist-btn-del').onclick = () => {
@@ -1562,8 +1592,8 @@ upgrade = upgrade bank, upgrade lending
     function applyFilter() {
       const from = document.getElementById('crHistFrom').value;
       const to = document.getElementById('crHistTo').value;
-      const fromTs = from ? new Date(from).getTime() : 0;
-      const toTs = to ? new Date(to).getTime() + 86399999 : Infinity;
+      const fromTs = from ? (new Date(from).getTime() || 0) : 0;
+      const toTs = to ? ((new Date(to).getTime() || Infinity) + 86399999) : Infinity;
       renderList(entries.filter(e => e.id >= fromTs && e.id <= toTs));
     }
 
