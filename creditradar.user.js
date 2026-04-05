@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.5
+// @version      20.6
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -14,9 +14,10 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "20.5";
+const SCRIPT_VERSION = "20.6";
 
 const VERSION_NOTES = {
+  "20.6": "🎨 Rediseño minimalista: sin glow, paleta teal suave, paneles limpios",
   "20.5": "🛡️ Correcciones: clipboard, historial corrupto, XSS y filtros de fecha",
   "20.4": "📐 El menú ya no se oculta al cambiar el tamaño de la ventana",
   "20.3": "📚 Historial de clientes: revisa, re-copia y filtra por rango de fechas",
@@ -166,9 +167,9 @@ upgrade = upgrade bank, upgrade lending
       "collection", "delinquent", "past due", "late"
     ],
     colors: {
-      open: "#00ff88",
-      closedPositive: "#00aaff",
-      inquiryLinked: "#ffcc00"
+      open: "#5eead4",
+      closedPositive: "#60a5fa",
+      inquiryLinked: "#fbbf24"
     },
     fieldOrder: [
       { key: "name", showLabel: true },
@@ -213,7 +214,7 @@ upgrade = upgrade bank, upgrade lending
       GM_setValue(HISTORY_KEY, JSON.stringify(entries));
     } catch (e) {
       console.error('[CreditRadar] Error guardando historial:', e);
-      showToast('⚠️ Error guardando historial', '#ff4444', 3000);
+      showToast('⚠️ Error guardando historial', '#f87171', 3000);
     }
   }
 
@@ -622,7 +623,7 @@ upgrade = upgrade bank, upgrade lending
 
     panel.innerHTML = `
     <div class="cr-ph" id="crCfgHandle">
-      <div class="cr-ph-title">⚙️ Configuraciones</div>
+      <div class="cr-ph-title">Configuración</div>
       <button class="cr-x" id="crCfgClose">✕</button>
     </div>
     <div class="cr-tabs">
@@ -652,7 +653,7 @@ upgrade = upgrade bank, upgrade lending
         <div class="cr-colors">
           <div class="cr-clr"><input type="color" id="cfg_colorOpen" value="${CONFIG.colors.open}"><span>Open</span></div>
           <div class="cr-clr"><input type="color" id="cfg_colorClosed" value="${CONFIG.colors.closedPositive}"><span>Closed+</span></div>
-          <div class="cr-clr"><input type="color" id="cfg_colorInquiry" value="${CONFIG.colors.inquiryLinked || '#ffcc00'}"><span>Inquiry</span></div>
+          <div class="cr-clr"><input type="color" id="cfg_colorInquiry" value="${CONFIG.colors.inquiryLinked || '#fbbf24'}"><span>Inquiry</span></div>
         </div>
       </div>
       <div class="cr-pane" id="cr-pane-fields">
@@ -680,8 +681,8 @@ upgrade = upgrade bank, upgrade lending
       </div>
     </div>
     <div class="cr-footer">
-      <button class="cr-btn cr-btn-ok" id="crCfgSave">💾 Guardar</button>
-      <button class="cr-btn cr-btn-rst" id="crCfgReset">🔄 Restaurar</button>
+      <button class="cr-btn cr-btn-ok" id="crCfgSave">Guardar</button>
+      <button class="cr-btn cr-btn-rst" id="crCfgReset">Restaurar</button>
     </div>
   `;
 
@@ -730,7 +731,7 @@ upgrade = upgrade bank, upgrade lending
         }));
       saveConfig(CONFIG);
       panel.remove();
-      showToast('✅ Configuración guardada', '#00ff88');
+      showToast('✅ Configuración guardada', '#5eead4');
     };
 
     document.getElementById('crCfgReset').onclick = () => {
@@ -738,7 +739,7 @@ upgrade = upgrade bank, upgrade lending
         CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
         saveConfig(CONFIG);
         panel.remove();
-        showToast('🔄 Configuración restaurada', '#ffcc00');
+        showToast('🔄 Configuración restaurada', '#fbbf24');
       }
     };
   }
@@ -746,39 +747,36 @@ upgrade = upgrade bank, upgrade lending
   /* ===================== STYLES ===================== */
 
   const buttonAnimationStyles = `
-  @keyframes crGlow { 0%,100%{box-shadow:0 0 10px #00ff88,0 0 20px #00ff8844} 50%{box-shadow:0 0 20px #00ff88,0 0 30px #00ff8866} }
-  @keyframes crPulse { 0%,100%{transform:scale(1);box-shadow:0 0 5px #ff6600,0 0 15px #ff660044} 50%{transform:scale(1.05);box-shadow:0 0 15px #ff6600,0 0 25px #ff660066} }
-  @keyframes crSuccessAnim { 0%{transform:scale(1)} 50%{transform:scale(1.1)} 100%{transform:scale(1)} }
   @keyframes crSlideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
   @keyframes crFadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
   @keyframes crScaleIn { from{opacity:0;transform:translate(-50%,-50%) scale(0.93)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
 
   /* Toolbar */
-  #crToolbar { position:fixed; z-index:99999; display:flex; flex-direction:column; align-items:center; gap:5px; background:rgba(20,20,20,0.8); backdrop-filter:blur(8px); padding:8px 6px; border-radius:16px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 10px 30px rgba(0,0,0,0.5); transition: opacity 0.2s ease; }
+  #crToolbar { position:fixed; z-index:99999; display:flex; flex-direction:column; align-items:center; gap:6px; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); padding:10px 8px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 16px rgba(0,0,0,0.4); transition: opacity 0.2s ease; }
   #crToolbarGrip { width:100%; height:12px; cursor:grab; display:flex; justify-content:center; align-items:center; color:#555; font-size:10px; margin-bottom:2px; user-select:none; }
-  #crToolbarGrip:active { cursor:grabbing; color:#00ff88; }
-  #clasificadorBTN { width:48px; height:48px; background:#111; color:#fff; border:2px solid #00ff8844; border-radius:12px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
-  #clasificadorBTN:hover:not(:disabled) { background:#1a1a1a; border-color:#00ff88; }
+  #crToolbarGrip:active { cursor:grabbing; color:#5eead4; }
+  #clasificadorBTN { width:48px; height:48px; background:#111; color:#fff; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
+  #clasificadorBTN:hover:not(:disabled) { background:#1a1a1a; border-color:#5eead4; }
   #clasificadorBTN:disabled { cursor:not-allowed; opacity:0.8; }
   #clasificadorBTN .cr-ver { font-size:9px; color:#555; font-family:monospace; margin-top:2px; }
   #crSettingsBtn { width:36px; height:36px; background:#111; color:#555; border:1px solid #222; border-radius:8px; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; transition:all 0.25s ease; }
   #crSettingsBtn:hover { color:#fff; border-color:#444; background:#1a1a1a; transform:rotate(45deg); }
-  .clasificador-glow { animation:crGlow 2s ease-in-out infinite; }
-  .clasificador-pulse { animation:crPulse 0.8s ease-in-out infinite; }
-  .clasificador-success { animation:crSuccessAnim 0.6s ease-in-out; }
+  .clasificador-glow { border-color:#5eead4 !important; }
+  .clasificador-pulse { opacity:0.7; }
+  .clasificador-success { border-color:#5eead4 !important; }
 
   /* Config Panel */
-  #clasificadorConfigPanel { position:fixed; top:70px; right:70px; z-index:999999; background:#161616; color:#fff; border-radius:14px; width:440px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 20px 50px rgba(0,0,0,0.75); animation:crSlideIn 0.25s ease; overflow:hidden; }
+  #clasificadorConfigPanel { position:fixed; top:70px; right:70px; z-index:999999; background:#161616; color:#fff; border-radius:12px; width:440px; max-height:88vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.45); animation:crSlideIn 0.25s ease; overflow:hidden; }
   .cr-ph { padding:15px 16px 0; display:flex; justify-content:space-between; align-items:center; cursor:grab; flex-shrink:0; }
   .cr-ph:active { cursor:grabbing; }
   .cr-ph-title { font-size:14px; font-weight:bold; }
   .cr-x { width:26px; height:26px; border-radius:50%; background:#222; border:none; color:#666; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
-  .cr-x:hover { background:#ff4444; color:#fff; }
+  .cr-x:hover { background:#f87171; color:#fff; }
   .cr-tabs { display:flex; gap:2px; padding:12px 16px 0; border-bottom:1px solid #222; margin-top:10px; overflow-x:auto; flex-shrink:0; }
   .cr-tabs::-webkit-scrollbar { height:0; }
   .cr-tab { padding:6px 12px; border:none; background:transparent; color:#555; cursor:pointer; font-size:12px; border-radius:6px 6px 0 0; transition:all 0.2s; white-space:nowrap; position:relative; bottom:-1px; flex:0 0 auto; }
   .cr-tab:hover { color:#bbb; background:#1c1c1c; }
-  .cr-tab.active { color:#fff; background:#1c1c1c; border-bottom:2px solid #00ff88; }
+  .cr-tab.active { color:#fff; background:#1c1c1c; border-bottom:2px solid #5eead4; }
   .cr-body { flex:1; overflow-y:auto; padding:14px 16px; min-height:0; }
   .cr-body::-webkit-scrollbar { width:3px; }
   .cr-body::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
@@ -792,7 +790,7 @@ upgrade = upgrade bank, upgrade lending
   .cr-tags:focus-within { border-color:#333; }
   .cr-chip { background:#1d1d1d; border:1px solid #2a2a2a; color:#ccc; padding:3px 8px 3px 9px; border-radius:20px; font-size:11px; display:flex; align-items:center; gap:5px; animation:crFadeIn 0.15s; }
   .cr-chip-del { cursor:pointer; color:#444; line-height:1; background:none; border:none; padding:0; font-size:13px; transition:color 0.15s; }
-  .cr-chip-del:hover { color:#ff4444; }
+  .cr-chip-del:hover { color:#f87171; }
   .cr-tags-in { background:transparent; border:none; outline:none; color:#ccc; font-size:11px; flex:1; min-width:80px; padding:2px 3px; }
   .cr-tag-hint { font-size:10px; color:#444; margin-top:4px; }
   .cr-colors { display:flex; gap:14px; flex-wrap:wrap; margin-top:4px; }
@@ -803,7 +801,7 @@ upgrade = upgrade bank, upgrade lending
   .cr-fitem { background:#1a1a1a; border:1px solid #222; border-radius:8px; padding:9px 12px; display:flex; align-items:center; gap:9px; cursor:grab; font-size:12px; transition:all 0.2s; user-select:none; }
   .cr-fitem:active { cursor:grabbing; }
   .cr-fitem.cr-dragging { opacity:0.35; }
-  .cr-fitem.cr-dragover { border-color:#00ff88; background:#121f15; }
+  .cr-fitem.cr-dragover { border-color:#5eead4; background:#0d1e1d; }
   .cr-fitem-grip { color:#444; transition:color 0.2s; }
   .cr-fitem:hover .cr-fitem-grip { color:#666; }
   .cr-fitem-name { flex:1; color:#bbb; }
@@ -812,39 +810,39 @@ upgrade = upgrade bank, upgrade lending
   .cr-fitem-toggle { display:none; }
   .cr-toggle-ui { width:28px; height:16px; background:#222; border:1px solid #2a2a2a; border-radius:8px; position:relative; transition:background 0.2s; }
   .cr-toggle-ui::after { content:''; position:absolute; width:10px; height:10px; background:#444; border-radius:50%; top:2px; left:2px; transition:all 0.2s; }
-  .cr-fitem-toggle:checked + .cr-toggle-ui { background:#003a20; border-color:#00ff8855; }
-  .cr-fitem-toggle:checked + .cr-toggle-ui::after { left:14px; background:#00ff88; }
+  .cr-fitem-toggle:checked + .cr-toggle-ui { background:#0d1e1d; border-color:#5eead455; }
+  .cr-fitem-toggle:checked + .cr-toggle-ui::after { left:14px; background:#5eead4; }
   .cr-footer { padding:12px 16px; border-top:1px solid #1e1e1e; display:flex; gap:9px; flex-shrink:0; }
   .cr-btn { flex:1; padding:10px; border:none; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:5px; }
-  .cr-btn-ok { background:#00ff88; color:#000; }
-  .cr-btn-ok:hover { background:#00d970; }
+  .cr-btn-ok { background:#5eead4; color:#0f172a; }
+  .cr-btn-ok:hover { background:#2dd4bf; }
   .cr-btn-rst { background:transparent; color:#555; border:1px solid #2a2a2a; flex:0 0 auto; padding:10px 18px; }
   .cr-btn-rst:hover { background:#1e1e1e; color:#ccc; }
 
   /* Version Modal */
-  #crVersionModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:18px; z-index:9999999; width:420px; max-width:94vw; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 30px 80px rgba(0,0,0,0.9); animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1); overflow:hidden; }
-  .cr-vm-header { padding:28px 26px 20px; background:linear-gradient(135deg,#0d1f12 0%,#111 60%); border-bottom:1px solid #1e1e1e; position:relative; }
-  .cr-vm-badge { display:inline-flex; align-items:center; gap:6px; background:#00ff8818; border:1px solid #00ff8840; color:#00ff88; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; margin-bottom:10px; }
+  #crVersionModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:12px; z-index:9999999; width:420px; max-width:94vw; max-height:85vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 16px 48px rgba(0,0,0,0.55); animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1); overflow:hidden; }
+  .cr-vm-header { padding:28px 26px 20px; background:#111; border-top:2px solid #5eead4; border-bottom:1px solid #1e1e1e; position:relative; }
+  .cr-vm-badge { display:inline-flex; align-items:center; gap:6px; background:#5eead418; border:1px solid #5eead440; color:#5eead4; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; margin-bottom:10px; }
   .cr-vm-title { font-size:22px; font-weight:700; letter-spacing:-0.5px; }
   .cr-vm-subtitle { font-size:12px; color:#555; margin-top:4px; }
   .cr-vm-close { position:absolute; top:16px; right:16px; width:28px; height:28px; border-radius:50%; background:#222; border:none; color:#666; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
-  .cr-vm-close:hover { background:#ff4444; color:#fff; }
+  .cr-vm-close:hover { background:#f87171; color:#fff; }
   .cr-vm-body { flex:1; overflow-y:auto; padding:18px 26px; }
   .cr-vm-body::-webkit-scrollbar { width:3px; }
   .cr-vm-body::-webkit-scrollbar-thumb { background:#2a2a2a; border-radius:2px; }
   .cr-vm-entry { display:flex; gap:14px; padding:12px 0; border-bottom:1px solid #1a1a1a; }
   .cr-vm-entry:last-child { border-bottom:none; }
-  .cr-vm-entry.current .cr-vm-ver { color:#00ff88; border-color:#00ff8840; background:#00ff8810; }
+  .cr-vm-entry.current .cr-vm-ver { color:#5eead4; border-color:#5eead440; background:#5eead410; }
   .cr-vm-ver { font-size:10px; font-family:monospace; font-weight:700; color:#444; border:1px solid #2a2a2a; border-radius:6px; padding:2px 7px; white-space:nowrap; align-self:flex-start; margin-top:1px; min-width:38px; text-align:center; }
   .cr-vm-note { font-size:13px; color:#bbb; line-height:1.5; flex:1; }
   .cr-vm-entry.current .cr-vm-note { color:#fff; }
   .cr-vm-footer { padding:16px 26px; border-top:1px solid #1e1e1e; }
-  .cr-vm-btn { width:100%; padding:12px; background:#00ff88; color:#000; border:none; border-radius:10px; cursor:pointer; font-weight:700; font-size:14px; transition:all 0.2s; letter-spacing:0.2px; }
-  .cr-vm-btn:hover { background:#00d970; transform:translateY(-1px); box-shadow:0 4px 20px #00ff8840; }
+  .cr-vm-btn { width:100%; padding:12px; background:#5eead4; color:#0f172a; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:14px; transition:all 0.2s; letter-spacing:0.2px; }
+  .cr-vm-btn:hover { background:#2dd4bf; }
 
   /* Output Preview */
   #crOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999997; animation:crFadeIn 0.2s ease; }
-  #crOutputPanel { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:14px; z-index:999999; width:540px; max-width:92vw; max-height:90vh; box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,0.8); display:flex; flex-direction:column; animation:crScaleIn 0.22s ease; }
+  #crOutputPanel { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:12px; z-index:999999; width:540px; max-width:92vw; max-height:90vh; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.5); display:flex; flex-direction:column; animation:crScaleIn 0.22s ease; }
   .cr-out-head { padding:15px 18px; border-bottom:1px solid #1e1e1e; display:flex; justify-content:space-between; align-items:center; }
   .cr-out-stats { padding:10px 18px; border-bottom:1px solid #1a1a1a; display:flex; gap:8px; flex-wrap:wrap; }
   .cr-stat { background:#1a1a1a; border:1px solid #222; border-radius:20px; padding:3px 10px; font-size:11px; color:#888; }
@@ -853,9 +851,9 @@ upgrade = upgrade bank, upgrade lending
   #crOutputPanel textarea::-webkit-scrollbar { width:3px; }
   #crOutputPanel textarea::-webkit-scrollbar-thumb { background:#2a2a2a; }
   .cr-out-foot { padding:12px 18px; border-top:1px solid #1e1e1e; display:flex; gap:9px; }
-  .cr-copy-btn { flex:1; padding:11px; background:#00ff88; color:#000; border:none; border-radius:9px; cursor:pointer; font-weight:bold; font-size:13px; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:7px; }
-  .cr-copy-btn:hover { background:#00d970; }
-  .cr-copy-btn.copied { background:#00aaff; color:#fff; }
+  .cr-copy-btn { flex:1; padding:11px; background:#5eead4; color:#0f172a; border:none; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:7px; }
+  .cr-copy-btn:hover { background:#2dd4bf; }
+  .cr-copy-btn.copied { background:#60a5fa; color:#fff; }
   .cr-dismiss-btn { padding:11px 16px; background:#1e1e1e; color:#666; border:1px solid #2a2a2a; border-radius:9px; cursor:pointer; font-size:13px; transition:all 0.2s; }
   .cr-dismiss-btn:hover { background:#252525; color:#ccc; }
 
@@ -871,7 +869,7 @@ upgrade = upgrade bank, upgrade lending
   .cr-alias-toggle { background:#222; color:#666; }
   .cr-alias-toggle:hover { background:#2a2a2a; color:#ccc; }
   .cr-alias-remove { background:#1e1e1e; color:#555; }
-  .cr-alias-remove:hover { background:#ff4444; color:#fff; }
+  .cr-alias-remove:hover { background:#f87171; color:#fff; }
   .cr-alias-chips-row { padding:0 12px 8px; display:flex; flex-wrap:wrap; gap:4px; }
   .cr-chip-xs { background:#111; border:1px solid #222; color:#777; padding:2px 7px; border-radius:20px; font-size:10px; }
   .cr-alias-edit-form { border-top:1px solid #1e1e1e; padding:10px 12px; display:none; background:#141414; }
@@ -883,8 +881,8 @@ upgrade = upgrade bank, upgrade lending
   .cr-alias-search-row { display:flex; gap:7px; margin-bottom:10px; }
   .cr-alias-search-row input { flex:1; background:#111; color:#ccc; border:1px solid #222; border-radius:7px; padding:7px 10px; font-size:12px; outline:none; transition:border-color 0.2s; }
   .cr-alias-search-row input:focus { border-color:#333; }
-  .cr-alias-add-btn { background:#00ff88; color:#000; border:none; border-radius:7px; padding:7px 12px; font-size:12px; font-weight:bold; cursor:pointer; white-space:nowrap; transition:background 0.2s; }
-  .cr-alias-add-btn:hover { background:#00d970; }
+  .cr-alias-add-btn { background:#5eead4; color:#000; border:none; border-radius:7px; padding:7px 12px; font-size:12px; font-weight:bold; cursor:pointer; white-space:nowrap; transition:background 0.2s; }
+  .cr-alias-add-btn:hover { background:#2dd4bf; }
   .cr-alias-empty { text-align:center; color:#444; font-size:12px; padding:20px 0; }
 
   /* Output Editor */
@@ -906,7 +904,7 @@ upgrade = upgrade bank, upgrade lending
   .cr-editor-edit-btn { background:#222; color:#666; }
   .cr-editor-edit-btn:hover { background:#2a2a2a; color:#ccc; }
   .cr-editor-del-btn { background:#1e1e1e; color:#555; }
-  .cr-editor-del-btn:hover { background:#ff4444; color:#fff; }
+  .cr-editor-del-btn:hover { background:#f87171; color:#fff; }
   .cr-editor-form { border-top:1px solid #1e1e1e; padding:8px 10px; background:#141414; display:none; animation:crFadeIn 0.15s; }
   .cr-editor-form.open { display:block; }
   .cr-editor-field { display:flex; align-items:center; gap:8px; margin-bottom:5px; }
@@ -917,12 +915,12 @@ upgrade = upgrade bank, upgrade lending
   .cr-editor-str-item { display:flex; align-items:center; gap:8px; padding:6px 10px; background:#1a1a1a; border:1px solid #222; border-radius:7px; margin-bottom:4px; }
   .cr-editor-str-val { flex:1; font-size:12px; color:#ccc; }
   .cr-editor-str-del { width:22px; height:22px; border-radius:4px; border:none; background:#1e1e1e; color:#555; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
-  .cr-editor-str-del:hover { background:#ff4444; color:#fff; }
+  .cr-editor-str-del:hover { background:#f87171; color:#fff; }
   .cr-editor-dragging { opacity:0.35; }
-  .cr-editor-dragover { border-color:#00ff88 !important; background:#0d1f12; }
+  .cr-editor-dragover { border-color:#5eead4 !important; background:#0d1e1d; }
 
   /* History Panel */
-  #crHistoryPanel { position:fixed; top:70px; right:130px; z-index:999999; background:#161616; color:#fff; border-radius:14px; width:440px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 20px 50px rgba(0,0,0,0.75); animation:crSlideIn 0.25s ease; overflow:hidden; }
+  #crHistoryPanel { position:fixed; top:70px; right:130px; z-index:999999; background:#161616; color:#fff; border-radius:12px; width:440px; max-height:88vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.45); animation:crSlideIn 0.25s ease; overflow:hidden; }
   #crHistoryBtn { width:36px; height:36px; background:#111; color:#555; border:1px solid #222; border-radius:8px; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; transition:all 0.25s ease; }
   #crHistoryBtn:hover { color:#fff; border-color:#444; background:#1a1a1a; }
   .cr-hist-filter { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid #1e1e1e; flex-shrink:0; }
@@ -930,7 +928,7 @@ upgrade = upgrade bank, upgrade lending
   .cr-hist-date-in:focus { border-color:#333; }
   .cr-hist-chips { display:flex; gap:5px; }
   .cr-hist-chip { padding:3px 10px; border-radius:20px; border:1px solid #222; background:#1a1a1a; color:#555; font-size:11px; cursor:pointer; transition:all 0.15s; }
-  .cr-hist-chip.active { background:#003a20; border-color:#00ff8855; color:#00ff88; }
+  .cr-hist-chip.active { background:#0d1e1d; border-color:#5eead455; color:#5eead4; }
   .cr-hist-count { font-size:10px; color:#444; margin-left:auto; font-family:monospace; }
   .cr-hist-body { flex:1; overflow-y:auto; padding:12px 16px; min-height:0; }
   .cr-hist-body::-webkit-scrollbar { width:3px; }
@@ -945,14 +943,14 @@ upgrade = upgrade bank, upgrade lending
   .cr-hist-btn { padding:4px 10px; border-radius:6px; border:none; cursor:pointer; font-size:11px; font-weight:bold; transition:all 0.15s; }
   .cr-hist-btn-view { background:#222; color:#888; }
   .cr-hist-btn-view:hover { background:#2a2a2a; color:#fff; }
-  .cr-hist-btn-copy { background:#003a20; color:#00ff88; border:1px solid #00ff8830; }
-  .cr-hist-btn-copy:hover { background:#00ff88; color:#000; }
+  .cr-hist-btn-copy { background:#0d1e1d; color:#5eead4; border:1px solid #5eead430; }
+  .cr-hist-btn-copy:hover { background:#5eead4; color:#000; }
   .cr-hist-btn-del { background:#1e1e1e; color:#555; }
-  .cr-hist-btn-del:hover { background:#ff4444; color:#fff; }
+  .cr-hist-btn-del:hover { background:#f87171; color:#fff; }
   .cr-hist-empty { text-align:center; color:#444; font-size:12px; padding:40px 0; }
   .cr-hist-footer { padding:12px 16px; border-top:1px solid #1e1e1e; flex-shrink:0; }
   .cr-hist-clear-btn { width:100%; padding:9px; background:transparent; color:#555; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; }
-  .cr-hist-clear-btn:hover { background:#ff444422; color:#ff4444; border-color:#ff444444; }
+  .cr-hist-clear-btn:hover { background:#f8717122; color:#f87171; border-color:#f8717144; }
 `;
 
   const styleEl = document.createElement('style');
@@ -1041,16 +1039,16 @@ upgrade = upgrade bank, upgrade lending
     document.querySelectorAll(".dispute-outer-sample-container").forEach(clearHighlight);
   }
 
-  function showToast(message, color = "#00ff88", duration = 5000) {
+  function showToast(message, color = "#5eead4", duration = 5000) {
     document.getElementById("clasificadorToast")?.remove();
     const toast = document.createElement("div");
     toast.id = "clasificadorToast";
     Object.assign(toast.style, {
       position: "fixed", bottom: "30px", right: "30px",
       background: "#1a1a1a", color: "#fff", padding: "14px 20px",
-      borderRadius: "10px", zIndex: "999999", fontSize: "14px",
-      boxShadow: `0 0 15px ${color}66`,
-      border: `2px solid ${color}`,
+      borderRadius: "8px", zIndex: "999999", fontSize: "14px",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+      border: `1px solid ${color}`,
       transition: "opacity 0.5s ease",
       maxWidth: "320px"
     });
@@ -1108,7 +1106,7 @@ upgrade = upgrade bank, upgrade lending
     </div>
     <div class="cr-vm-body">${entriesHTML}</div>
     <div class="cr-vm-footer">
-      <button class="cr-vm-btn" id="crVmOk">Entendido 🚀</button>
+      <button class="cr-vm-btn" id="crVmOk">Entendido</button>
     </div>
   `;
 
@@ -1128,21 +1126,21 @@ upgrade = upgrade bank, upgrade lending
 
   function showUpdateAvailableModal(latestVer) {
     const overlay = createOverlay('crUpdateOverlay');
-    const modal = createModal('crUpdateModal', 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:18px;z-index:9999999;width:400px;max-width:94vw;box-shadow:0 0 0 1px #2a2a2a,0 30px 80px rgba(0,0,0,0.9);animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1);overflow:hidden;');
+    const modal = createModal('crUpdateModal', 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:12px;z-index:9999999;width:400px;max-width:94vw;border:1px solid #2a2a2a;box-shadow:0 16px 48px rgba(0,0,0,0.55);animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1);overflow:hidden;');
 
     modal.innerHTML = `
-    <div class="cr-vm-header" style="background:linear-gradient(135deg,#021426 0%,#111 60%);">
-      <div class="cr-vm-badge" style="background:#00aaff18;border-color:#00aaff40;color:#00aaff;">🚀 Actualización Disponible</div>
+    <div class="cr-vm-header" style="background:#111;border-top:2px solid #60a5fa;">
+      <div class="cr-vm-badge" style="background:#60a5fa18;border-color:#60a5fa40;color:#60a5fa;">Actualización Disponible</div>
       <div class="cr-vm-title">¡Nueva versión encontrada!</div>
       <div class="cr-vm-subtitle">La versión v${latestVer} está lista. (Actual: v${SCRIPT_VERSION})</div>
       <button class="cr-vm-close" id="crUpClose">✕</button>
     </div>
     <div class="cr-vm-body" style="text-align:center;padding:34px 20px;">
-      <div style="font-size:48px;animation:crPulse 2s infinite;border-radius:50%;width:80px;height:80px;line-height:80px;margin:0 auto 18px;background:#1a1a1a;box-shadow:0 0 20px #00aaff33;">✨</div>
+      <div style="font-size:36px;border-radius:8px;width:64px;height:64px;line-height:64px;margin:0 auto 18px;background:#1a1a1a;box-shadow:0 2px 8px rgba(0,0,0,0.3);">↑</div>
       <p style="color:#ddd;font-size:14px;line-height:1.6;margin-bottom:0;">Da clic en el botón de abajo para instalar la nueva versión.<br><span style="color:#888;font-size:12px;display:block;margin-top:8px;">(Tampermonkey te pedirá confirmación)</span></p>
     </div>
     <div class="cr-vm-footer" style="display:flex;gap:12px;">
-      <button class="cr-vm-btn" id="crUpInstall" style="background:#00aaff;color:#fff;flex:2;box-shadow:0 4px 15px #00aaff40;">Instalar v${latestVer}</button>
+      <button class="cr-vm-btn" id="crUpInstall" style="background:#60a5fa;color:#fff;flex:2;box-shadow:0 4px 15px #60a5fa40;">Instalar v${latestVer}</button>
       <button class="cr-vm-btn" id="crUpLater" style="background:#1e1e1e;color:#888;border:1px solid #2a2a2a;flex:1;">Más tarde</button>
     </div>
   `;
@@ -1205,10 +1203,10 @@ upgrade = upgrade bank, upgrade lending
     Object.assign(panel.style, {
       position: "fixed", top: "200px", right: "20px",
       background: "#111", color: "#fff", padding: "15px",
-      borderRadius: "10px", zIndex: "99999", fontSize: "14px",
-      minWidth: "200px", boxShadow: "0 0 10px rgba(0,0,0,0.5)"
+      borderRadius: "8px", zIndex: "99999", fontSize: "14px",
+      minWidth: "200px", boxShadow: "0 4px 16px rgba(0,0,0,0.4)"
     });
-    panel.innerHTML = `<b>⚡ Procesando...</b><br><br><span id="progressText">Iniciando...</span>`;
+    panel.innerHTML = `<b>Procesando...</b><br><br><span id="progressText">Iniciando...</span>`;
     document.body.appendChild(panel);
   }
 
@@ -1313,12 +1311,12 @@ upgrade = upgrade bank, upgrade lending
     const chips = [];
     if (stats.accounts) chips.push(`<span class="cr-stat"><b>${stats.accounts}</b> cuentas</span>`);
     if (stats.collections) chips.push(`<span class="cr-stat" style="border-color:#ff664433"><b>${stats.collections}</b> colecciones</span>`);
-    if (stats.originals) chips.push(`<span class="cr-stat" style="border-color:#00aaff33"><b>${stats.originals}</b> originales</span>`);
+    if (stats.originals) chips.push(`<span class="cr-stat" style="border-color:#60a5fa33"><b>${stats.originals}</b> originales</span>`);
     if (stats.inquiries) chips.push(`<span class="cr-stat"><b>${stats.inquiries}</b> inquiries</span>`);
     if (stats.personal) chips.push(`<span class="cr-stat"><b>${stats.personal}</b> personal</span>`);
     const skipped = (stats.skippedOpen || 0) + (stats.skippedClosed || 0);
     if (skipped) chips.push(`<span class="cr-stat" style="color:#555"><b>${skipped}</b> saltadas</span>`);
-    if (stats.linkedInquiries) chips.push(`<span class="cr-stat" style="border-color:#ffcc0033;color:#ffcc00"><b>${stats.linkedInquiries}</b> 🛡</span>`);
+    if (stats.linkedInquiries) chips.push(`<span class="cr-stat" style="border-color:#fbbf2433;color:#fbbf24"><b>${stats.linkedInquiries}</b> 🛡</span>`);
     return `<div class="cr-out-stats">${chips.join('')}</div>`;
   }
 
@@ -1457,12 +1455,12 @@ upgrade = upgrade bank, upgrade lending
       try {
         await navigator.clipboard.writeText(output);
         const btn = document.getElementById('crCopyBtn');
-        btn.textContent = '✅ Copiado!';
+        btn.textContent = '✓ Copiado';
         btn.classList.add('copied');
         setTimeout(() => close(), 800);
       } catch (e) {
         console.error('[CreditRadar] Clipboard error:', e);
-        showToast('⚠️ No se pudo copiar al portapapeles', '#ff4444', 3000);
+        showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
       }
     };
   }
@@ -1476,7 +1474,7 @@ upgrade = upgrade bank, upgrade lending
 
     panel.innerHTML = `
     <div class="cr-ph" id="crHistHandle">
-      <div class="cr-ph-title">🕐 Historial</div>
+      <div class="cr-ph-title">Historial</div>
       <button class="cr-x" id="crHistClose">✕</button>
     </div>
     <div class="cr-hist-filter">
@@ -1560,11 +1558,11 @@ upgrade = upgrade bank, upgrade lending
           document.getElementById('crHistDetCopy').onclick = async () => {
             try {
               await navigator.clipboard.writeText(entry.output);
-              showToast('📋 Copiado del historial', '#00aaff', 2500);
+              showToast('📋 Copiado del historial', '#60a5fa', 2500);
               closeDetail();
             } catch (e) {
               console.error('[CreditRadar] Clipboard error:', e);
-              showToast('⚠️ No se pudo copiar al portapapeles', '#ff4444', 3000);
+              showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
             }
           };
         };
@@ -1572,10 +1570,10 @@ upgrade = upgrade bank, upgrade lending
         el.querySelector('.cr-hist-btn-copy').onclick = async () => {
           try {
             await navigator.clipboard.writeText(entry.output);
-            showToast('📋 Copiado del historial', '#00aaff', 2500);
+            showToast('📋 Copiado del historial', '#60a5fa', 2500);
           } catch (e) {
             console.error('[CreditRadar] Clipboard error:', e);
-            showToast('⚠️ No se pudo copiar al portapapeles', '#ff4444', 3000);
+            showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
           }
         };
 
@@ -2106,7 +2104,7 @@ upgrade = upgrade bank, upgrade lending
           const linkedItem = getLinkedAccount(compactName, positiveAccountsMap, aliasMap);
           if (linkedItem) {
             console.log(`🛡️ Escudo Protector: Inquiry omitido por estar ligado a cuenta positiva: ${compactName}`);
-            const color = "#ff4444"; // Rojo para alertar peligro de disputa (cuenta buena atada)
+            const color = "#f87171"; // Rojo para alertar peligro de disputa (cuenta buena atada)
             highlight(item, color);
             highlight(linkedItem, color);
             LINKED_INQUIRIES++;
@@ -2204,7 +2202,7 @@ upgrade = upgrade bank, upgrade lending
     } catch (error) {
       console.error("[Clasificador] Error fatal:", error);
       removeProgressPanel();
-      showToast(`❌ Error: ${error.message}`, "#ff4444", 8000);
+      showToast(`❌ Error: ${error.message}`, "#f87171", 8000);
       setButtonAnimation('idle');
     }
   }
