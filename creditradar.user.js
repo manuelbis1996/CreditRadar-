@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.6
+// @version      20.7
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -14,9 +14,10 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "20.6";
+const SCRIPT_VERSION = "20.7";
 
 const VERSION_NOTES = {
+  "20.7": "⚡ Optimizaciones: matching O(n) con Sets, pre-cómputo de status, timeouts reducidos",
   "20.6": "🎨 Rediseño minimalista: sin glow, paleta teal suave, paneles limpios",
   "20.5": "🛡️ Correcciones: clipboard, historial corrupto, XSS y filtros de fecha",
   "20.4": "📐 El menú ya no se oculta al cambiar el tamaño de la ventana",
@@ -1595,9 +1596,12 @@ upgrade = upgrade bank, upgrade lending
       renderList(entries.filter(e => e.id >= fromTs && e.id <= toTs));
     }
 
-    panel.querySelectorAll('.cr-hist-chip').forEach(chip => {
+    const histChips = panel.querySelectorAll('.cr-hist-chip');
+    const clearChipActive = () => histChips.forEach(c => c.classList.remove('active'));
+
+    histChips.forEach(chip => {
       chip.onclick = () => {
-        panel.querySelectorAll('.cr-hist-chip').forEach(c => c.classList.remove('active'));
+        clearChipActive();
         chip.classList.add('active');
         const range = chip.dataset.range;
         const now = Date.now();
@@ -1617,11 +1621,11 @@ upgrade = upgrade bank, upgrade lending
     });
 
     document.getElementById('crHistFrom').onchange = () => {
-      panel.querySelectorAll('.cr-hist-chip').forEach(c => c.classList.remove('active'));
+      clearChipActive();
       applyFilter();
     };
     document.getElementById('crHistTo').onchange = () => {
-      panel.querySelectorAll('.cr-hist-chip').forEach(c => c.classList.remove('active'));
+      clearChipActive();
       applyFilter();
     };
 
@@ -1651,19 +1655,15 @@ upgrade = upgrade bank, upgrade lending
         const el = parent.querySelector(selector);
         if (el) return resolve(el);
 
+        let settled = false;
+        const finish = (el) => { if (!settled) { settled = true; observer.disconnect(); resolve(el); } };
         const observer = new MutationObserver(() => {
           const found = parent.querySelector(selector);
-          if (found) {
-            observer.disconnect();
-            resolve(found);
-          }
+          if (found) finish(found);
         });
         observer.observe(parent, { childList: true, subtree: true });
 
-        setTimeout(() => {
-          observer.disconnect();
-          resolve(parent.querySelector(selector));
-        }, timeout);
+        setTimeout(() => finish(parent.querySelector(selector)), timeout);
       } catch (e) {
         console.warn("[Clasificador] Query error:", e);
         resolve(null);
@@ -1779,6 +1779,12 @@ upgrade = upgrade bank, upgrade lending
     let paymentStatusMatch = false;
     const addrParts = [{}, {}, {}];
 
+    // Pre-compute status lists once for O(1) lookup inside the loop
+    const closedStatuses = CONFIG.closedStatuses;
+    const negativeStatuses = CONFIG.negativeStatuses;
+    const paymentStatuses = CONFIG.paymentStatuses;
+    const matchesAny = (vals, list) => vals.some(v => list.some(s => v.includes(s)));
+
     for (let i = 0; i < blocks.length; i++) {
       if (!blocks[i].classList.contains(SELECTORS.detail.sideTitles)) continue;
       const title = blocks[i].innerText.trim().toLowerCase();
@@ -1800,12 +1806,12 @@ upgrade = upgrade bank, upgrade lending
           break;
         case "account status":
           result.isOpen = vals.some(v => v === "open");
-          accountStatusMatch = vals.some(v => CONFIG.closedStatuses.some(s => v.includes(s)));
-          if (vals.some(v => CONFIG.negativeStatuses.some(n => v.includes(n)))) hasNegative = true;
+          accountStatusMatch = matchesAny(vals, closedStatuses);
+          if (matchesAny(vals, negativeStatuses)) hasNegative = true;
           break;
         case "payment status":
-          paymentStatusMatch = vals.some(v => CONFIG.paymentStatuses.some(s => v.includes(s)));
-          if (vals.some(v => CONFIG.negativeStatuses.some(n => v.includes(n)))) hasNegative = true;
+          paymentStatusMatch = matchesAny(vals, paymentStatuses);
+          if (matchesAny(vals, negativeStatuses)) hasNegative = true;
           break;
         case "account type":
         case "account type detail":
@@ -1909,26 +1915,31 @@ upgrade = upgrade bank, upgrade lending
     const resolvedInquiry = resolveAlias(name, aliasMap);
     const normalizedInquiry = normalizeForMatch(resolvedInquiry);
 
+    // Pre-compute inquiry data once — reused across all iterations
+    const wordsI = getWords(resolvedInquiry);
+    const wordsSetI = new Set(wordsI);
+    const prefixesI = getPrefixes(resolvedInquiry);
+    const prefixSetI = new Set(prefixesI);
+
     for (const [creditor, item] of map) {
       const resolvedCreditor = resolveAlias(creditor, aliasMap);
       const normalizedCreditor = normalizeForMatch(resolvedCreditor);
 
       if (normalizedInquiry === normalizedCreditor) return item;
 
-      const wordsI = getWords(resolvedInquiry);
       const wordsC = getWords(resolvedCreditor);
+      const wordsSetC = new Set(wordsC);
 
       // Require at least 2 significant words in common, or a single word that is
       // both the only word present AND long enough (>= 7 chars) to be distinctive.
       // This prevents generic words like "federal", "credit", "united" from
       // triggering a false link between unrelated institutions.
-      const exact = wordsI.filter(w => wordsC.includes(w));
+      const exact = wordsI.filter(w => wordsSetC.has(w));
       if (exact.length >= 2) return item;
       if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 7) return item;
 
-      const prefixesI = getPrefixes(resolvedInquiry);
-      const prefixesC = getPrefixes(resolvedCreditor);
-      const pfx = prefixesI.filter(p => prefixesC.includes(p));
+      const prefixesC = new Set(getPrefixes(resolvedCreditor));
+      const pfx = [...prefixSetI].filter(p => prefixesC.has(p));
       if (pfx.length >= 2) return item;
 
       // Substring containment: only when the contained string is reasonably long
@@ -1959,13 +1970,13 @@ upgrade = upgrade bank, upgrade lending
     const id = match[1];
     expand.click();
 
-    const detailPanel = await waitForElement(`#dispute-view-details-${id}`, document, 5000);
+    const detailPanel = await waitForElement(`#dispute-view-details-${id}`, document, 3000);
     if (!detailPanel?.offsetParent) return false;
 
     const fullBtn = queryOne(`#dispute-view-details-${id}`);
     if (fullBtn?.offsetParent) {
       fullBtn.click();
-      await waitForElement(SELECTORS.detail.blocks, item, 7000);
+      await waitForElement(SELECTORS.detail.blocks, item, 4000);
     }
 
     return true;
