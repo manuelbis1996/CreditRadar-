@@ -1,0 +1,28 @@
+{
+  "name": "creditradar-",
+  "version": "1.0.0",
+  "description": "",
+  "main": "creditradar.user.js",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c -w"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/manuelbis1996/CreditRadar-.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/manuelbis1996/CreditRadar-/issues"
+  },
+  "homepage": "https://github.com/manuelbis1996/CreditRadar-#readme",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^1.0.0",
+    "rollup": "^4.60.1"
+  }
+}
