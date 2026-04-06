@@ -44,18 +44,13 @@ const VERSION_NOTES = {
   "18.2": "🚀 Sistema de alertas",
   "18.1": "📋 Versión visible en botón"
 };
-
 (function () {
   'use strict';
-
-  /* ===================== CONSTANTS ===================== */
 
   const STORAGE_KEY = "pulse_clasificador_config";
   const BUROS = ["equifax", "experian", "transunion"];
   const STOP_WORDS = new Set(["the", "of", "and", "for", "inc", "llc", "na", "bank", "usa", "corp", "co", "ltd"]);
   const IGNORE_VALUES = new Set(["na", "n/a", "unknown", "null", "undefined", "notreported", "-", ""]);
-
-  /* ===================== NAME CLEANING ===================== */
 
   const REMOVE_SUFFIXES = [
     "financial", "funding", "services", "service", "svcs", "svc",
@@ -73,32 +68,12 @@ const VERSION_NOTES = {
     "mtg": "mortgage", "auto": "automotive"
   };
 
-  function cleanName(name) {
-    if (!name) return "";
-    let n = name.toLowerCase().trim();
-    for (const p of REMOVE_PREFIXES) {
-      if (n.startsWith(p)) n = n.slice(p.length);
-    }
-    n = n.split(/\s+/).map(w => EXPAND_MAP[w] || w).join(" ");
-    const parts = n.split(/\s+/);
-    while (parts.length > 1 && REMOVE_SUFFIXES.includes(parts[parts.length - 1])) parts.pop();
-    return parts.join(" ").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-  }
-
-  function normalizeForMatch(name) {
-    return cleanName(name).replace(/[^a-z0-9]/g, "");
-  }
-
-  /* ===================== ACCOUNT FIELDS ===================== */
-
   const ACCOUNT_FIELDS = [
     { key: "name", label: "Account Name" },
     { key: "number", label: "Account Number" },
     { key: "balance", label: "Balance" },
     { key: "dateOpened", label: "Date Opened" }
   ];
-
-  /* ===================== DEFAULT ALIASES ===================== */
 
   const DEFAULT_ALIASES = `
 capital one = cap one, cap1, capone, cof, capital one bank, capital one na
@@ -153,8 +128,6 @@ marcus = marcus goldman, marcus by goldman sachs
 upgrade = upgrade bank, upgrade lending
 `.trim();
 
-  /* ===================== DEFAULT CONFIG ===================== */
-
   const DEFAULT_CONFIG = {
     agencies: [
       "lvnv", "midland", "portfolio", "cavalry", "jefferson",
@@ -195,116 +168,8 @@ upgrade = upgrade bank, upgrade lending
     toolbarPos: { top: "120px", left: "calc(100vw - 80px)" }
   };
 
-  /* ===================== HISTORY STORAGE ===================== */
-
   const HISTORY_KEY = "cr_history";
   const HISTORY_MAX = 50;
-
-  function loadHistory() {
-    try {
-      const raw = GM_getValue(HISTORY_KEY, '[]');
-      return typeof raw === 'string' ? JSON.parse(raw) : raw;
-    } catch (e) {
-      console.error('[CreditRadar] Historial corrupto, limpiando...', e);
-      GM_deleteValue(HISTORY_KEY);
-      return [];
-    }
-  }
-
-  function saveHistory(entries) {
-    try {
-      GM_setValue(HISTORY_KEY, JSON.stringify(entries));
-    } catch (e) {
-      console.error('[CreditRadar] Error guardando historial:', e);
-      showToast('⚠️ Error guardando historial', '#f87171', 3000);
-    }
-  }
-
-  function addHistoryEntry(output, stats, personalHeader) {
-    const firstLine = (personalHeader || '').split('\n').map(l => l.trim()).find(l => l) || 'Cliente';
-    const clientName = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim() || 'Cliente';
-    const entries = loadHistory();
-    entries.unshift({ id: Date.now(), clientName, output, stats });
-    if (entries.length > HISTORY_MAX) entries.length = HISTORY_MAX;
-    saveHistory(entries);
-  }
-
-  /* ===================== CONFIG STORAGE ===================== */
-
-  function loadConfig() {
-    try {
-      const saved = GM_getValue(STORAGE_KEY, null);
-      if (saved) {
-        const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
-        if (!parsed.fieldOrder) {
-          parsed.fieldOrder = DEFAULT_CONFIG.fieldOrder;
-        } else if (parsed.fieldOrder.length && typeof parsed.fieldOrder[0] === "string") {
-          parsed.fieldOrder = parsed.fieldOrder.map(key => ({ key, showLabel: true }));
-        }
-        if (!parsed.personalFields) parsed.personalFields = DEFAULT_CONFIG.personalFields;
-        if (parsed.aliases === undefined) parsed.aliases = DEFAULT_ALIASES;
-        if (parsed.showPersonalLabels === undefined) parsed.showPersonalLabels = DEFAULT_CONFIG.showPersonalLabels;
-        if (!parsed.toolbarPos) parsed.toolbarPos = DEFAULT_CONFIG.toolbarPos;
-        return parsed;
-      }
-    } catch (e) {
-      console.error("[Clasificador] Error loading config:", e);
-    }
-    return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-  }
-
-  function saveConfig(config) {
-    try {
-      GM_setValue(STORAGE_KEY, JSON.stringify(config));
-    } catch (e) {
-      console.error("[Clasificador] Error saving config:", e);
-    }
-  }
-
-  let CONFIG = loadConfig();
-
-  /* ===================== ALIAS MAP ===================== */
-
-  /**
-   * @typedef {Map<string, string>} AliasMap
-   */
-
-  /**
-   * @returns {AliasMap}
-   */
-  function buildAliasMap() {
-    const map = new Map();
-    if (!CONFIG.aliases) return map;
-    CONFIG.aliases.split("\n").forEach(line => {
-      line = line.trim();
-      if (!line || !line.includes("=")) return;
-      const [main, ...rest] = line.split("=");
-      const mainClean = cleanName(main.trim());
-      if (!mainClean) return;
-      const mainNormalized = normalizeForMatch(mainClean);
-      map.set(mainNormalized, mainClean);
-      rest.join("=").split(",").forEach(alias => {
-        const aliasClean = cleanName(alias.trim());
-        if (aliasClean && aliasClean !== mainClean) {
-          map.set(normalizeForMatch(aliasClean), mainClean);
-        }
-      });
-    });
-    return map;
-  }
-
-  /**
-   * @param {string} name
-   * @param {AliasMap} aliasMap
-   * @returns {string}
-   */
-  function resolveAlias(name, aliasMap) {
-    const clean = cleanName(name);
-    const normalized = normalizeForMatch(clean);
-    return aliasMap.get(normalized) || clean;
-  }
-
-  /* ===================== CSS SELECTOR REGISTRY ===================== */
 
   const SELECTORS = {
     compact: {
@@ -347,406 +212,62 @@ upgrade = upgrade bank, upgrade lending
     disputeType: 'input[id^="dispute-item-dispute-type-for-move"]'
   };
 
-  /* ===================== UI HELPERS — TAG CHIPS ===================== */
-
-  function getTagValues(container) {
-    return [...container.querySelectorAll('.cr-chip-del')].map(b => b.dataset.val);
-  }
-
-  function createChip(val) {
-    const chip = document.createElement('span');
-    chip.className = 'cr-chip';
-    const safeVal = val.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    chip.innerHTML = `${safeVal}<button class="cr-chip-del" data-val="${safeVal}">×</button>`;
-    chip.querySelector('.cr-chip-del').onclick = () => chip.remove();
-    return chip;
-  }
-
-  function setupTagInput(container, initialValues) {
-    const input = container.querySelector('.cr-tags-in');
-    initialValues.forEach(val => {
-      container.insertBefore(createChip(val), input);
-    });
-    input.addEventListener('keydown', e => {
-      if ((e.key === 'Enter' || e.key === ',') && input.value.trim()) {
-        e.preventDefault();
-        const val = input.value.trim().replace(/,$/, '').toLowerCase();
-        if (val && !getTagValues(container).includes(val)) {
-          container.insertBefore(createChip(val), input);
+  function loadConfig() {
+    try {
+      const saved = GM_getValue(STORAGE_KEY, null);
+      if (saved) {
+        const parsed = typeof saved === "string" ? JSON.parse(saved) : saved;
+        if (!parsed.fieldOrder) parsed.fieldOrder = DEFAULT_CONFIG.fieldOrder;
+        else if (parsed.fieldOrder.length && typeof parsed.fieldOrder[0] === "string") {
+          parsed.fieldOrder = parsed.fieldOrder.map(key => ({ key, showLabel: true }));
         }
-        input.value = '';
-      } else if (e.key === 'Backspace' && !input.value) {
-        const chips = container.querySelectorAll('.cr-chip');
-        if (chips.length) chips[chips.length - 1].remove();
+        if (!parsed.personalFields) parsed.personalFields = DEFAULT_CONFIG.personalFields;
+        if (parsed.aliases === undefined) parsed.aliases = DEFAULT_CONFIG.aliases;
+        if (parsed.showPersonalLabels === undefined) parsed.showPersonalLabels = DEFAULT_CONFIG.showPersonalLabels;
+        if (!parsed.toolbarPos) parsed.toolbarPos = DEFAULT_CONFIG.toolbarPos;
+        return parsed;
       }
-    });
-    container.addEventListener('click', () => input.focus());
+    } catch (e) {
+      console.error("[Clasificador] Error loading config:", e);
+    }
+    return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   }
 
-  /* ===================== UI HELPERS — DRAG & DROP ===================== */
-
-  function setupFieldDrag(list) {
-    let dragged = null;
-    list.querySelectorAll('.cr-fitem').forEach(item => {
-      item.setAttribute('draggable', 'true');
-      item.addEventListener('dragstart', () => {
-        dragged = item;
-        setTimeout(() => item.classList.add('cr-dragging'), 0);
-      });
-      item.addEventListener('dragend', () => {
-        item.classList.remove('cr-dragging');
-        list.querySelectorAll('.cr-fitem').forEach(i => i.classList.remove('cr-dragover'));
-        list.querySelectorAll('.cr-fitem-num').forEach((num, i) => { num.textContent = `#${i + 1}`; });
-      });
-      item.addEventListener('dragover', e => {
-        e.preventDefault();
-        if (dragged === item) return;
-        list.querySelectorAll('.cr-fitem').forEach(i => i.classList.remove('cr-dragover'));
-        item.classList.add('cr-dragover');
-      });
-      item.addEventListener('drop', e => {
-        e.preventDefault();
-        if (!dragged || dragged === item) return;
-        const items = [...list.querySelectorAll('.cr-fitem')];
-        const dragIdx = items.indexOf(dragged);
-        const dropIdx = items.indexOf(item);
-        if (dragIdx < dropIdx) item.after(dragged);
-        else item.before(dragged);
-      });
-    });
+  function saveConfig(config) {
+    try {
+      GM_setValue(STORAGE_KEY, JSON.stringify(config));
+    } catch (e) {
+      console.error("[Clasificador] Error saving config:", e);
+    }
   }
 
-  function makeDraggable(panel, handle, onDragEnd) {
-    let ox = 0, oy = 0, mx = 0, my = 0;
-    handle.addEventListener('mousedown', e => {
-      if (e.target.closest('button') && e.target !== handle) return;
-      e.preventDefault();
-      const rect = panel.getBoundingClientRect();
-      ox = rect.left; oy = rect.top; mx = e.clientX; my = e.clientY;
-      panel.style.right = 'auto';
-      panel.style.left = ox + 'px';
-      panel.style.top = oy + 'px';
-      const move = e2 => {
-        panel.style.top = (oy + e2.clientY - my) + 'px';
-        panel.style.left = (ox + e2.clientX - mx) + 'px';
-      };
-      const up = () => {
-        document.removeEventListener('mousemove', move);
-        document.removeEventListener('mouseup', up);
-        if (onDragEnd) onDragEnd(panel.style.left, panel.style.top);
-      };
-      document.addEventListener('mousemove', move);
-      document.addEventListener('mouseup', up);
-    });
+  function loadHistory() {
+    try {
+      const raw = GM_getValue(HISTORY_KEY, '[]');
+      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch (e) {
+      console.error('[CreditRadar] Historial corrupto, limpiando...', e);
+      GM_deleteValue(HISTORY_KEY);
+      return [];
+    }
   }
 
-  function clampToolbar() {
-    const toolbar = document.getElementById('crToolbar');
-    if (!toolbar) return;
-    const rect = toolbar.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let left = parseFloat(toolbar.style.left);
-    let top = parseFloat(toolbar.style.top);
-    if (isNaN(left)) left = rect.left;
-    if (isNaN(top)) top = rect.top;
-    left = Math.min(Math.max(left, 0), vw - rect.width);
-    top = Math.min(Math.max(top, 0), vh - rect.height);
-    toolbar.style.left = left + 'px';
-    toolbar.style.right = 'auto';
-    toolbar.style.top = top + 'px';
+  function saveHistory(entries) {
+    try {
+      GM_setValue(HISTORY_KEY, JSON.stringify(entries));
+    } catch (e) {
+      console.error('[CreditRadar] Error guardando historial:', e);
+    }
   }
 
-  /* ===================== ALIAS UI ===================== */
-
-  function parseAliasGroups(text) {
-    if (!text) return [];
-    return text.split('\n').map(l => l.trim()).filter(l => l && l.includes('=')).map(l => {
-      const eqIdx = l.indexOf('=');
-      const main = l.slice(0, eqIdx).trim();
-      const aliases = l.slice(eqIdx + 1).split(',').map(a => a.trim()).filter(Boolean);
-      return { main, aliases };
-    });
+  function addHistoryEntry(output, stats, personalHeader) {
+    const firstLine = (personalHeader || '').split('\n').map(l => l.trim()).find(l => l) || 'Cliente';
+    const clientName = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim() || 'Cliente';
+    const entries = loadHistory();
+    entries.unshift({ id: Date.now(), clientName, output, stats });
+    if (entries.length > HISTORY_MAX) entries.length = HISTORY_MAX;
+    saveHistory(entries);
   }
-
-  function serializeAliasGroups(groups) {
-    return groups.map(g => `${g.main} = ${g.aliases.join(', ')}`).join('\n');
-  }
-
-  function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function buildAliasCard(group) {
-    const card = document.createElement('div');
-    card.className = 'cr-alias-card';
-
-    const safeMain = escapeHtml(group.main || '');
-    const chipsHTML = group.aliases.map(a => `<span class="cr-chip-xs">${escapeHtml(a)}</span>`).join('');
-
-    card.innerHTML = `
-    <div class="cr-alias-head">
-      <span class="cr-alias-main">${safeMain || '&lt;sin nombre&gt;'}</span>
-      <span class="cr-alias-count">${group.aliases.length} alias</span>
-      <div class="cr-alias-actions">
-        <button class="cr-alias-toggle" title="Editar">✏️</button>
-        <button class="cr-alias-remove" title="Eliminar">✕</button>
-      </div>
-    </div>
-    <div class="cr-alias-chips-row">${chipsHTML}</div>
-    <div class="cr-alias-edit-form">
-      <div class="cr-alias-label-sm">Nombre principal</div>
-      <input class="cr-alias-main-input" value="${safeMain}" placeholder="ej: capital one">
-      <div class="cr-alias-label-sm">Aliases — Enter o coma para agregar</div>
-      <div class="cr-tags cr-alias-chips-edit"><input class="cr-tags-in" placeholder="alias..."></div>
-    </div>
-  `;
-
-    const editContainer = card.querySelector('.cr-alias-chips-edit');
-    const editInput = editContainer.querySelector('.cr-tags-in');
-    group.aliases.forEach(a => editContainer.insertBefore(createChip(a), editInput));
-    editContainer.querySelectorAll('.cr-chip-del').forEach(btn => {
-      btn.onclick = () => btn.closest('.cr-chip').remove();
-    });
-    editInput.addEventListener('keydown', e => {
-      if ((e.key === 'Enter' || e.key === ',') && editInput.value.trim()) {
-        e.preventDefault();
-        const val = editInput.value.trim().replace(/,$/, '').toLowerCase();
-        if (val && !getTagValues(editContainer).includes(val)) {
-          editContainer.insertBefore(createChip(val), editInput);
-        }
-        editInput.value = '';
-      } else if (e.key === 'Backspace' && !editInput.value) {
-        const chips = editContainer.querySelectorAll('.cr-chip');
-        if (chips.length) chips[chips.length - 1].remove();
-      }
-    });
-    editContainer.addEventListener('click', () => editInput.focus());
-
-    card.querySelector('.cr-alias-toggle').onclick = () => {
-      const form = card.querySelector('.cr-alias-edit-form');
-      const isOpen = form.classList.toggle('open');
-      card.classList.toggle('expanded', isOpen);
-      if (!isOpen) {
-        const mainVal = card.querySelector('.cr-alias-main-input').value.trim();
-        const aliases = getTagValues(editContainer);
-        card.querySelector('.cr-alias-main').textContent = mainVal || '<sin nombre>';
-        card.querySelector('.cr-alias-count').textContent = `${aliases.length} alias`;
-        card.querySelector('.cr-alias-chips-row').innerHTML = aliases.map(a => `<span class="cr-chip-xs">${a}</span>`).join('');
-      }
-    };
-
-    card.querySelector('.cr-alias-remove').onclick = () => card.remove();
-
-    return card;
-  }
-
-  function setupAliasPane(pane, initialText) {
-    const list = pane.querySelector('#crAliasList');
-    const search = pane.querySelector('#crAliasSearch');
-    const addBtn = pane.querySelector('#crAliasAddBtn');
-
-    parseAliasGroups(initialText).forEach(g => list.appendChild(buildAliasCard(g)));
-
-    search.addEventListener('input', () => {
-      const q = search.value.trim().toLowerCase();
-      list.querySelectorAll('.cr-alias-card').forEach(card => {
-        const main = card.querySelector('.cr-alias-main-input').value.toLowerCase();
-        const aliases = getTagValues(card.querySelector('.cr-alias-chips-edit')).join(' ').toLowerCase();
-        card.style.display = (!q || main.includes(q) || aliases.includes(q)) ? '' : 'none';
-      });
-      list.querySelector('.cr-alias-empty')?.remove();
-      const visible = [...list.querySelectorAll('.cr-alias-card')].filter(c => c.style.display !== 'none');
-      if (q && !visible.length) {
-        const empty = document.createElement('div');
-        empty.className = 'cr-alias-empty';
-        empty.textContent = `Sin resultados para "${search.value}"`;
-        list.appendChild(empty);
-      }
-    });
-
-    addBtn.onclick = () => {
-      search.value = '';
-      list.querySelectorAll('.cr-alias-card').forEach(c => c.style.display = '');
-      list.querySelector('.cr-alias-empty')?.remove();
-      const card = buildAliasCard({ main: '', aliases: [] });
-      list.insertBefore(card, list.firstChild);
-      card.querySelector('.cr-alias-toggle').click();
-      card.querySelector('.cr-alias-main-input').focus();
-    };
-  }
-
-  function getAliasesText(pane) {
-    return serializeAliasGroups(
-      [...pane.querySelectorAll('.cr-alias-card')].map(card => ({
-        main: card.querySelector('.cr-alias-main-input').value.trim(),
-        aliases: getTagValues(card.querySelector('.cr-alias-chips-edit'))
-      })).filter(g => g.main)
-    );
-  }
-
-  /* ===================== CONFIG PANEL ===================== */
-
-  function openConfigPanel() {
-    document.getElementById('clasificadorConfigPanel')?.remove();
-    const panel = document.createElement('div');
-    panel.id = 'clasificadorConfigPanel';
-
-    const sortedFields = [...ACCOUNT_FIELDS].sort((a, b) => {
-      const ia = CONFIG.fieldOrder.findIndex(f => f.key === a.key);
-      const ib = CONFIG.fieldOrder.findIndex(f => f.key === b.key);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-    });
-
-    const fieldItemsHTML = sortedFields.map((f, i) => {
-      const fc = CONFIG.fieldOrder.find(o => o.key === f.key) || { showLabel: true };
-      return `
-    <div class="cr-fitem" data-key="${f.key}">
-      <span class="cr-fitem-grip">⠿</span>
-      <label class="cr-toggle-wrap" title="Mostrar etiqueta">
-        <input type="checkbox" class="cr-fitem-toggle cr-fitem-label-toggle" ${fc.showLabel !== false ? 'checked' : ''}>
-        <span class="cr-toggle-ui"></span>
-      </label>
-      <span class="cr-fitem-name">${f.label}</span>
-      <span class="cr-fitem-num">#${i + 1}</span>
-    </div>`;
-    }).join('');
-
-    const personalFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
-    const personalItemsHTML = personalFields.map(f => `
-    <div class="cr-fitem" data-key="${f.key}" data-label="${f.label}">
-      <span class="cr-fitem-grip">⠿</span>
-      <label class="cr-toggle-wrap">
-        <input type="checkbox" class="cr-fitem-toggle" ${f.enabled ? 'checked' : ''}>
-        <span class="cr-toggle-ui"></span>
-      </label>
-      <span class="cr-fitem-name">${f.label}</span>
-    </div>`).join('');
-
-    panel.innerHTML = `
-    <div class="cr-ph" id="crCfgHandle">
-      <div class="cr-ph-title">Configuración</div>
-      <button class="cr-x" id="crCfgClose">✕</button>
-    </div>
-    <div class="cr-tabs">
-      <button class="cr-tab active" data-tab="agencies">Agencias</button>
-      <button class="cr-tab" data-tab="statuses">Estados</button>
-      <button class="cr-tab" data-tab="colors">Colores</button>
-      <button class="cr-tab" data-tab="fields">Campos</button>
-      <button class="cr-tab" data-tab="aliases">Aliases</button>
-      <button class="cr-tab" data-tab="personal">Personal</button>
-    </div>
-    <div class="cr-body">
-      <div class="cr-pane active" id="cr-pane-agencies">
-        <div class="cr-lbl">Agencias Colectoras — Enter o coma para agregar</div>
-        <div class="cr-tags" id="crTagsAgencies"><input class="cr-tags-in" placeholder="ej: lvnv, midland..."></div>
-        <div class="cr-tag-hint">Backspace para eliminar el último</div>
-      </div>
-      <div class="cr-pane" id="cr-pane-statuses">
-        <div class="cr-lbl">Account Status — Cerrada Positiva</div>
-        <textarea class="cr-ta" id="cfg_closedStatuses" rows="3">${CONFIG.closedStatuses.join('\n')}</textarea>
-        <div class="cr-lbl">Payment Status — Cerrada Positiva</div>
-        <textarea class="cr-ta" id="cfg_paymentStatuses" rows="2">${CONFIG.paymentStatuses.join('\n')}</textarea>
-        <div class="cr-lbl">Estados Negativos</div>
-        <textarea class="cr-ta" id="cfg_negativeStatuses" rows="4">${CONFIG.negativeStatuses.join('\n')}</textarea>
-      </div>
-      <div class="cr-pane" id="cr-pane-colors">
-        <div class="cr-lbl">Colores de Resaltado</div>
-        <div class="cr-colors">
-          <div class="cr-clr"><input type="color" id="cfg_colorOpen" value="${CONFIG.colors.open}"><span>Open</span></div>
-          <div class="cr-clr"><input type="color" id="cfg_colorClosed" value="${CONFIG.colors.closedPositive}"><span>Closed+</span></div>
-          <div class="cr-clr"><input type="color" id="cfg_colorInquiry" value="${CONFIG.colors.inquiryLinked || '#fbbf24'}"><span>Inquiry</span></div>
-        </div>
-      </div>
-      <div class="cr-pane" id="cr-pane-fields">
-        <div class="cr-lbl">Toggle para mostrar/ocultar etiqueta por campo — Arrastrá para reordenar</div>
-        <div class="cr-fields" id="crFieldList">${fieldItemsHTML}</div>
-      </div>
-      <div class="cr-pane" id="cr-pane-aliases">
-        <div class="cr-alias-search-row">
-          <input id="crAliasSearch" placeholder="Buscar acreedor o alias...">
-          <button class="cr-alias-add-btn" id="crAliasAddBtn">+ Agregar</button>
-        </div>
-        <div id="crAliasList"></div>
-      </div>
-      <div class="cr-pane" id="cr-pane-personal">
-        <div class="cr-lbl">Opciones</div>
-        <div class="cr-fitem" style="margin-bottom:6px;cursor:default">
-          <label class="cr-toggle-wrap">
-            <input type="checkbox" class="cr-fitem-toggle" id="cfg_showPersonalLabels" ${CONFIG.showPersonalLabels ? 'checked' : ''}>
-            <span class="cr-toggle-ui"></span>
-          </label>
-          <span class="cr-fitem-name" style="margin-left:8px">Mostrar etiquetas (ej: Name: John)</span>
-        </div>
-        <div class="cr-lbl">Activá y reordenná los campos del cliente en el output</div>
-        <div class="cr-fields" id="crPersonalList">${personalItemsHTML}</div>
-      </div>
-    </div>
-    <div class="cr-footer">
-      <button class="cr-btn cr-btn-ok" id="crCfgSave">Guardar</button>
-      <button class="cr-btn cr-btn-rst" id="crCfgReset">Restaurar</button>
-    </div>
-  `;
-
-    document.body.appendChild(panel);
-
-    panel.querySelectorAll('.cr-tab').forEach(tab => {
-      tab.onclick = () => {
-        panel.querySelectorAll('.cr-tab').forEach(t => t.classList.remove('active'));
-        panel.querySelectorAll('.cr-pane').forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        panel.querySelector(`#cr-pane-${tab.dataset.tab}`)?.classList.add('active');
-      };
-    });
-
-    setupTagInput(document.getElementById('crTagsAgencies'), CONFIG.agencies);
-    setupFieldDrag(document.getElementById('crFieldList'));
-    setupFieldDrag(document.getElementById('crPersonalList'));
-    setupAliasPane(panel.querySelector('#cr-pane-aliases'), CONFIG.aliases || '');
-    makeDraggable(panel, panel.querySelector('#crCfgHandle'));
-
-    document.getElementById('crCfgClose').onclick = () => panel.remove();
-
-    document.getElementById('crCfgSave').onclick = () => {
-      CONFIG.agencies = getTagValues(document.getElementById('crTagsAgencies'));
-      CONFIG.closedStatuses = document.getElementById('cfg_closedStatuses').value
-        .split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
-      CONFIG.paymentStatuses = document.getElementById('cfg_paymentStatuses').value
-        .split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
-      CONFIG.negativeStatuses = document.getElementById('cfg_negativeStatuses').value
-        .split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
-      CONFIG.colors.open = document.getElementById('cfg_colorOpen').value;
-      CONFIG.colors.closedPositive = document.getElementById('cfg_colorClosed').value;
-      CONFIG.colors.inquiryLinked = document.getElementById('cfg_colorInquiry').value;
-      CONFIG.aliases = getAliasesText(panel.querySelector('#cr-pane-aliases'));
-      CONFIG.fieldOrder = [...document.getElementById('crFieldList').querySelectorAll('.cr-fitem')]
-        .map(item => ({
-          key: item.dataset.key,
-          showLabel: item.querySelector('.cr-fitem-toggle').checked
-        }));
-      CONFIG.showPersonalLabels = document.getElementById('cfg_showPersonalLabels').checked;
-      CONFIG.personalFields = [...document.getElementById('crPersonalList').querySelectorAll('.cr-fitem')]
-        .map(item => ({
-          key: item.dataset.key,
-          label: item.dataset.label,
-          enabled: item.querySelector('.cr-fitem-toggle').checked
-        }));
-      saveConfig(CONFIG);
-      panel.remove();
-      showToast('✅ Configuración guardada', '#5eead4');
-    };
-
-    document.getElementById('crCfgReset').onclick = () => {
-      if (confirm('¿Restaurar configuración por defecto?')) {
-        CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-        saveConfig(CONFIG);
-        panel.remove();
-        showToast('🔄 Configuración restaurada', '#fbbf24');
-      }
-    };
-  }
-
-  /* ===================== STYLES ===================== */
 
   const buttonAnimationStyles = `
   @keyframes crSlideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
@@ -959,9 +480,97 @@ upgrade = upgrade bank, upgrade lending
   .cr-hist-clear-btn:hover { background:#f8717122; color:#f87171; border-color:#f8717144; }
 `;
 
-  const styleEl = document.createElement('style');
-  styleEl.textContent = buttonAnimationStyles;
-  document.head.appendChild(styleEl);
+  function injectStyles() {
+    if (document.getElementById('cr-styles')) return;
+    const styleEl = document.createElement('style');
+    styleEl.id = 'cr-styles';
+    styleEl.textContent = buttonAnimationStyles;
+    document.head.appendChild(styleEl);
+  }
+
+  function waitForElement(selector, parent = document, timeout = 8000) {
+    return new Promise(resolve => {
+      try {
+        const el = parent.querySelector(selector);
+        if (el) return resolve(el);
+
+        let settled = false;
+        const finish = (el) => { if (!settled) { settled = true; observer.disconnect(); resolve(el); } };
+        const observer = new MutationObserver(() => {
+          const found = parent.querySelector(selector);
+          if (found) finish(found);
+        });
+        observer.observe(parent, { childList: true, subtree: true });
+
+        setTimeout(() => finish(parent.querySelector(selector)), timeout);
+      } catch (e) {
+        console.warn("[Clasificador] Query error:", e);
+        resolve(null);
+      }
+    });
+  }
+
+  function queryAll(selector, parent = document) {
+    try {
+      return [...parent.querySelectorAll(selector)];
+    } catch (e) {
+      console.warn(`[Clasificador] QueryAll error for ${selector}:`, e);
+      return [];
+    }
+  }
+
+  function queryOne(selector, parent = document) {
+    try {
+      return parent.querySelector(selector);
+    } catch (e) {
+      console.warn(`[Clasificador] QueryOne error for ${selector}:`, e);
+      return null;
+    }
+  }
+
+  function highlight(item, color) {
+    item.style.border = `3px solid ${color}`;
+    item.style.borderRadius = "8px";
+    item.style.boxShadow = `0 0 10px ${color}66`;
+  }
+
+  function clearHighlight(item) {
+    item.style.border = "";
+    item.style.borderRadius = "";
+    item.style.boxShadow = "";
+  }
+
+  function clearAllHighlights() {
+    document.querySelectorAll(".dispute-outer-sample-container").forEach(clearHighlight);
+  }
+
+  function makeDraggable(panel, handle, onDragEnd) {
+    let ox = 0, oy = 0, mx = 0, my = 0;
+    handle.addEventListener('mousedown', e => {
+      if (e.target.closest('button') && e.target !== handle) return;
+      e.preventDefault();
+      const rect = panel.getBoundingClientRect();
+      ox = rect.left; oy = rect.top; mx = e.clientX; my = e.clientY;
+      panel.style.right = 'auto';
+      panel.style.left = ox + 'px';
+      panel.style.top = oy + 'px';
+      const move = e2 => {
+        panel.style.top = (oy + e2.clientY - my) + 'px';
+        panel.style.left = (ox + e2.clientX - mx) + 'px';
+      };
+      const up = () => {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        if (onDragEnd) onDragEnd(panel.style.left, panel.style.top);
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+  }
+
+  function bindClose(closeFn, ...elements) {
+    elements.forEach(el => { if (el) el.onclick = closeFn; });
+  }
 
   function setButtonAnimation(status) {
     const btn = document.getElementById('clasificadorBTN');
@@ -988,14 +597,29 @@ upgrade = upgrade bank, upgrade lending
     }
   }
 
-  /* ===================== UI HELPERS ===================== */
+  function clampToolbar() {
+    const toolbar = document.getElementById('crToolbar');
+    if (!toolbar) return;
+    const rect = toolbar.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = parseFloat(toolbar.style.left);
+    let top = parseFloat(toolbar.style.top);
+    if (isNaN(left)) left = rect.left;
+    if (isNaN(top)) top = rect.top;
+    left = Math.min(Math.max(left, 0), vw - rect.width);
+    top = Math.min(Math.max(top, 0), vh - rect.height);
+    toolbar.style.left = left + 'px';
+    toolbar.style.right = 'auto';
+    toolbar.style.top = top + 'px';
+  }
 
-  function addButton() {
+  function addButton(config, runFn, openConfigFn, showHistoryFn) {
     if (document.getElementById('crToolbar')) return;
     const toolbar = document.createElement('div');
     toolbar.id = 'crToolbar';
 
-    const tPos = CONFIG.toolbarPos || { top: "120px", left: "calc(100vw - 80px)" };
+    const tPos = config.toolbarPos || { top: "120px", left: "calc(100vw - 80px)" };
     toolbar.style.top = tPos.top;
     if (tPos.left) toolbar.style.left = tPos.left;
     else toolbar.style.right = "20px";
@@ -1013,38 +637,21 @@ upgrade = upgrade bank, upgrade lending
     document.body.appendChild(toolbar);
 
     makeDraggable(toolbar, document.getElementById('crToolbarGrip'), (left, top) => {
-      CONFIG.toolbarPos = { left, top };
-      saveConfig(CONFIG);
+      config.toolbarPos = { left, top };
+      saveConfig(config);
     });
 
-    document.getElementById('clasificadorBTN').onclick = run;
-    document.getElementById('crHistoryBtn').onclick = showHistoryPanel;
-    document.getElementById('crSettingsBtn').onclick = openConfigPanel;
+    document.getElementById('clasificadorBTN').onclick = runFn;
+    document.getElementById('crHistoryBtn').onclick = showHistoryFn;
+    document.getElementById('crSettingsBtn').onclick = openConfigFn;
     setButtonAnimation('idle');
 
-    // Ensure toolbar stays visible after window resize
     setTimeout(clampToolbar, 0);
     let _resizeTid;
     window.addEventListener('resize', () => {
       clearTimeout(_resizeTid);
       _resizeTid = setTimeout(clampToolbar, 100);
     });
-  }
-
-  function highlight(item, color) {
-    item.style.border = `3px solid ${color}`;
-    item.style.borderRadius = "8px";
-    item.style.boxShadow = `0 0 10px ${color}66`;
-  }
-
-  function clearHighlight(item) {
-    item.style.border = "";
-    item.style.borderRadius = "";
-    item.style.boxShadow = "";
-  }
-
-  function clearAllHighlights() {
-    document.querySelectorAll(".dispute-outer-sample-container").forEach(clearHighlight);
   }
 
   function showToast(message, color = "#5eead4", duration = 5000) {
@@ -1069,7 +676,28 @@ upgrade = upgrade bank, upgrade lending
     }, duration);
   }
 
-  /* ===================== COMPONENT HELPERS ===================== */
+  function createProgressPanel() {
+    const panel = document.createElement("div");
+    panel.id = "clasificadorProgress";
+    Object.assign(panel.style, {
+      position: "fixed", top: "200px", right: "20px",
+      background: "#111", color: "#fff", padding: "15px",
+      borderRadius: "8px", zIndex: "99999", fontSize: "14px",
+      minWidth: "200px", boxShadow: "0 4px 16px rgba(0,0,0,0.4)"
+    });
+    panel.innerHTML = `<b>Procesando...</b><br><br><span id="progressText">Iniciando...</span>`;
+    document.body.appendChild(panel);
+  }
+
+  function updateProgress(current, total, name) {
+    const el = document.getElementById("progressText");
+    const escapeHtml = str => (str||"").replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    if (el) el.innerHTML = `Dispute ${current} / ${total}<br><span style="color:#aaa;font-size:12px">${escapeHtml(name)}</span>`;
+  }
+
+  function removeProgressPanel() {
+    document.getElementById("clasificadorProgress")?.remove();
+  }
 
   function createOverlay(id) {
     document.getElementById(id)?.remove();
@@ -1089,34 +717,28 @@ upgrade = upgrade bank, upgrade lending
     return modal;
   }
 
-  function bindClose(closeFn, ...elements) {
-    elements.forEach(el => { if (el) el.onclick = closeFn; });
-  }
-
-  /* ===================== MODALS ===================== */
-
   function showVersionModal() {
     const overlay = createOverlay('crVersionOverlay');
     const modal = createModal('crVersionModal');
 
     const entriesHTML = Object.entries(VERSION_NOTES).map(([ver, note]) => `
-    <div class="cr-vm-entry${ver === SCRIPT_VERSION ? ' current' : ''}">
-      <span class="cr-vm-ver">v${ver}</span>
-      <span class="cr-vm-note">${note}</span>
-    </div>`).join('');
+  <div class="cr-vm-entry${ver === SCRIPT_VERSION ? ' current' : ''}">
+    <span class="cr-vm-ver">v${ver}</span>
+    <span class="cr-vm-note">${note}</span>
+  </div>`).join('');
 
     modal.innerHTML = `
-    <div class="cr-vm-header">
-      <div class="cr-vm-badge">📶 CreditRadar</div>
-      <div class="cr-vm-title">¿Qué hay de nuevo?</div>
-      <div class="cr-vm-subtitle">Versión actual — v${SCRIPT_VERSION}</div>
-      <button class="cr-vm-close" id="crVmClose">✕</button>
-    </div>
-    <div class="cr-vm-body">${entriesHTML}</div>
-    <div class="cr-vm-footer">
-      <button class="cr-vm-btn" id="crVmOk">Entendido</button>
-    </div>
-  `;
+  <div class="cr-vm-header">
+    <div class="cr-vm-badge">📶 CreditRadar</div>
+    <div class="cr-vm-title">¿Qué hay de nuevo?</div>
+    <div class="cr-vm-subtitle">Versión actual — v${SCRIPT_VERSION}</div>
+    <button class="cr-vm-close" id="crVmClose">✕</button>
+  </div>
+  <div class="cr-vm-body">${entriesHTML}</div>
+  <div class="cr-vm-footer">
+    <button class="cr-vm-btn" id="crVmOk">Entendido</button>
+  </div>
+`;
 
     const close = () => { overlay.remove(); modal.remove(); };
     bindClose(close, overlay, document.getElementById('crVmClose'), document.getElementById('crVmOk'));
@@ -1132,35 +754,6 @@ upgrade = upgrade bank, upgrade lending
     }
   }
 
-  function showUpdateAvailableModal(latestVer) {
-    const overlay = createOverlay('crUpdateOverlay');
-    const modal = createModal('crUpdateModal', 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:12px;z-index:9999999;width:400px;max-width:94vw;border:1px solid #2a2a2a;box-shadow:0 16px 48px rgba(0,0,0,0.55);animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1);overflow:hidden;');
-
-    modal.innerHTML = `
-    <div class="cr-vm-header" style="background:#111;border-top:2px solid #60a5fa;">
-      <div class="cr-vm-badge" style="background:#60a5fa18;border-color:#60a5fa40;color:#60a5fa;">Actualización Disponible</div>
-      <div class="cr-vm-title">¡Nueva versión encontrada!</div>
-      <div class="cr-vm-subtitle">La versión v${latestVer} está lista. (Actual: v${SCRIPT_VERSION})</div>
-      <button class="cr-vm-close" id="crUpClose">✕</button>
-    </div>
-    <div class="cr-vm-body" style="text-align:center;padding:34px 20px;">
-      <div style="font-size:36px;border-radius:8px;width:64px;height:64px;line-height:64px;margin:0 auto 18px;background:#1a1a1a;box-shadow:0 2px 8px rgba(0,0,0,0.3);">↑</div>
-      <p style="color:#ddd;font-size:14px;line-height:1.6;margin-bottom:0;">Da clic en el botón de abajo para instalar la nueva versión.<br><span style="color:#888;font-size:12px;display:block;margin-top:8px;">(Tampermonkey te pedirá confirmación)</span></p>
-    </div>
-    <div class="cr-vm-footer" style="display:flex;gap:12px;">
-      <button class="cr-vm-btn" id="crUpInstall" style="background:#60a5fa;color:#fff;flex:2;box-shadow:0 4px 15px #60a5fa40;">Instalar v${latestVer}</button>
-      <button class="cr-vm-btn" id="crUpLater" style="background:#1e1e1e;color:#888;border:1px solid #2a2a2a;flex:1;">Más tarde</button>
-    </div>
-  `;
-
-    const close = () => { overlay.remove(); modal.remove(); };
-    bindClose(close, overlay, document.getElementById('crUpClose'), document.getElementById('crUpLater'));
-    document.getElementById('crUpInstall').onclick = () => {
-      window.location.href = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
-      close();
-    };
-  }
-
   function compareVersions(a, b) {
     const pa = a.split(".").map(Number);
     const pb = b.split(".").map(Number);
@@ -1171,6 +764,35 @@ upgrade = upgrade bank, upgrade lending
       if (na !== nb) return na - nb;
     }
     return 0;
+  }
+
+  function showUpdateAvailableModal(latestVer) {
+    const overlay = createOverlay('crUpdateOverlay');
+    const modal = createModal('crUpdateModal', 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:12px;z-index:9999999;width:400px;max-width:94vw;border:1px solid #2a2a2a;box-shadow:0 16px 48px rgba(0,0,0,0.55);animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1);overflow:hidden;');
+
+    modal.innerHTML = `
+  <div class="cr-vm-header" style="background:#111;border-top:2px solid #60a5fa;">
+    <div class="cr-vm-badge" style="background:#60a5fa18;border-color:#60a5fa40;color:#60a5fa;">Actualización Disponible</div>
+    <div class="cr-vm-title">¡Nueva versión encontrada!</div>
+    <div class="cr-vm-subtitle">La versión v${latestVer} está lista. (Actual: v${SCRIPT_VERSION})</div>
+    <button class="cr-vm-close" id="crUpClose">✕</button>
+  </div>
+  <div class="cr-vm-body" style="text-align:center;padding:34px 20px;">
+    <div style="font-size:36px;border-radius:8px;width:64px;height:64px;line-height:64px;margin:0 auto 18px;background:#1a1a1a;box-shadow:0 2px 8px rgba(0,0,0,0.3);">↑</div>
+    <p style="color:#ddd;font-size:14px;line-height:1.6;margin-bottom:0;">Da clic en el botón de abajo para instalar la nueva versión.<br><span style="color:#888;font-size:12px;display:block;margin-top:8px;">(Tampermonkey te pedirá confirmación)</span></p>
+  </div>
+  <div class="cr-vm-footer" style="display:flex;gap:12px;">
+    <button class="cr-vm-btn" id="crUpInstall" style="background:#60a5fa;color:#fff;flex:2;box-shadow:0 4px 15px #60a5fa40;">Instalar v${latestVer}</button>
+    <button class="cr-vm-btn" id="crUpLater" style="background:#1e1e1e;color:#888;border:1px solid #2a2a2a;flex:1;">Más tarde</button>
+  </div>
+`;
+
+    const close = () => { overlay.remove(); modal.remove(); };
+    bindClose(close, overlay, document.getElementById('crUpClose'), document.getElementById('crUpLater'));
+    document.getElementById('crUpInstall').onclick = () => {
+      window.location.href = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
+      close();
+    };
   }
 
   function checkForUpdates() {
@@ -1205,26 +827,686 @@ upgrade = upgrade bank, upgrade lending
     }
   }
 
-  function createProgressPanel() {
-    const panel = document.createElement("div");
-    panel.id = "clasificadorProgress";
-    Object.assign(panel.style, {
-      position: "fixed", top: "200px", right: "20px",
-      background: "#111", color: "#fff", padding: "15px",
-      borderRadius: "8px", zIndex: "99999", fontSize: "14px",
-      minWidth: "200px", boxShadow: "0 4px 16px rgba(0,0,0,0.4)"
+  function cleanName(name) {
+    if (!name) return "";
+    let n = name.toLowerCase().trim();
+    for (const p of REMOVE_PREFIXES) {
+      if (n.startsWith(p)) n = n.slice(p.length);
+    }
+    n = n.split(/\s+/).map(w => EXPAND_MAP[w] || w).join(" ");
+    const parts = n.split(/\s+/);
+    while (parts.length > 1 && REMOVE_SUFFIXES.includes(parts[parts.length - 1])) parts.pop();
+    return parts.join(" ").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function normalizeForMatch(name) {
+    return cleanName(name).replace(/[^a-z0-9]/g, "");
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function getWords(s) {
+    return s.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+  }
+
+  function getPrefixes(s, len = 4) {
+    return s.split(/\s+/).map(w => w.slice(0, len)).filter(p => p.length >= 3);
+  }
+
+  function jaccardSimilarity(a, b) {
+    const setA = new Set(a.split(/\s+/));
+    const setB = new Set(b.split(/\s+/));
+    const intersection = [...setA].filter(x => setB.has(x)).length;
+    const union = new Set([...setA, ...setB]).size;
+    return union === 0 ? 0 : intersection / union;
+  }
+
+  function getTagValues(container) {
+    return [...container.querySelectorAll('.cr-chip-del')].map(b => b.dataset.val);
+  }
+
+  function createChip(val) {
+    const chip = document.createElement('span');
+    chip.className = 'cr-chip';
+    const safeVal = escapeHtml(val);
+    chip.innerHTML = `${safeVal}<button class="cr-chip-del" data-val="${safeVal}">×</button>`;
+    chip.querySelector('.cr-chip-del').onclick = () => chip.remove();
+    return chip;
+  }
+
+  function setupTagInput(container, initialValues) {
+    const input = container.querySelector('.cr-tags-in');
+    initialValues.forEach(val => {
+      container.insertBefore(createChip(val), input);
     });
-    panel.innerHTML = `<b>Procesando...</b><br><br><span id="progressText">Iniciando...</span>`;
+    input.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ',') && input.value.trim()) {
+        e.preventDefault();
+        const val = input.value.trim().replace(/,$/, '').toLowerCase();
+        if (val && !getTagValues(container).includes(val)) {
+          container.insertBefore(createChip(val), input);
+        }
+        input.value = '';
+      } else if (e.key === 'Backspace' && !input.value) {
+        const chips = container.querySelectorAll('.cr-chip');
+        if (chips.length) chips[chips.length - 1].remove();
+      }
+    });
+    container.addEventListener('click', () => input.focus());
+  }
+
+  function setupFieldDrag(list) {
+    let dragged = null;
+    list.querySelectorAll('.cr-fitem').forEach(item => {
+      item.setAttribute('draggable', 'true');
+      item.addEventListener('dragstart', () => {
+        dragged = item;
+        setTimeout(() => item.classList.add('cr-dragging'), 0);
+      });
+      item.addEventListener('dragend', () => {
+        item.classList.remove('cr-dragging');
+        list.querySelectorAll('.cr-fitem').forEach(i => i.classList.remove('cr-dragover'));
+        list.querySelectorAll('.cr-fitem-num').forEach((num, i) => { num.textContent = `#${i + 1}`; });
+      });
+      item.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (dragged === item) return;
+        list.querySelectorAll('.cr-fitem').forEach(i => i.classList.remove('cr-dragover'));
+        item.classList.add('cr-dragover');
+      });
+      item.addEventListener('drop', e => {
+        e.preventDefault();
+        if (!dragged || dragged === item) return;
+        const items = [...list.querySelectorAll('.cr-fitem')];
+        const dragIdx = items.indexOf(dragged);
+        const dropIdx = items.indexOf(item);
+        if (dragIdx < dropIdx) item.after(dragged);
+        else item.before(dragged);
+      });
+    });
+  }
+
+  function parseAliasGroups(text) {
+    if (!text) return [];
+    return text.split('\n').map(l => l.trim()).filter(l => l && l.includes('=')).map(l => {
+      const eqIdx = l.indexOf('=');
+      const main = l.slice(0, eqIdx).trim();
+      const aliases = l.slice(eqIdx + 1).split(',').map(a => a.trim()).filter(Boolean);
+      return { main, aliases };
+    });
+  }
+
+  function serializeAliasGroups(groups) {
+    return groups.map(g => `${g.main} = ${g.aliases.join(', ')}`).join('\n');
+  }
+
+  function buildAliasCard(group) {
+    const card = document.createElement('div');
+    card.className = 'cr-alias-card';
+
+    const safeMain = escapeHtml(group.main || '');
+    const chipsHTML = group.aliases.map(a => `<span class="cr-chip-xs">${escapeHtml(a)}</span>`).join('');
+
+    card.innerHTML = `
+    <div class="cr-alias-head">
+      <span class="cr-alias-main">${safeMain || '&lt;sin nombre&gt;'}</span>
+      <span class="cr-alias-count">${group.aliases.length} alias</span>
+      <div class="cr-alias-actions">
+        <button class="cr-alias-toggle" title="Editar">✏️</button>
+        <button class="cr-alias-remove" title="Eliminar">✕</button>
+      </div>
+    </div>
+    <div class="cr-alias-chips-row">${chipsHTML}</div>
+    <div class="cr-alias-edit-form">
+      <div class="cr-alias-label-sm">Nombre principal</div>
+      <input class="cr-alias-main-input" value="${safeMain}" placeholder="ej: capital one">
+      <div class="cr-alias-label-sm">Aliases — Enter o coma para agregar</div>
+      <div class="cr-tags cr-alias-chips-edit"><input class="cr-tags-in" placeholder="alias..."></div>
+    </div>
+  `;
+
+    const editContainer = card.querySelector('.cr-alias-chips-edit');
+    const editInput = editContainer.querySelector('.cr-tags-in');
+    group.aliases.forEach(a => editContainer.insertBefore(createChip(a), editInput));
+    editInput.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ',') && editInput.value.trim()) {
+        e.preventDefault();
+        const val = editInput.value.trim().replace(/,$/, '').toLowerCase();
+        if (val && !getTagValues(editContainer).includes(val)) {
+          editContainer.insertBefore(createChip(val), editInput);
+        }
+        editInput.value = '';
+      } else if (e.key === 'Backspace' && !editInput.value) {
+        const chips = editContainer.querySelectorAll('.cr-chip');
+        if (chips.length) chips[chips.length - 1].remove();
+      }
+    });
+    editContainer.addEventListener('click', () => editInput.focus());
+
+    card.querySelector('.cr-alias-toggle').onclick = () => {
+      const form = card.querySelector('.cr-alias-edit-form');
+      const isOpen = form.classList.toggle('open');
+      card.classList.toggle('expanded', isOpen);
+      if (!isOpen) {
+        const mainVal = card.querySelector('.cr-alias-main-input').value.trim();
+        const aliases = getTagValues(editContainer);
+        card.querySelector('.cr-alias-main').textContent = mainVal || '<sin nombre>';
+        card.querySelector('.cr-alias-count').textContent = `${aliases.length} alias`;
+        card.querySelector('.cr-alias-chips-row').innerHTML = aliases.map(a => `<span class="cr-chip-xs">${escapeHtml(a)}</span>`).join('');
+      }
+    };
+
+    card.querySelector('.cr-alias-remove').onclick = () => card.remove();
+
+    return card;
+  }
+
+  function setupAliasPane(pane, initialText) {
+    const list = pane.querySelector('#crAliasList');
+    const search = pane.querySelector('#crAliasSearch');
+    const addBtn = pane.querySelector('#crAliasAddBtn');
+
+    parseAliasGroups(initialText).forEach(g => list.appendChild(buildAliasCard(g)));
+
+    search.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      list.querySelectorAll('.cr-alias-card').forEach(card => {
+        const main = card.querySelector('.cr-alias-main-input').value.toLowerCase();
+        const aliases = getTagValues(card.querySelector('.cr-alias-chips-edit')).join(' ').toLowerCase();
+        card.style.display = (!q || main.includes(q) || aliases.includes(q)) ? '' : 'none';
+      });
+      list.querySelector('.cr-alias-empty')?.remove();
+      const visible = [...list.querySelectorAll('.cr-alias-card')].filter(c => c.style.display !== 'none');
+      if (q && !visible.length) {
+        const empty = document.createElement('div');
+        empty.className = 'cr-alias-empty';
+        empty.textContent = `Sin resultados para "${search.value}"`;
+        list.appendChild(empty);
+      }
+    });
+
+    addBtn.onclick = () => {
+      search.value = '';
+      list.querySelectorAll('.cr-alias-card').forEach(c => c.style.display = '');
+      list.querySelector('.cr-alias-empty')?.remove();
+      const card = buildAliasCard({ main: '', aliases: [] });
+      list.insertBefore(card, list.firstChild);
+      card.querySelector('.cr-alias-toggle').click();
+      card.querySelector('.cr-alias-main-input').focus();
+    };
+  }
+
+  function getAliasesText(pane) {
+    return serializeAliasGroups(
+      [...pane.querySelectorAll('.cr-alias-card')].map(card => ({
+        main: card.querySelector('.cr-alias-main-input').value.trim(),
+        aliases: getTagValues(card.querySelector('.cr-alias-chips-edit'))
+      })).filter(g => g.main)
+    );
+  }
+
+  function openConfigPanel(config, onConfigSaved) {
+    document.getElementById('clasificadorConfigPanel')?.remove();
+    const panel = document.createElement('div');
+    panel.id = 'clasificadorConfigPanel';
+
+    const sortedFields = [...ACCOUNT_FIELDS].sort((a, b) => {
+      const ia = config.fieldOrder.findIndex(f => f.key === a.key);
+      const ib = config.fieldOrder.findIndex(f => f.key === b.key);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    const fieldItemsHTML = sortedFields.map((f, i) => {
+      const fc = config.fieldOrder.find(o => o.key === f.key) || { showLabel: true };
+      return `
+    <div class="cr-fitem" data-key="${f.key}">
+      <span class="cr-fitem-grip">⠿</span>
+      <label class="cr-toggle-wrap" title="Mostrar etiqueta">
+        <input type="checkbox" class="cr-fitem-toggle cr-fitem-label-toggle" ${fc.showLabel !== false ? 'checked' : ''}>
+        <span class="cr-toggle-ui"></span>
+      </label>
+      <span class="cr-fitem-name">${f.label}</span>
+      <span class="cr-fitem-num">#${i + 1}</span>
+    </div>`;
+    }).join('');
+
+    const personalFields = config.personalFields || DEFAULT_CONFIG.personalFields;
+    const personalItemsHTML = personalFields.map(f => `
+    <div class="cr-fitem" data-key="${f.key}" data-label="${f.label}">
+      <span class="cr-fitem-grip">⠿</span>
+      <label class="cr-toggle-wrap">
+        <input type="checkbox" class="cr-fitem-toggle" ${f.enabled ? 'checked' : ''}>
+        <span class="cr-toggle-ui"></span>
+      </label>
+      <span class="cr-fitem-name">${f.label}</span>
+    </div>`).join('');
+
+    panel.innerHTML = `
+    <div class="cr-ph" id="crCfgHandle">
+      <div class="cr-ph-title">Configuración</div>
+      <button class="cr-x" id="crCfgClose">✕</button>
+    </div>
+    <div class="cr-tabs">
+      <button class="cr-tab active" data-tab="agencies">Agencias</button>
+      <button class="cr-tab" data-tab="statuses">Estados</button>
+      <button class="cr-tab" data-tab="colors">Colores</button>
+      <button class="cr-tab" data-tab="fields">Campos</button>
+      <button class="cr-tab" data-tab="aliases">Aliases</button>
+      <button class="cr-tab" data-tab="personal">Personal</button>
+    </div>
+    <div class="cr-body">
+      <div class="cr-pane active" id="cr-pane-agencies">
+        <div class="cr-lbl">Agencias Colectoras — Enter o coma para agregar</div>
+        <div class="cr-tags" id="crTagsAgencies"><input class="cr-tags-in" placeholder="ej: lvnv, midland..."></div>
+        <div class="cr-tag-hint">Backspace para eliminar el último</div>
+      </div>
+      <div class="cr-pane" id="cr-pane-statuses">
+        <div class="cr-lbl">Account Status — Cerrada Positiva</div>
+        <textarea class="cr-ta" id="cfg_closedStatuses" rows="3">${config.closedStatuses.join('\n')}</textarea>
+        <div class="cr-lbl">Payment Status — Cerrada Positiva</div>
+        <textarea class="cr-ta" id="cfg_paymentStatuses" rows="2">${config.paymentStatuses.join('\n')}</textarea>
+        <div class="cr-lbl">Estados Negativos</div>
+        <textarea class="cr-ta" id="cfg_negativeStatuses" rows="4">${config.negativeStatuses.join('\n')}</textarea>
+      </div>
+      <div class="cr-pane" id="cr-pane-colors">
+        <div class="cr-lbl">Colores de Resaltado</div>
+        <div class="cr-colors">
+          <div class="cr-clr"><input type="color" id="cfg_colorOpen" value="${config.colors.open}"><span>Open</span></div>
+          <div class="cr-clr"><input type="color" id="cfg_colorClosed" value="${config.colors.closedPositive}"><span>Closed+</span></div>
+          <div class="cr-clr"><input type="color" id="cfg_colorInquiry" value="${config.colors.inquiryLinked || '#fbbf24'}"><span>Inquiry</span></div>
+        </div>
+      </div>
+      <div class="cr-pane" id="cr-pane-fields">
+        <div class="cr-lbl">Toggle para mostrar/ocultar etiqueta por campo — Arrastrá para reordenar</div>
+        <div class="cr-fields" id="crFieldList">${fieldItemsHTML}</div>
+      </div>
+      <div class="cr-pane" id="cr-pane-aliases">
+        <div class="cr-alias-search-row">
+          <input id="crAliasSearch" placeholder="Buscar acreedor o alias...">
+          <button class="cr-alias-add-btn" id="crAliasAddBtn">+ Agregar</button>
+        </div>
+        <div id="crAliasList"></div>
+      </div>
+      <div class="cr-pane" id="cr-pane-personal">
+        <div class="cr-lbl">Opciones</div>
+        <div class="cr-fitem" style="margin-bottom:6px;cursor:default">
+          <label class="cr-toggle-wrap">
+            <input type="checkbox" class="cr-fitem-toggle" id="cfg_showPersonalLabels" ${config.showPersonalLabels ? 'checked' : ''}>
+            <span class="cr-toggle-ui"></span>
+          </label>
+          <span class="cr-fitem-name" style="margin-left:8px">Mostrar etiquetas (ej: Name: John)</span>
+        </div>
+        <div class="cr-lbl">Activá y reordenná los campos del cliente en el output</div>
+        <div class="cr-fields" id="crPersonalList">${personalItemsHTML}</div>
+      </div>
+    </div>
+    <div class="cr-footer">
+      <button class="cr-btn cr-btn-ok" id="crCfgSave">Guardar</button>
+      <button class="cr-btn cr-btn-rst" id="crCfgReset">Restaurar</button>
+    </div>
+  `;
+
     document.body.appendChild(panel);
+
+    panel.querySelectorAll('.cr-tab').forEach(tab => {
+      tab.onclick = () => {
+        panel.querySelectorAll('.cr-tab').forEach(t => t.classList.remove('active'));
+        panel.querySelectorAll('.cr-pane').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        panel.querySelector(`#cr-pane-${tab.dataset.tab}`)?.classList.add('active');
+      };
+    });
+
+    setupTagInput(document.getElementById('crTagsAgencies'), config.agencies);
+    setupFieldDrag(document.getElementById('crFieldList'));
+    setupFieldDrag(document.getElementById('crPersonalList'));
+    setupAliasPane(panel.querySelector('#cr-pane-aliases'), config.aliases || '');
+    makeDraggable(panel, panel.querySelector('#crCfgHandle'));
+
+    document.getElementById('crCfgClose').onclick = () => panel.remove();
+
+    document.getElementById('crCfgSave').onclick = () => {
+      config.agencies = getTagValues(document.getElementById('crTagsAgencies'));
+      config.closedStatuses = document.getElementById('cfg_closedStatuses').value
+        .split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
+      config.paymentStatuses = document.getElementById('cfg_paymentStatuses').value
+        .split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
+      config.negativeStatuses = document.getElementById('cfg_negativeStatuses').value
+        .split('\n').map(s => s.trim().toLowerCase()).filter(Boolean);
+      config.colors.open = document.getElementById('cfg_colorOpen').value;
+      config.colors.closedPositive = document.getElementById('cfg_colorClosed').value;
+      config.colors.inquiryLinked = document.getElementById('cfg_colorInquiry').value;
+      config.aliases = getAliasesText(panel.querySelector('#cr-pane-aliases'));
+      config.fieldOrder = [...document.getElementById('crFieldList').querySelectorAll('.cr-fitem')]
+        .map(item => ({
+          key: item.dataset.key,
+          showLabel: item.querySelector('.cr-fitem-toggle').checked
+        }));
+      config.showPersonalLabels = document.getElementById('cfg_showPersonalLabels').checked;
+      config.personalFields = [...document.getElementById('crPersonalList').querySelectorAll('.cr-fitem')]
+        .map(item => ({
+          key: item.dataset.key,
+          label: item.dataset.label,
+          enabled: item.querySelector('.cr-fitem-toggle').checked
+        }));
+      saveConfig(config);
+      panel.remove();
+      showToast('✅ Configuración guardada', '#5eead4');
+      if (onConfigSaved) onConfigSaved(config);
+    };
+
+    document.getElementById('crCfgReset').onclick = () => {
+      if (confirm('¿Restaurar configuración por defecto?')) {
+        const resetConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+        saveConfig(resetConfig);
+        panel.remove();
+        showToast('🔄 Configuración restaurada', '#fbbf24');
+        if (onConfigSaved) onConfigSaved(resetConfig);
+      }
+    };
   }
 
-  function updateProgress(current, total, name) {
-    const el = document.getElementById("progressText");
-    if (el) el.innerHTML = `Dispute ${current} / ${total}<br><span style="color:#aaa;font-size:12px">${escapeHtml(name || "")}</span>`;
+  function buildAliasMap(config) {
+    const map = new Map();
+    if (!config.aliases) return map;
+    config.aliases.split("\n").forEach(line => {
+      line = line.trim();
+      if (!line || !line.includes("=")) return;
+      const [main, ...rest] = line.split("=");
+      const mainClean = cleanName(main.trim());
+      if (!mainClean) return;
+      const mainNormalized = normalizeForMatch(mainClean);
+      map.set(mainNormalized, mainClean);
+      rest.join("=").split(",").forEach(alias => {
+        const aliasClean = cleanName(alias.trim());
+        if (aliasClean && aliasClean !== mainClean) {
+          map.set(normalizeForMatch(aliasClean), mainClean);
+        }
+      });
+    });
+    return map;
   }
 
-  function removeProgressPanel() {
-    document.getElementById("clasificadorProgress")?.remove();
+  function resolveAlias(name, aliasMap) {
+    const clean = cleanName(name);
+    const normalized = normalizeForMatch(clean);
+    return aliasMap.get(normalized) || clean;
+  }
+
+  function getLinkedAccount(name, map, aliasMap) {
+    if (!name || !map.size) return null;
+    const resolvedInquiry = resolveAlias(name, aliasMap);
+    const normalizedInquiry = normalizeForMatch(resolvedInquiry);
+
+    const wordsI = getWords(resolvedInquiry);
+    new Set(wordsI);
+    const prefixesI = getPrefixes(resolvedInquiry);
+    const prefixSetI = new Set(prefixesI);
+
+    for (const [creditor, item] of map) {
+      const resolvedCreditor = resolveAlias(creditor, aliasMap);
+      const normalizedCreditor = normalizeForMatch(resolvedCreditor);
+
+      if (normalizedInquiry === normalizedCreditor) return item;
+
+      const wordsC = getWords(resolvedCreditor);
+      const wordsSetC = new Set(wordsC);
+
+      const exact = wordsI.filter(w => wordsSetC.has(w));
+      if (exact.length >= 2) return item;
+      if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 7) return item;
+
+      const prefixesC = new Set(getPrefixes(resolvedCreditor));
+      const pfx = [...prefixSetI].filter(p => prefixesC.has(p));
+      if (pfx.length >= 2) return item;
+
+      if (resolvedInquiry.length >= 6 && resolvedCreditor.includes(resolvedInquiry)) return item;
+      if (resolvedCreditor.length >= 6 && resolvedInquiry.includes(resolvedCreditor)) return item;
+
+      const sim = jaccardSimilarity(resolvedInquiry, resolvedCreditor);
+      if (sim >= 0.7) return item;
+    }
+    return null;
+  }
+
+  function getBuroStatus(item, buro) {
+    return {
+      indispute: !!queryOne(SELECTORS.compact.indispute(buro), item),
+      negative: !!queryOne(SELECTORS.compact.negative(buro), item),
+      positive: !!queryOne(SELECTORS.compact.positive(buro), item),
+      deleted: !!queryOne(SELECTORS.compact.deleted(buro), item),
+      none: !!queryOne(SELECTORS.compact.noneText(buro), item)
+    };
+  }
+
+  function getActiveColumns(item) {
+    return BUROS.map(b => {
+      const status = getBuroStatus(item, b);
+      return (status.indispute || status.negative) && !status.positive && !status.deleted;
+    });
+  }
+
+  function hasInDispute(item) {
+    return BUROS.some(b => {
+      const status = getBuroStatus(item, b);
+      return status.indispute || status.negative;
+    }) || !!queryOne(".disputes-tab-compact-indispute-text-CTN", item);
+  }
+
+  function quickDetectStatus(item) {
+    const isAllPositive = BUROS.every(b => {
+      const status = getBuroStatus(item, b);
+      return status.positive || status.deleted || status.none || (!status.indispute && !status.negative);
+    });
+    return { skip: isAllPositive };
+  }
+
+  function getDisputeType(item) {
+    const input = queryOne(SELECTORS.disputeType, item);
+    return input?.value?.toLowerCase() || "";
+  }
+
+  function getClientData() {
+    return {
+      name: queryOne(SELECTORS.client.name)?.innerText.trim() || "",
+      address: queryOne(SELECTORS.client.address)?.innerText.trim() || "",
+      ssn: queryOne(SELECTORS.client.ssn)?.innerText.trim() || "",
+      dob: queryOne(SELECTORS.client.dob)?.innerText.trim() || "",
+      cell: queryOne(SELECTORS.client.cell)?.innerText.trim() || "",
+      home: queryOne(SELECTORS.client.home)?.innerText.trim() || "",
+      email: queryOne(SELECTORS.client.email)?.innerText.trim() || "",
+      started: queryOne(SELECTORS.client.started)?.innerText.trim() || "",
+      id: queryOne(SELECTORS.client.id)?.innerText.trim() || ""
+    };
+  }
+
+  function getBestValue(row, activeCols) {
+    for (let i = 0; i < 3; i++) {
+      if (!activeCols[i]) continue;
+      const v = row[i + 1]?.innerText.trim() || "";
+      const clean = v.replace(/\s+/g, "").replace(/[-*]/g, "").toLowerCase();
+      if (clean && !IGNORE_VALUES.has(clean)) return v;
+    }
+    return "";
+  }
+
+  function getValues(blocks, index, activeCols) {
+    return activeCols
+      .map((active, i) => active ? (blocks[index + 1 + i]?.innerText || "").toLowerCase().trim() : null)
+      .filter(v => v !== null);
+  }
+
+  function parseAccountBlocks(blocks, activeCols, config) {
+    const result = {
+      name: "", number: "", balance: "", dateOpened: "",
+      isOpen: false, isClosedPositive: false, isCollection: false,
+      addresses: []
+    };
+    let hasNegative = false;
+    let accountStatusMatch = false;
+    let paymentStatusMatch = false;
+    const addrParts = [{}, {}, {}];
+
+    const closedStatuses = config.closedStatuses;
+    const negativeStatuses = config.negativeStatuses;
+    const paymentStatuses = config.paymentStatuses;
+    const matchesAny = (vals, list) => vals.some(v => list.some(s => v.includes(s)));
+
+    for (let i = 0; i < blocks.length; i++) {
+      if (!blocks[i].classList.contains(SELECTORS.detail.sideTitles)) continue;
+      const title = blocks[i].innerText.trim().toLowerCase();
+      const row = [blocks[i], blocks[i + 1], blocks[i + 2], blocks[i + 3]];
+      const vals = getValues(blocks, i, activeCols);
+
+      switch (title) {
+        case "account name":
+          result.name = getBestValue(row, activeCols);
+          break;
+        case "account number":
+          result.number = getBestValue(row, activeCols);
+          break;
+        case "balance":
+          result.balance = getBestValue(row, activeCols);
+          break;
+        case "date opened":
+          result.dateOpened = getBestValue(row, activeCols);
+          break;
+        case "account status":
+          result.isOpen = vals.some(v => v === "open");
+          accountStatusMatch = matchesAny(vals, closedStatuses);
+          if (matchesAny(vals, negativeStatuses)) hasNegative = true;
+          break;
+        case "payment status":
+          paymentStatusMatch = matchesAny(vals, paymentStatuses);
+          if (matchesAny(vals, negativeStatuses)) hasNegative = true;
+          break;
+        case "account type":
+        case "account type detail":
+          if (!result.isCollection) result.isCollection = vals.some(v => v.includes("collection"));
+          break;
+        case "address":
+        case "city":
+        case "state":
+        case "zip":
+          activeCols.forEach((active, idx) => {
+            if (!active) return;
+            const val = (blocks[i + 1 + idx]?.innerText || "").replace(/\s+/g, " ").replace(/[-*]/g, "").trim();
+            if (val && val !== "-") addrParts[idx][title] = val;
+          });
+          break;
+      }
+    }
+
+    if (!hasNegative && (accountStatusMatch || paymentStatusMatch)) result.isClosedPositive = true;
+
+    result.addresses = [...new Set(
+      activeCols.map((active, i) => {
+        if (!active) return null;
+        const p = addrParts[i];
+        return [p.address, p.city, p.state, p.zip].filter(Boolean).join(", ");
+      }).filter(Boolean)
+    )];
+
+    return result;
+  }
+
+  function buildPositiveAccountsMap() {
+    const map = new Map();
+    const section = queryOne(SELECTORS.sections.positive);
+    if (!section) return map;
+
+    const items = queryAll(SELECTORS.compact.container, section);
+    for (const item of items) {
+      const fullName = queryOne(SELECTORS.compact.name, item)?.innerText.trim().toLowerCase() || "";
+      const creditor = fullName.split(" - ")[0].trim();
+      if (creditor) map.set(creditor, item);
+    }
+    return map;
+  }
+
+  function isAgency(name, config) {
+    if (!name) return false;
+    const clean = name.toLowerCase();
+    return config.agencies.some(a => clean.includes(a));
+  }
+
+  function formatAccount(a, NL, config) {
+    const order = config.fieldOrder || DEFAULT_CONFIG.fieldOrder;
+    const fieldValues = {
+      name: a.name,
+      number: a.number || "",
+      balance: a.balance || "",
+      dateOpened: a.dateOpened || ""
+    };
+    const fieldLabels = {
+      name: "Account Name",
+      number: "Account Number",
+      balance: "Balance",
+      dateOpened: "Date Opened"
+    };
+    let out = order.map(f => {
+      const val = fieldValues[f.key];
+      if (!val) return null;
+      return f.showLabel !== false ? `${fieldLabels[f.key]}: ${val}` : val;
+    }).filter(Boolean).join(NL) + NL;
+    if (a.addresses?.length === 1) out += `Address: ${a.addresses[0]}${NL}`;
+    else if (a.addresses?.length > 1) a.addresses.forEach((addr, i) => { out += `Address ${i + 1}: ${addr}${NL}`; });
+    return out + NL;
+  }
+
+  async function expandDisputeItem(link, item) {
+    if (link.classList.contains(SELECTORS.compact.deletedHeader)) return false;
+    if (!item) return false;
+
+    const { skip } = quickDetectStatus(item);
+    if (skip) return false;
+
+    const expand = queryOne(SELECTORS.compact.expandBtn, item);
+    if (!expand) return false;
+
+    const match = expand.getAttribute("onclick")?.match(/'([^']+)'/);
+    if (!match) return false;
+
+    const id = match[1];
+    expand.click();
+
+    const detailPanel = await waitForElement(`#dispute-view-details-${id}`, document, 3000);
+    if (!detailPanel?.offsetParent) return false;
+
+    const fullBtn = queryOne(`#dispute-view-details-${id}`);
+    if (fullBtn?.offsetParent) {
+      fullBtn.click();
+      await waitForElement(SELECTORS.detail.blocks, item, 4000);
+    }
+
+    return true;
+  }
+
+  async function loadRoundDisputes() {
+    const section = queryOne(SELECTORS.sections.disputed);
+    if (!section) return [];
+
+    const allLinks = queryAll(SELECTORS.compact.disputeLink, section);
+    const links = allLinks.filter(l =>
+      l.innerText.trim() === "This Round" && l.offsetParent !== null
+    );
+
+    const results = await Promise.allSettled(
+      links.map(async link => {
+        const item = link.closest(SELECTORS.compact.container);
+        const expanded = await expandDisputeItem(link, item);
+        return { link, item, expanded };
+      })
+    );
+
+    const expandedLinks = results
+      .filter(r => r.status === "fulfilled" && r.value.expanded)
+      .map(r => r.value.link);
+
+    return [...links.filter(l => !expandedLinks.includes(l)), ...expandedLinks];
   }
 
   function buildAccountEditorCard(acc, onRemove) {
@@ -1328,7 +1610,7 @@ upgrade = upgrade bank, upgrade lending
     return `<div class="cr-out-stats">${chips.join('')}</div>`;
   }
 
-  function showOutputEditor(data, stats) {
+  function showOutputEditor(data, stats, config) {
     document.getElementById('crOverlay')?.remove();
     document.getElementById('crOutputPanel')?.remove();
 
@@ -1412,7 +1694,7 @@ upgrade = upgrade bank, upgrade lending
         const item = document.createElement('div');
         item.className = 'cr-editor-str-item';
         item.innerHTML = `<span class="cr-editor-str-val">${escapeHtml(val)}</span>
-          <button class="cr-editor-str-del" title="Eliminar">✕</button>`;
+        <button class="cr-editor-str-del" title="Eliminar">✕</button>`;
         item.querySelector('.cr-editor-str-del').onclick = () => { item.remove(); updateBadge(); };
         list.appendChild(item);
       });
@@ -1448,7 +1730,7 @@ upgrade = upgrade bank, upgrade lending
               dateOpened: card.querySelector('[data-field="dateOpened"]').value,
               addresses: JSON.parse(card.dataset.addresses || '[]')
             };
-            output += formatAccount(acc, NL);
+            output += formatAccount(acc, NL, config);
           });
         } else {
           const items = [...section.querySelectorAll('.cr-editor-str-val')];
@@ -1472,8 +1754,6 @@ upgrade = upgrade bank, upgrade lending
       }
     };
   }
-
-  /* ===================== HISTORY PANEL ===================== */
 
   function showHistoryPanel() {
     document.getElementById('crHistoryPanel')?.remove();
@@ -1525,40 +1805,40 @@ upgrade = upgrade bank, upgrade lending
         el.className = 'cr-hist-entry';
         const s = entry.stats || {};
         el.innerHTML = `
-          <div class="cr-hist-row">
-            <span class="cr-hist-name">${escapeHtml(entry.clientName || 'Cliente')}</span>
-            <span class="cr-hist-date">${formatDate(entry.id)}</span>
-          </div>
-          <div class="cr-hist-stats">
-            ${s.collections ? `<span class="cr-stat"><b>${s.collections}</b> colecciones</span>` : ''}
-            ${s.originals ? `<span class="cr-stat"><b>${s.originals}</b> originales</span>` : ''}
-            ${s.inquiries ? `<span class="cr-stat"><b>${s.inquiries}</b> inquiries</span>` : ''}
-          </div>
-          <div class="cr-hist-actions">
-            <button class="cr-hist-btn cr-hist-btn-view">👁 Ver</button>
-            <button class="cr-hist-btn cr-hist-btn-copy">📋 Copiar</button>
-            <button class="cr-hist-btn cr-hist-btn-del">🗑</button>
-          </div>
-        `;
+        <div class="cr-hist-row">
+          <span class="cr-hist-name">${escapeHtml(entry.clientName || 'Cliente')}</span>
+          <span class="cr-hist-date">${formatDate(entry.id)}</span>
+        </div>
+        <div class="cr-hist-stats">
+          ${s.collections ? `<span class="cr-stat"><b>${s.collections}</b> colecciones</span>` : ''}
+          ${s.originals ? `<span class="cr-stat"><b>${s.originals}</b> originales</span>` : ''}
+          ${s.inquiries ? `<span class="cr-stat"><b>${s.inquiries}</b> inquiries</span>` : ''}
+        </div>
+        <div class="cr-hist-actions">
+          <button class="cr-hist-btn cr-hist-btn-view">👁 Ver</button>
+          <button class="cr-hist-btn cr-hist-btn-copy">📋 Copiar</button>
+          <button class="cr-hist-btn cr-hist-btn-del">🗑</button>
+        </div>
+      `;
 
         el.querySelector('.cr-hist-btn-view').onclick = () => {
           const overlay = createOverlay('crHistDetailOverlay');
           const modal = createModal('crHistDetailModal',
             'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:14px;z-index:9999999;width:500px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,0.8);animation:crScaleIn 0.22s ease;');
           modal.innerHTML = `
-            <div class="cr-out-head">
-              <div>
-                <b>${escapeHtml(entry.clientName || 'Cliente')}</b>
-                <span style="font-size:10px;color:#444;margin-left:8px;font-family:monospace">${formatDate(entry.id)}</span>
-              </div>
-              <button class="cr-x" id="crHistDetClose">✕</button>
+          <div class="cr-out-head">
+            <div>
+              <b>${escapeHtml(entry.clientName || 'Cliente')}</b>
+              <span style="font-size:10px;color:#444;margin-left:8px;font-family:monospace">${formatDate(entry.id)}</span>
             </div>
-            <textarea readonly style="flex:1;background:#0d0d0d;color:#aaa;border:none;padding:14px 18px;font-family:monospace;font-size:12px;resize:none;outline:none;line-height:1.7;min-height:200px;">${escapeHtml(entry.output)}</textarea>
-            <div class="cr-out-foot">
-              <button class="cr-copy-btn" id="crHistDetCopy">📋 Copiar</button>
-              <button class="cr-dismiss-btn" id="crHistDetClose2">Cerrar</button>
-            </div>
-          `;
+            <button class="cr-x" id="crHistDetClose">✕</button>
+          </div>
+          <textarea readonly style="flex:1;background:#0d0d0d;color:#aaa;border:none;padding:14px 18px;font-family:monospace;font-size:12px;resize:none;outline:none;line-height:1.7;min-height:200px;">${escapeHtml(entry.output)}</textarea>
+          <div class="cr-out-foot">
+            <button class="cr-copy-btn" id="crHistDetCopy">📋 Copiar</button>
+            <button class="cr-dismiss-btn" id="crHistDetClose2">Cerrar</button>
+          </div>
+        `;
           const closeDetail = () => { overlay.remove(); modal.remove(); };
           bindClose(closeDetail, overlay,
             document.getElementById('crHistDetClose'),
@@ -1627,14 +1907,8 @@ upgrade = upgrade bank, upgrade lending
       };
     });
 
-    document.getElementById('crHistFrom').onchange = () => {
-      clearChipActive();
-      applyFilter();
-    };
-    document.getElementById('crHistTo').onchange = () => {
-      clearChipActive();
-      applyFilter();
-    };
+    document.getElementById('crHistFrom').onchange = () => { clearChipActive(); applyFilter(); };
+    document.getElementById('crHistTo').onchange = () => { clearChipActive(); applyFilter(); };
 
     document.getElementById('crHistClear').onclick = () => {
       if (confirm('¿Eliminar todo el historial?')) {
@@ -1647,429 +1921,7 @@ upgrade = upgrade bank, upgrade lending
     renderList(entries);
   }
 
-  /* ===================== DOM HELPERS ===================== */
-
-  /**
-   * @template T
-   * @param {string} selector
-   * @param {ParentNode} parent
-   * @param {number} timeout
-   * @returns {Promise<T|null>}
-   */
-  function waitForElement(selector, parent = document, timeout = 8000) {
-    return new Promise(resolve => {
-      try {
-        const el = parent.querySelector(selector);
-        if (el) return resolve(el);
-
-        let settled = false;
-        const finish = (el) => { if (!settled) { settled = true; observer.disconnect(); resolve(el); } };
-        const observer = new MutationObserver(() => {
-          const found = parent.querySelector(selector);
-          if (found) finish(found);
-        });
-        observer.observe(parent, { childList: true, subtree: true });
-
-        setTimeout(() => finish(parent.querySelector(selector)), timeout);
-      } catch (e) {
-        console.warn("[Clasificador] Query error:", e);
-        resolve(null);
-      }
-    });
-  }
-
-  /**
-   * @param {string} selector
-   * @param {ParentNode} parent
-   * @returns {Element[]}
-   */
-  function queryAll(selector, parent = document) {
-    try {
-      return [...parent.querySelectorAll(selector)];
-    } catch (e) {
-      console.warn(`[Clasificador] QueryAll error for ${selector}:`, e);
-      return [];
-    }
-  }
-
-  /**
-   * @param {string} selector
-   * @param {ParentNode} parent
-   * @returns {Element|null}
-   */
-  function queryOne(selector, parent = document) {
-    try {
-      return parent.querySelector(selector);
-    } catch (e) {
-      console.warn(`[Clasificador] QueryOne error for ${selector}:`, e);
-      return null;
-    }
-  }
-
-  /* ===================== BURO COLUMN DETECTION ===================== */
-
-  function getBuroStatus(item, buro) {
-    return {
-      indispute: !!queryOne(SELECTORS.compact.indispute(buro), item),
-      negative: !!queryOne(SELECTORS.compact.negative(buro), item),
-      positive: !!queryOne(SELECTORS.compact.positive(buro), item),
-      deleted: !!queryOne(SELECTORS.compact.deleted(buro), item),
-      none: !!queryOne(SELECTORS.compact.noneText(buro), item)
-    };
-  }
-
-  function getActiveColumns(item) {
-    return BUROS.map(b => {
-      const status = getBuroStatus(item, b);
-      return (status.indispute || status.negative) && !status.positive && !status.deleted;
-    });
-  }
-
-  function hasInDispute(item) {
-    return BUROS.some(b => {
-      const status = getBuroStatus(item, b);
-      return status.indispute || status.negative;
-    }) || !!queryOne(".disputes-tab-compact-indispute-text-CTN", item);
-  }
-
-  function quickDetectStatus(item) {
-    const isAllPositive = BUROS.every(b => {
-      const status = getBuroStatus(item, b);
-      return status.positive || status.deleted || status.none || (!status.indispute && !status.negative);
-    });
-    return { skip: isAllPositive };
-  }
-
-  /* ===================== BLOCK PARSING ===================== */
-
-  function getBestValue(row, activeCols) {
-    for (let i = 0; i < 3; i++) {
-      if (!activeCols[i]) continue;
-      const v = row[i + 1]?.innerText.trim() || "";
-      const clean = v.replace(/\s+/g, "").replace(/[-*]/g, "").toLowerCase();
-      if (clean && !IGNORE_VALUES.has(clean)) return v;
-    }
-    return "";
-  }
-
-  function getValues(blocks, index, activeCols) {
-    return activeCols
-      .map((active, i) => active ? (blocks[index + 1 + i]?.innerText || "").toLowerCase().trim() : null)
-      .filter(v => v !== null);
-  }
-
-  /**
-   * @typedef {Object} ParsedAccount
-   * @property {string} name
-   * @property {string} number
-   * @property {string} balance
-   * @property {string} dateOpened
-   * @property {boolean} isOpen
-   * @property {boolean} isClosedPositive
-   * @property {boolean} isCollection
-   * @property {string[]} addresses
-   */
-
-  /**
-   * @param {Element[]} blocks
-   * @param {boolean[]} activeCols
-   * @returns {ParsedAccount}
-   */
-  function parseAccountBlocks(blocks, activeCols) {
-    const result = {
-      name: "", number: "", balance: "", dateOpened: "",
-      isOpen: false, isClosedPositive: false, isCollection: false,
-      addresses: []
-    };
-    let hasNegative = false;
-    let accountStatusMatch = false;
-    let paymentStatusMatch = false;
-    const addrParts = [{}, {}, {}];
-
-    // Pre-compute status lists once for O(1) lookup inside the loop
-    const closedStatuses = CONFIG.closedStatuses;
-    const negativeStatuses = CONFIG.negativeStatuses;
-    const paymentStatuses = CONFIG.paymentStatuses;
-    const matchesAny = (vals, list) => vals.some(v => list.some(s => v.includes(s)));
-
-    for (let i = 0; i < blocks.length; i++) {
-      if (!blocks[i].classList.contains(SELECTORS.detail.sideTitles)) continue;
-      const title = blocks[i].innerText.trim().toLowerCase();
-      const row = [blocks[i], blocks[i + 1], blocks[i + 2], blocks[i + 3]];
-      const vals = getValues(blocks, i, activeCols);
-
-      switch (title) {
-        case "account name":
-          result.name = getBestValue(row, activeCols);
-          break;
-        case "account number":
-          result.number = getBestValue(row, activeCols);
-          break;
-        case "balance":
-          result.balance = getBestValue(row, activeCols);
-          break;
-        case "date opened":
-          result.dateOpened = getBestValue(row, activeCols);
-          break;
-        case "account status":
-          result.isOpen = vals.some(v => v === "open");
-          accountStatusMatch = matchesAny(vals, closedStatuses);
-          if (matchesAny(vals, negativeStatuses)) hasNegative = true;
-          break;
-        case "payment status":
-          paymentStatusMatch = matchesAny(vals, paymentStatuses);
-          if (matchesAny(vals, negativeStatuses)) hasNegative = true;
-          break;
-        case "account type":
-        case "account type detail":
-          if (!result.isCollection) result.isCollection = vals.some(v => v.includes("collection"));
-          break;
-        case "address":
-        case "city":
-        case "state":
-        case "zip":
-          activeCols.forEach((active, idx) => {
-            if (!active) return;
-            const val = (blocks[i + 1 + idx]?.innerText || "").replace(/\s+/g, " ").replace(/[-*]/g, "").trim();
-            if (val && val !== "-") addrParts[idx][title] = val;
-          });
-          break;
-      }
-    }
-
-    if (!hasNegative && (accountStatusMatch || paymentStatusMatch)) result.isClosedPositive = true;
-
-    result.addresses = [...new Set(
-      activeCols.map((active, i) => {
-        if (!active) return null;
-        const p = addrParts[i];
-        return [p.address, p.city, p.state, p.zip].filter(Boolean).join(", ");
-      }).filter(Boolean)
-    )];
-
-    return result;
-  }
-
-  /* ===================== AGENCY DETECTION ===================== */
-
-  function isAgency(name) {
-    if (!name) return false;
-    const clean = name.toLowerCase();
-    return CONFIG.agencies.some(a => clean.includes(a));
-  }
-
-  /* ===================== POSITIVE ACCOUNTS MAP ===================== */
-
-  /**
-   * @returns {Map<string, Element>}
-   */
-  function buildPositiveAccountsMap() {
-    const map = new Map();
-    const section = queryOne(SELECTORS.sections.positive);
-    if (!section) return map;
-
-    const items = queryAll(SELECTORS.compact.container, section);
-    for (const item of items) {
-      const fullName = queryOne(SELECTORS.compact.name, item)?.innerText.trim().toLowerCase() || "";
-      const creditor = fullName.split(" - ")[0].trim();
-      if (creditor) map.set(creditor, item);
-    }
-    return map;
-  }
-
-  /* ===================== STRING SIMILARITY ===================== */
-
-  /**
-   * @param {string} s
-   * @returns {string[]}
-   */
-  function getWords(s) {
-    return s.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
-  }
-
-  /**
-   * @param {string} s
-   * @returns {string[]}
-   */
-  function getPrefixes(s, len = 4) {
-    return s.split(/\s+/).map(w => w.slice(0, len)).filter(p => p.length >= 3);
-  }
-
-  /**
-   * Calculates Jaccard similarity between two strings
-   * @param {string} a
-   * @param {string} b
-   * @returns {number}
-   */
-  function jaccardSimilarity(a, b) {
-    const setA = new Set(a.split(/\s+/));
-    const setB = new Set(b.split(/\s+/));
-    const intersection = [...setA].filter(x => setB.has(x)).length;
-    const union = new Set([...setA, ...setB]).size;
-    return union === 0 ? 0 : intersection / union;
-  }
-
-  /* ===================== INQUIRY MATCHING ===================== */
-
-  /**
-   * @param {string} name
-   * @param {Map<string, Element>} map
-   * @param {AliasMap} aliasMap
-   * @returns {Element|null}
-   */
-  function getLinkedAccount(name, map, aliasMap) {
-    if (!name || !map.size) return null;
-    const resolvedInquiry = resolveAlias(name, aliasMap);
-    const normalizedInquiry = normalizeForMatch(resolvedInquiry);
-
-    // Pre-compute inquiry data once — reused across all iterations
-    const wordsI = getWords(resolvedInquiry);
-    const wordsSetI = new Set(wordsI);
-    const prefixesI = getPrefixes(resolvedInquiry);
-    const prefixSetI = new Set(prefixesI);
-
-    for (const [creditor, item] of map) {
-      const resolvedCreditor = resolveAlias(creditor, aliasMap);
-      const normalizedCreditor = normalizeForMatch(resolvedCreditor);
-
-      if (normalizedInquiry === normalizedCreditor) return item;
-
-      const wordsC = getWords(resolvedCreditor);
-      const wordsSetC = new Set(wordsC);
-
-      // Require at least 2 significant words in common, or a single word that is
-      // both the only word present AND long enough (>= 7 chars) to be distinctive.
-      // This prevents generic words like "federal", "credit", "united" from
-      // triggering a false link between unrelated institutions.
-      const exact = wordsI.filter(w => wordsSetC.has(w));
-      if (exact.length >= 2) return item;
-      if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 7) return item;
-
-      const prefixesC = new Set(getPrefixes(resolvedCreditor));
-      const pfx = [...prefixSetI].filter(p => prefixesC.has(p));
-      if (pfx.length >= 2) return item;
-
-      // Substring containment: only when the contained string is reasonably long
-      if (resolvedInquiry.length >= 6 && resolvedCreditor.includes(resolvedInquiry)) return item;
-      if (resolvedCreditor.length >= 6 && resolvedInquiry.includes(resolvedCreditor)) return item;
-
-      const sim = jaccardSimilarity(resolvedInquiry, resolvedCreditor);
-      if (sim >= 0.7) return item;
-    }
-    return null;
-  }
-
-  /* ===================== DISPUTE LOADER ===================== */
-
-  async function expandDisputeItem(link, item) {
-    if (link.classList.contains(SELECTORS.compact.deletedHeader)) return false;
-    if (!item) return false;
-
-    const { skip } = quickDetectStatus(item);
-    if (skip) return false;
-
-    const expand = queryOne(SELECTORS.compact.expandBtn, item);
-    if (!expand) return false;
-
-    const match = expand.getAttribute("onclick")?.match(/'([^']+)'/);
-    if (!match) return false;
-
-    const id = match[1];
-    expand.click();
-
-    const detailPanel = await waitForElement(`#dispute-view-details-${id}`, document, 3000);
-    if (!detailPanel?.offsetParent) return false;
-
-    const fullBtn = queryOne(`#dispute-view-details-${id}`);
-    if (fullBtn?.offsetParent) {
-      fullBtn.click();
-      await waitForElement(SELECTORS.detail.blocks, item, 4000);
-    }
-
-    return true;
-  }
-
-  async function loadRoundDisputes() {
-    const section = queryOne(SELECTORS.sections.disputed);
-    if (!section) return [];
-
-    const allLinks = queryAll(SELECTORS.compact.disputeLink, section);
-    const links = allLinks.filter(l =>
-      l.innerText.trim() === "This Round" && l.offsetParent !== null
-    );
-
-    const results = await Promise.allSettled(
-      links.map(async link => {
-        const item = link.closest(SELECTORS.compact.container);
-        const expanded = await expandDisputeItem(link, item);
-        return { link, item, expanded };
-      })
-    );
-
-    const expandedLinks = results
-      .filter(r => r.status === "fulfilled" && r.value.expanded)
-      .map(r => r.value.link);
-
-    return [...links.filter(l => !expandedLinks.includes(l)), ...expandedLinks];
-  }
-
-  /* ===================== OUTPUT FORMATTER ===================== */
-
-  function formatAccount(a, NL) {
-    const order = CONFIG.fieldOrder || DEFAULT_CONFIG.fieldOrder;
-    const fieldValues = {
-      name: a.name,
-      number: a.number || "",
-      balance: a.balance || "",
-      dateOpened: a.dateOpened || ""
-    };
-    const fieldLabels = {
-      name: "Account Name",
-      number: "Account Number",
-      balance: "Balance",
-      dateOpened: "Date Opened"
-    };
-    let out = order.map(f => {
-      const val = fieldValues[f.key];
-      if (!val) return null;
-      return f.showLabel !== false ? `${fieldLabels[f.key]}: ${val}` : val;
-    }).filter(Boolean).join(NL) + NL;
-    if (a.addresses?.length === 1) out += `Address: ${a.addresses[0]}${NL}`;
-    else if (a.addresses?.length > 1) a.addresses.forEach((addr, i) => { out += `Address ${i + 1}: ${addr}${NL}`; });
-    return out + NL;
-  }
-
-  /* ===================== CLIENT DATA ===================== */
-
-  /**
-   * @returns {Object}
-   */
-  function getClientData() {
-    return {
-      name: queryOne(SELECTORS.client.name)?.innerText.trim() || "",
-      address: queryOne(SELECTORS.client.address)?.innerText.trim() || "",
-      ssn: queryOne(SELECTORS.client.ssn)?.innerText.trim() || "",
-      dob: queryOne(SELECTORS.client.dob)?.innerText.trim() || "",
-      cell: queryOne(SELECTORS.client.cell)?.innerText.trim() || "",
-      home: queryOne(SELECTORS.client.home)?.innerText.trim() || "",
-      email: queryOne(SELECTORS.client.email)?.innerText.trim() || "",
-      started: queryOne(SELECTORS.client.started)?.innerText.trim() || "",
-      id: queryOne(SELECTORS.client.id)?.innerText.trim() || ""
-    };
-  }
-
-  /* ===================== DISPUTE TYPE DETECTION ===================== */
-
-  /**
-   * @param {Element} item
-   * @returns {string}
-   */
-  function getDisputeType(item) {
-    const input = queryOne(SELECTORS.disputeType, item);
-    return input?.value?.toLowerCase() || "";
-  }
-
-  /* ===================== MAIN ===================== */
+  let CONFIG = loadConfig();
 
   async function run() {
     console.clear();
@@ -2084,7 +1936,7 @@ upgrade = upgrade bank, upgrade lending
       const NL = "\r\n";
       const CLIENT = getClientData();
 
-      const aliasMap = buildAliasMap();
+      const aliasMap = buildAliasMap(CONFIG);
       const positiveAccountsMap = buildPositiveAccountsMap();
       console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
@@ -2103,6 +1955,7 @@ upgrade = upgrade bank, upgrade lending
       for (let idx = 0; idx < links.length; idx++) {
         const link = links[idx];
         if (link.classList.contains(SELECTORS.compact.deletedHeader)) continue;
+
         const item = link.closest(SELECTORS.compact.container);
         if (!item || !hasInDispute(item)) continue;
 
@@ -2122,11 +1975,10 @@ upgrade = upgrade bank, upgrade lending
           const linkedItem = getLinkedAccount(compactName, positiveAccountsMap, aliasMap);
           if (linkedItem) {
             console.log(`🛡️ Escudo Protector: Inquiry omitido por estar ligado a cuenta positiva: ${compactName}`);
-            const color = "#f87171"; // Rojo para alertar peligro de disputa (cuenta buena atada)
+            const color = "#f87171";
             highlight(item, color);
             highlight(linkedItem, color);
             LINKED_INQUIRIES++;
-            // NO AGREGAMOS a INQUIRIES.push(compactName) para protegerla
           } else {
             INQUIRIES.push(compactName);
           }
@@ -2138,7 +1990,7 @@ upgrade = upgrade bank, upgrade lending
             ...queryAll(SELECTORS.detail.blocks, queryOne(SELECTORS.detail.left, item)),
             ...queryAll(SELECTORS.detail.blocks, queryOne(SELECTORS.detail.right, item))
           ];
-          const parsed = parseAccountBlocks(blocks, activeCols);
+          const parsed = parseAccountBlocks(blocks, activeCols, CONFIG);
           if (parsed.addresses.length) parsed.addresses.forEach(a => PERSONAL.push(a));
           else PERSONAL.push(compactName.replace(/\s+/g, " ").replace("- Incorrect", "").trim());
           continue;
@@ -2150,7 +2002,7 @@ upgrade = upgrade bank, upgrade lending
         ];
         if (!blocks.length) continue;
 
-        const parsed = parseAccountBlocks(blocks, activeCols);
+        const parsed = parseAccountBlocks(blocks, activeCols, CONFIG);
         const finalName = parsed.name || compactName;
 
         if (parsed.isOpen) {
@@ -2173,7 +2025,7 @@ upgrade = upgrade bank, upgrade lending
           addresses: parsed.addresses
         };
 
-        if (parsed.isCollection || isAgency(finalName)) {
+        if (parsed.isCollection || isAgency(finalName, CONFIG)) {
           COLLECTION_ACCOUNTS.push(accountData);
         } else {
           ORIGINAL_ACCOUNTS.push(accountData);
@@ -2212,9 +2064,9 @@ upgrade = upgrade bank, upgrade lending
         skippedOpen: SKIPPED_OPEN,
         skippedClosed: SKIPPED_CLOSED,
         linkedInquiries: LINKED_INQUIRIES
-      });
-      setButtonAnimation('success');
+      }, CONFIG);
 
+      setButtonAnimation('success');
       queryOne(".disputes-tab-choose-viewCompact")?.click();
 
     } catch (error) {
@@ -2226,9 +2078,15 @@ upgrade = upgrade bank, upgrade lending
   }
 
   function initClasificador() {
+    injectStyles();
     checkVersionUpdate();
     setTimeout(checkForUpdates, 2000);
-    setTimeout(addButton, 3000);
+    setTimeout(() => addButton(
+      CONFIG,
+      run,
+      () => openConfigPanel(CONFIG, newConfig => { CONFIG = newConfig; }),
+      showHistoryPanel
+    ), 3000);
   }
 
   if (document.readyState === 'complete') {
