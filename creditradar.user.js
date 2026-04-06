@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.7
+// @version      20.8
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -14,9 +14,10 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "20.7";
+const SCRIPT_VERSION = "20.8";
 
 const VERSION_NOTES = {
+  "20.8": "🎯 Toolbar colapsable: solo muestra el botón principal, expande al hacer hover",
   "20.7": "⚡ Optimizaciones: matching O(n) con Sets, pre-cómputo de status, timeouts reducidos",
   "20.6": "🎨 Rediseño minimalista: sin glow, paleta teal suave, paneles limpios",
   "20.5": "🛡️ Correcciones: clipboard, historial corrupto, XSS y filtros de fecha",
@@ -753,13 +754,17 @@ upgrade = upgrade bank, upgrade lending
   @keyframes crScaleIn { from{opacity:0;transform:translate(-50%,-50%) scale(0.93)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
 
   /* Toolbar */
-  #crToolbar { position:fixed; z-index:99999; display:flex; flex-direction:column; align-items:center; gap:6px; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); padding:10px 8px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 16px rgba(0,0,0,0.4); transition: opacity 0.2s ease; }
-  #crToolbarGrip { width:100%; height:12px; cursor:grab; display:flex; justify-content:center; align-items:center; color:#555; font-size:10px; margin-bottom:2px; user-select:none; }
+  #crToolbar { position:fixed; z-index:99999; display:flex; flex-direction:column; align-items:center; gap:0; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 16px rgba(0,0,0,0.4); transition:padding 0.2s ease, opacity 0.2s ease; }
+  #crToolbar:hover { padding:10px 8px; }
+  #crToolbarGrip { width:100%; height:12px; cursor:grab; display:flex; justify-content:center; align-items:center; color:#555; font-size:10px; user-select:none; max-height:0; overflow:hidden; opacity:0; margin-bottom:0; transition:max-height 0.2s ease 0.4s, opacity 0.15s ease 0.4s, margin-bottom 0.2s ease 0.4s; }
+  #crToolbar:hover #crToolbarGrip { max-height:18px; opacity:1; margin-bottom:6px; transition:max-height 0.2s ease 0s, opacity 0.15s ease 0s, margin-bottom 0.2s ease 0s; }
   #crToolbarGrip:active { cursor:grabbing; color:#5eead4; }
   #clasificadorBTN { width:48px; height:48px; background:#111; color:#fff; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
   #clasificadorBTN:hover:not(:disabled) { background:#1a1a1a; border-color:#5eead4; }
   #clasificadorBTN:disabled { cursor:not-allowed; opacity:0.8; }
   #clasificadorBTN .cr-ver { font-size:9px; color:#555; font-family:monospace; margin-top:2px; }
+  .cr-tb-extras { display:flex; flex-direction:column; align-items:center; gap:6px; max-height:0; overflow:hidden; opacity:0; margin-top:0; transition:max-height 0.25s ease 0.4s, opacity 0.2s ease 0.4s, margin-top 0.2s ease 0.4s; }
+  #crToolbar:hover .cr-tb-extras { max-height:120px; opacity:1; margin-top:6px; transition:max-height 0.25s ease 0s, opacity 0.2s ease 0s, margin-top 0.2s ease 0s; }
   #crSettingsBtn { width:36px; height:36px; background:#111; color:#555; border:1px solid #222; border-radius:8px; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; transition:all 0.25s ease; }
   #crSettingsBtn:hover { color:#fff; border-color:#444; background:#1a1a1a; transform:rotate(45deg); }
   .clasificador-glow { border-color:#5eead4 !important; }
@@ -996,12 +1001,14 @@ upgrade = upgrade bank, upgrade lending
     else toolbar.style.right = "20px";
 
     toolbar.innerHTML = `
-      <div id="crToolbarGrip" title="Púlsame para arrastrar">⠿</div>
+      <div id="crToolbarGrip" title="Arrastrar">⠿</div>
       <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
         📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
       </button>
-      <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
-      <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
+      <div class="cr-tb-extras">
+        <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
+        <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
+      </div>
     `;
     document.body.appendChild(toolbar);
 
