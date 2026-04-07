@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.8
+// @version      20.7
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -14,38 +14,38 @@
 // @downloadURL  https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
 // ==/UserScript==
 
-const SCRIPT_VERSION = "20.8";
-
-const VERSION_NOTES = {
-  "20.8": "🎯 Toolbar colapsable: solo muestra el botón principal, expande al hacer hover",
-  "20.7": "⚡ Optimizaciones: matching O(n) con Sets, pre-cómputo de status, timeouts reducidos",
-  "20.6": "🎨 Rediseño minimalista: sin glow, paleta teal suave, paneles limpios",
-  "20.5": "🛡️ Correcciones: clipboard, historial corrupto, XSS y filtros de fecha",
-  "20.4": "📐 El menú ya no se oculta al cambiar el tamaño de la ventana",
-  "20.3": "📚 Historial de clientes: revisa, re-copia y filtra por rango de fechas",
-  "20.2": "✏️ Panel de output interactivo: edita, reordena y elimina cuentas antes de copiar",
-  "20.1": "🛡️ Escudo Anti-Disputas: Exclusión automática de Inquiries vinculadas a cuentas positivas",
-  "20.0": "⚡ Turbocarga con MutationObservers y botonera flotante de cristal arrastrable",
-  "19.7": "🚀 Notificación automática de actualizaciones con modal interactivo",
-  "19.6": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
-  "19.5": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
-  "19.4": "🏷️ Toggle de etiqueta individual por campo en Campos",
-  "19.3": "🏷️ Toggle etiquetas en Campos y Personal | Fix toggle UI",
-  "19.2": "🔖 Etiquetas opcionales en info personal | SSN últimos 4 dígitos",
-  "19.1": "💾 Config persistente con GM_setValue | No se borra al cerrar el navegador",
-  "19.0": "👤 Formato de info personal configurable | Campos on/off y reordenables",
-  "18.9": "🎨 UI interactiva | Tabs, tag chips, drag & drop, output preview",
-  "18.8": "🎬 Animaciones en botón | Brillo, pulso y destello",
-  "18.7": "✨ Nueva función de clasificación | Mejoras en el rendimiento",
-  "18.6": "🔧 Optimizaciones de rendimiento",
-  "18.5": "✨ Versión debajo del botón | Interfaz mejorada",
-  "18.4": "🔧 Optimizaciones de rendimiento",
-  "18.3": "🎨 Mejoras visuales",
-  "18.2": "🚀 Sistema de alertas",
-  "18.1": "📋 Versión visible en botón"
-};
 (function () {
   'use strict';
+
+  const SCRIPT_VERSION = "20.7";
+
+  const VERSION_NOTES = {
+    "20.7": "⚡ Optimizaciones: matching O(n) con Sets, pre-cómputo de status, timeouts reducidos",
+    "20.6": "🎨 Rediseño minimalista: sin glow, paleta teal suave, paneles limpios",
+    "20.5": "🛡️ Correcciones: clipboard, historial corrupto, XSS y filtros de fecha",
+    "20.4": "📐 El menú ya no se oculta al cambiar el tamaño de la ventana",
+    "20.3": "📚 Historial de clientes: revisa, re-copia y filtra por rango de fechas",
+    "20.2": "✏️ Panel de output interactivo: edita, reordena y elimina cuentas antes de copiar",
+    "20.1": "🛡️ Escudo Anti-Disputas: Exclusión automática de Inquiries vinculadas a cuentas positivas",
+    "20.0": "⚡ Turbocarga con MutationObservers y botonera flotante de cristal arrastrable",
+    "19.7": "🚀 Notificación automática de actualizaciones con modal interactivo",
+    "19.6": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
+    "19.5": "✨ Modal de actualizaciones moderno y centrado con changelog completo",
+    "19.4": "🏷️ Toggle de etiqueta individual por campo en Campos",
+    "19.3": "🏷️ Toggle etiquetas en Campos y Personal | Fix toggle UI",
+    "19.2": "🔖 Etiquetas opcionales en info personal | SSN últimos 4 dígitos",
+    "19.1": "💾 Config persistente con GM_setValue | No se borra al cerrar el navegador",
+    "19.0": "👤 Formato de info personal configurable | Campos on/off y reordenables",
+    "18.9": "🎨 UI interactiva | Tabs, tag chips, drag & drop, output preview",
+    "18.8": "🎬 Animaciones en botón | Brillo, pulso y destello",
+    "18.7": "✨ Nueva función de clasificación | Mejoras en el rendimiento",
+    "18.6": "🔧 Optimizaciones de rendimiento",
+    "18.5": "✨ Versión debajo del botón | Interfaz mejorada",
+    "18.4": "🔧 Optimizaciones de rendimiento",
+    "18.3": "🎨 Mejoras visuales",
+    "18.2": "🚀 Sistema de alertas",
+    "18.1": "📋 Versión visible en botón"
+  };
 
   const STORAGE_KEY = "pulse_clasificador_config";
   const BUROS = ["equifax", "experian", "transunion"];
@@ -625,15 +625,15 @@ upgrade = upgrade bank, upgrade lending
     else toolbar.style.right = "20px";
 
     toolbar.innerHTML = `
-      <div id="crToolbarGrip" title="Arrastrar">⠿</div>
-      <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
-        📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
-      </button>
-      <div class="cr-tb-extras">
-        <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
-        <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
-      </div>
-    `;
+    <div id="crToolbarGrip" title="Arrastrar">⠿</div>
+    <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
+      📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
+    </button>
+    <div class="cr-tb-extras">
+      <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
+      <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
+    </div>
+  `;
     document.body.appendChild(toolbar);
 
     makeDraggable(toolbar, document.getElementById('crToolbarGrip'), (left, top) => {

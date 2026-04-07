@@ -55,12 +55,14 @@ export function addButton(config, runFn, openConfigFn, showHistoryFn) {
   else toolbar.style.right = "20px";
 
   toolbar.innerHTML = `
-    <div id="crToolbarGrip" title="Púlsame para arrastrar">⠿</div>
+    <div id="crToolbarGrip" title="Arrastrar">⠿</div>
     <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
       📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
     </button>
-    <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
-    <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
+    <div class="cr-tb-extras">
+      <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
+      <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
+    </div>
   `;
   document.body.appendChild(toolbar);
 
