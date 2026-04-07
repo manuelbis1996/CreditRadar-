@@ -1,11 +1,15 @@
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import terser from '@rollup/plugin-terser';
+import { readFileSync } from 'fs';
+
+const constants = readFileSync('./src/config/constants.js', 'utf8');
+const version = constants.match(/SCRIPT_VERSION\s*=\s*"([^"]+)"/)?.[1] ?? '0.0';
 
 const banner = `// ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.9
+// @version      ${version}
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
