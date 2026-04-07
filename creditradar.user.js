@@ -1323,7 +1323,7 @@ upgrade = upgrade bank, upgrade lending
   function getClientData() {
     return {
       name: queryOne(SELECTORS.client.name)?.innerText.trim() || "",
-      address: queryOne(SELECTORS.client.address)?.innerText.trim() || "",
+      address: (queryOne(SELECTORS.client.address)?.innerHTML || "").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim(),
       ssn: queryOne(SELECTORS.client.ssn)?.innerText.trim() || "",
       dob: queryOne(SELECTORS.client.dob)?.innerText.trim() || "",
       cell: queryOne(SELECTORS.client.cell)?.innerText.trim() || "",
