@@ -17,9 +17,11 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.7";
+  const SCRIPT_VERSION = "20.9";
 
   const VERSION_NOTES = {
+    "20.9": "⚠️ Fix: cuentas lentas ya no se saltan silenciosamente — retry automático + aviso en output",
+    "20.8": "🎯 Toolbar colapsable: solo muestra el botón principal, expande al hacer hover",
     "20.7": "⚡ Optimizaciones: matching O(n) con Sets, pre-cómputo de status, timeouts reducidos",
     "20.6": "🎨 Rediseño minimalista: sin glow, paleta teal suave, paneles limpios",
     "20.5": "🛡️ Correcciones: clipboard, historial corrupto, XSS y filtros de fecha",
@@ -681,18 +683,27 @@ upgrade = upgrade bank, upgrade lending
     panel.id = "clasificadorProgress";
     Object.assign(panel.style, {
       position: "fixed", top: "200px", right: "20px",
-      background: "#111", color: "#fff", padding: "15px",
-      borderRadius: "8px", zIndex: "99999", fontSize: "14px",
-      minWidth: "200px", boxShadow: "0 4px 16px rgba(0,0,0,0.4)"
+      background: "#111", color: "#fff", padding: "15px 18px",
+      borderRadius: "10px", zIndex: "99999", fontSize: "14px",
+      minWidth: "220px", boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+      border: "1px solid #2a2a2a"
     });
-    panel.innerHTML = `<b>Procesando...</b><br><br><span id="progressText">Iniciando...</span>`;
+    panel.innerHTML = `
+    <div id="progressLabel" style="font-size:11px;color:#5eead4;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Iniciando...</div>
+    <div id="progressCount" style="font-size:18px;font-weight:bold;margin-bottom:4px">—</div>
+    <div id="progressName" style="color:#aaa;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px"></div>
+  `;
     document.body.appendChild(panel);
   }
 
-  function updateProgress(current, total, name) {
-    const el = document.getElementById("progressText");
+  function updateProgress(current, total, name, label = "Procesando") {
     const escapeHtml = str => (str||"").replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    if (el) el.innerHTML = `Dispute ${current} / ${total}<br><span style="color:#aaa;font-size:12px">${escapeHtml(name)}</span>`;
+    const lEl = document.getElementById("progressLabel");
+    const cEl = document.getElementById("progressCount");
+    const nEl = document.getElementById("progressName");
+    if (lEl) lEl.textContent = label;
+    if (cEl) cEl.textContent = total === "?" ? "Cargando..." : `${current} de ${total}`;
+    if (nEl) nEl.innerHTML = escapeHtml(name);
   }
 
   function removeProgressPanel() {
@@ -1473,19 +1484,19 @@ upgrade = upgrade bank, upgrade lending
     const id = match[1];
     expand.click();
 
-    const detailPanel = await waitForElement(`#dispute-view-details-${id}`, document, 3000);
-    if (!detailPanel?.offsetParent) return false;
+    const detailPanel = await waitForElement(`#dispute-view-details-${id}`, document, 30000);
+    if (!detailPanel?.offsetParent) return 'timeout';
 
     const fullBtn = queryOne(`#dispute-view-details-${id}`);
     if (fullBtn?.offsetParent) {
       fullBtn.click();
-      await waitForElement(SELECTORS.detail.blocks, item, 4000);
+      await waitForElement(SELECTORS.detail.blocks, item, 30000);
     }
 
     return true;
   }
 
-  async function loadRoundDisputes() {
+  async function loadRoundDisputes(onProgress) {
     const section = queryOne(SELECTORS.sections.disputed);
     if (!section) return [];
 
@@ -1494,19 +1505,23 @@ upgrade = upgrade bank, upgrade lending
       l.innerText.trim() === "This Round" && l.offsetParent !== null
     );
 
-    const results = await Promise.allSettled(
-      links.map(async link => {
-        const item = link.closest(SELECTORS.compact.container);
-        const expanded = await expandDisputeItem(link, item);
-        return { link, item, expanded };
-      })
-    );
+    const expandedLinks = [];
+    const timedOutLinks = [];
 
-    const expandedLinks = results
-      .filter(r => r.status === "fulfilled" && r.value.expanded)
-      .map(r => r.value.link);
+    for (let i = 0; i < links.length; i++) {
+      const link = links[i];
+      const item = link.closest(SELECTORS.compact.container);
+      const name = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
+      if (onProgress) onProgress(i + 1, links.length, name);
+      const result = await expandDisputeItem(link, item);
+      if (result === true) expandedLinks.push(link);
+      else if (result === 'timeout') timedOutLinks.push(link);
+    }
 
-    return [...links.filter(l => !expandedLinks.includes(l)), ...expandedLinks];
+    return {
+      links: [...links.filter(l => !expandedLinks.includes(l) && !timedOutLinks.includes(l)), ...expandedLinks],
+      timedOut: timedOutLinks
+    };
   }
 
   function buildAccountEditorCard(acc, onRemove) {
@@ -1607,6 +1622,7 @@ upgrade = upgrade bank, upgrade lending
     const skipped = (stats.skippedOpen || 0) + (stats.skippedClosed || 0);
     if (skipped) chips.push(`<span class="cr-stat" style="color:#555"><b>${skipped}</b> saltadas</span>`);
     if (stats.linkedInquiries) chips.push(`<span class="cr-stat" style="border-color:#fbbf2433;color:#fbbf24"><b>${stats.linkedInquiries}</b> 🛡</span>`);
+    if (stats.timedOut) chips.push(`<span class="cr-stat" style="border-color:#f8712433;color:#f87124"><b>${stats.timedOut}</b> ⚠️ no cargaron</span>`);
     return `<div class="cr-out-stats">${chips.join('')}</div>`;
   }
 
@@ -1706,23 +1722,37 @@ upgrade = upgrade bank, upgrade lending
     if (data.originals.length) body.appendChild(buildAccountSection('ORIGINAL CREDITORS', data.originals));
     if (data.inquiries.length) body.appendChild(buildStringSection('INQUIRIES', data.inquiries));
     if (data.personal.length) body.appendChild(buildStringSection('PERSONAL INFORMATION', data.personal));
+    if (data.timedOut?.length) body.appendChild(buildStringSection('⚠️ NO CARGARON (REVISAR MANUALMENTE)', data.timedOut));
 
     const close = () => { overlay.remove(); panel.remove(); };
     bindClose(close, overlay, document.getElementById('crOutClose'), document.getElementById('crOutDismiss'));
 
     document.getElementById('crCopyBtn').onclick = async () => {
+      const btn = document.getElementById('crCopyBtn');
+      btn.disabled = true;
       const NL = "\r\n";
       let output = data.personalHeader || '';
 
-      body.querySelectorAll('.cr-editor-section').forEach(section => {
+      const sections = [...body.querySelectorAll('.cr-editor-section')];
+      let total = 0;
+      sections.forEach(s => {
+        total += s.dataset.sectionType === 'accounts'
+          ? s.querySelectorAll('.cr-editor-card').length
+          : s.querySelectorAll('.cr-editor-str-val').length;
+      });
+      let done = 0;
+
+      for (const section of sections) {
         const type = section.dataset.sectionType;
         const title = section.dataset.sectionTitle;
 
         if (type === 'accounts') {
           const cards = [...section.querySelectorAll('.cr-editor-card')];
-          if (!cards.length) return;
+          if (!cards.length) continue;
           output += `${title} (${cards.length})${NL}${NL}`;
-          cards.forEach(card => {
+          for (const card of cards) {
+            done++;
+            btn.textContent = `📋 ${done} de ${total} copiado`;
             const acc = {
               name: card.querySelector('[data-field="name"]').value,
               number: card.querySelector('[data-field="number"]').value,
@@ -1731,25 +1761,32 @@ upgrade = upgrade bank, upgrade lending
               addresses: JSON.parse(card.dataset.addresses || '[]')
             };
             output += formatAccount(acc, NL, config);
-          });
+            await new Promise(r => setTimeout(r, 40));
+          }
         } else {
           const items = [...section.querySelectorAll('.cr-editor-str-val')];
-          if (!items.length) return;
+          if (!items.length) continue;
           output += `${title} (${items.length})${NL}${NL}`;
-          items.forEach(el => { output += el.textContent + NL; });
+          for (const el of items) {
+            done++;
+            btn.textContent = `📋 ${done} de ${total} copiado`;
+            output += el.textContent + NL;
+            await new Promise(r => setTimeout(r, 30));
+          }
           output += NL + NL;
         }
-      });
+      }
 
       addHistoryEntry(output, stats, data.personalHeader);
       try {
         await navigator.clipboard.writeText(output);
-        const btn = document.getElementById('crCopyBtn');
-        btn.textContent = '✓ Copiado';
+        btn.textContent = '✓ Listo';
         btn.classList.add('copied');
         setTimeout(() => close(), 800);
       } catch (e) {
         console.error('[CreditRadar] Clipboard error:', e);
+        btn.disabled = false;
+        btn.textContent = '📋 Generar y Copiar';
         showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
       }
     };
@@ -1941,13 +1978,19 @@ upgrade = upgrade bank, upgrade lending
       console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
       updateProgress(0, "?", "Cargando disputes...");
-      const links = await loadRoundDisputes();
+      const { links, timedOut } = await loadRoundDisputes((cur, total, name) => {
+        updateProgress(cur, total, name, "Expandiendo");
+      });
       const total = links.length;
 
       const COLLECTION_ACCOUNTS = [];
       const ORIGINAL_ACCOUNTS = [];
       const INQUIRIES = [];
       const PERSONAL = [];
+      const TIMEOUT_SKIPPED = timedOut.map(l => {
+        const item = l.closest(SELECTORS.compact.container);
+        return queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "Cuenta desconocida";
+      });
       let SKIPPED_OPEN = 0;
       let SKIPPED_CLOSED = 0;
       let LINKED_INQUIRIES = 0;
@@ -1960,7 +2003,7 @@ upgrade = upgrade bank, upgrade lending
         if (!item || !hasInDispute(item)) continue;
 
         const compactName = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
-        updateProgress(idx + 1, total, compactName);
+        updateProgress(idx + 1, total, compactName, "Procesando");
 
         const realType = getDisputeType(item);
         const activeCols = getActiveColumns(item);
@@ -2000,7 +2043,10 @@ upgrade = upgrade bank, upgrade lending
           ...queryAll(SELECTORS.detail.blocks, queryOne(SELECTORS.detail.left, item)),
           ...queryAll(SELECTORS.detail.blocks, queryOne(SELECTORS.detail.right, item))
         ];
-        if (!blocks.length) continue;
+        if (!blocks.length) {
+          TIMEOUT_SKIPPED.push(compactName);
+          continue;
+        }
 
         const parsed = parseAccountBlocks(blocks, activeCols, CONFIG);
         const finalName = parsed.name || compactName;
@@ -2049,12 +2095,17 @@ upgrade = upgrade bank, upgrade lending
       });
       personalHeader += NL;
 
+      if (TIMEOUT_SKIPPED.length) {
+        showToast(`⚠️ ${TIMEOUT_SKIPPED.length} cuenta(s) no cargaron y se omitieron. Revísalas manualmente.`, "#fbbf24", 10000);
+      }
+
       showOutputEditor({
         collections: COLLECTION_ACCOUNTS,
         originals: ORIGINAL_ACCOUNTS,
         inquiries: INQUIRIES,
         personal: PERSONAL,
-        personalHeader
+        personalHeader,
+        timedOut: TIMEOUT_SKIPPED
       }, {
         accounts: COLLECTION_ACCOUNTS.length + ORIGINAL_ACCOUNTS.length,
         collections: COLLECTION_ACCOUNTS.length,
@@ -2063,7 +2114,8 @@ upgrade = upgrade bank, upgrade lending
         personal: PERSONAL.length,
         skippedOpen: SKIPPED_OPEN,
         skippedClosed: SKIPPED_CLOSED,
-        linkedInquiries: LINKED_INQUIRIES
+        linkedInquiries: LINKED_INQUIRIES,
+        timedOut: TIMEOUT_SKIPPED.length
       }, CONFIG);
 
       setButtonAnimation('success');

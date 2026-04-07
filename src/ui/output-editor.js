@@ -102,6 +102,7 @@ function buildCompactStats(stats) {
   const skipped = (stats.skippedOpen || 0) + (stats.skippedClosed || 0);
   if (skipped) chips.push(`<span class="cr-stat" style="color:#555"><b>${skipped}</b> saltadas</span>`);
   if (stats.linkedInquiries) chips.push(`<span class="cr-stat" style="border-color:#fbbf2433;color:#fbbf24"><b>${stats.linkedInquiries}</b> 🛡</span>`);
+  if (stats.timedOut) chips.push(`<span class="cr-stat" style="border-color:#f8712433;color:#f87124"><b>${stats.timedOut}</b> ⚠️ no cargaron</span>`);
   return `<div class="cr-out-stats">${chips.join('')}</div>`;
 }
 
@@ -201,23 +202,37 @@ export function showOutputEditor(data, stats, config) {
   if (data.originals.length) body.appendChild(buildAccountSection('ORIGINAL CREDITORS', data.originals));
   if (data.inquiries.length) body.appendChild(buildStringSection('INQUIRIES', data.inquiries));
   if (data.personal.length) body.appendChild(buildStringSection('PERSONAL INFORMATION', data.personal));
+  if (data.timedOut?.length) body.appendChild(buildStringSection('⚠️ NO CARGARON (REVISAR MANUALMENTE)', data.timedOut));
 
   const close = () => { overlay.remove(); panel.remove(); };
   bindClose(close, overlay, document.getElementById('crOutClose'), document.getElementById('crOutDismiss'));
 
   document.getElementById('crCopyBtn').onclick = async () => {
+    const btn = document.getElementById('crCopyBtn');
+    btn.disabled = true;
     const NL = "\r\n";
     let output = data.personalHeader || '';
 
-    body.querySelectorAll('.cr-editor-section').forEach(section => {
+    const sections = [...body.querySelectorAll('.cr-editor-section')];
+    let total = 0;
+    sections.forEach(s => {
+      total += s.dataset.sectionType === 'accounts'
+        ? s.querySelectorAll('.cr-editor-card').length
+        : s.querySelectorAll('.cr-editor-str-val').length;
+    });
+    let done = 0;
+
+    for (const section of sections) {
       const type = section.dataset.sectionType;
       const title = section.dataset.sectionTitle;
 
       if (type === 'accounts') {
         const cards = [...section.querySelectorAll('.cr-editor-card')];
-        if (!cards.length) return;
+        if (!cards.length) continue;
         output += `${title} (${cards.length})${NL}${NL}`;
-        cards.forEach(card => {
+        for (const card of cards) {
+          done++;
+          btn.textContent = `📋 ${done} de ${total} copiado`;
           const acc = {
             name: card.querySelector('[data-field="name"]').value,
             number: card.querySelector('[data-field="number"]').value,
@@ -226,25 +241,32 @@ export function showOutputEditor(data, stats, config) {
             addresses: JSON.parse(card.dataset.addresses || '[]')
           };
           output += formatAccount(acc, NL, config);
-        });
+          await new Promise(r => setTimeout(r, 40));
+        }
       } else {
         const items = [...section.querySelectorAll('.cr-editor-str-val')];
-        if (!items.length) return;
+        if (!items.length) continue;
         output += `${title} (${items.length})${NL}${NL}`;
-        items.forEach(el => { output += el.textContent + NL; });
+        for (const el of items) {
+          done++;
+          btn.textContent = `📋 ${done} de ${total} copiado`;
+          output += el.textContent + NL;
+          await new Promise(r => setTimeout(r, 30));
+        }
         output += NL + NL;
       }
-    });
+    }
 
     addHistoryEntry(output, stats, data.personalHeader);
     try {
       await navigator.clipboard.writeText(output);
-      const btn = document.getElementById('crCopyBtn');
-      btn.textContent = '✓ Copiado';
+      btn.textContent = '✓ Listo';
       btn.classList.add('copied');
       setTimeout(() => close(), 800);
     } catch (e) {
       console.error('[CreditRadar] Clipboard error:', e);
+      btn.disabled = false;
+      btn.textContent = '📋 Generar y Copiar';
       showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
     }
   };

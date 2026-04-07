@@ -171,19 +171,19 @@ export async function expandDisputeItem(link, item) {
   const id = match[1];
   expand.click();
 
-  const detailPanel = await waitForElement(`#dispute-view-details-${id}`, document, 3000);
-  if (!detailPanel?.offsetParent) return false;
+  const detailPanel = await waitForElement(`#dispute-view-details-${id}`, document, 30000);
+  if (!detailPanel?.offsetParent) return 'timeout';
 
   const fullBtn = queryOne(`#dispute-view-details-${id}`);
   if (fullBtn?.offsetParent) {
     fullBtn.click();
-    await waitForElement(SELECTORS.detail.blocks, item, 4000);
+    await waitForElement(SELECTORS.detail.blocks, item, 30000);
   }
 
   return true;
 }
 
-export async function loadRoundDisputes() {
+export async function loadRoundDisputes(onProgress) {
   const section = queryOne(SELECTORS.sections.disputed);
   if (!section) return [];
 
@@ -192,17 +192,21 @@ export async function loadRoundDisputes() {
     l.innerText.trim() === "This Round" && l.offsetParent !== null
   );
 
-  const results = await Promise.allSettled(
-    links.map(async link => {
-      const item = link.closest(SELECTORS.compact.container);
-      const expanded = await expandDisputeItem(link, item);
-      return { link, item, expanded };
-    })
-  );
+  const expandedLinks = [];
+  const timedOutLinks = [];
 
-  const expandedLinks = results
-    .filter(r => r.status === "fulfilled" && r.value.expanded)
-    .map(r => r.value.link);
+  for (let i = 0; i < links.length; i++) {
+    const link = links[i];
+    const item = link.closest(SELECTORS.compact.container);
+    const name = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
+    if (onProgress) onProgress(i + 1, links.length, name);
+    const result = await expandDisputeItem(link, item);
+    if (result === true) expandedLinks.push(link);
+    else if (result === 'timeout') timedOutLinks.push(link);
+  }
 
-  return [...links.filter(l => !expandedLinks.includes(l)), ...expandedLinks];
+  return {
+    links: [...links.filter(l => !expandedLinks.includes(l) && !timedOutLinks.includes(l)), ...expandedLinks],
+    timedOut: timedOutLinks
+  };
 }

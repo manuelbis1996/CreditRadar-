@@ -31,13 +31,19 @@ async function run() {
     console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
     updateProgress(0, "?", "Cargando disputes...");
-    const links = await loadRoundDisputes();
+    const { links, timedOut } = await loadRoundDisputes((cur, total, name) => {
+      updateProgress(cur, total, name, "Expandiendo");
+    });
     const total = links.length;
 
     const COLLECTION_ACCOUNTS = [];
     const ORIGINAL_ACCOUNTS = [];
     const INQUIRIES = [];
     const PERSONAL = [];
+    const TIMEOUT_SKIPPED = timedOut.map(l => {
+      const item = l.closest(SELECTORS.compact.container);
+      return queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "Cuenta desconocida";
+    });
     let SKIPPED_OPEN = 0;
     let SKIPPED_CLOSED = 0;
     let LINKED_INQUIRIES = 0;
@@ -50,7 +56,7 @@ async function run() {
       if (!item || !hasInDispute(item)) continue;
 
       const compactName = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
-      updateProgress(idx + 1, total, compactName);
+      updateProgress(idx + 1, total, compactName, "Procesando");
 
       const realType = getDisputeType(item);
       const activeCols = getActiveColumns(item);
@@ -90,7 +96,10 @@ async function run() {
         ...queryAll(SELECTORS.detail.blocks, queryOne(SELECTORS.detail.left, item)),
         ...queryAll(SELECTORS.detail.blocks, queryOne(SELECTORS.detail.right, item))
       ];
-      if (!blocks.length) continue;
+      if (!blocks.length) {
+        TIMEOUT_SKIPPED.push(compactName);
+        continue;
+      }
 
       const parsed = parseAccountBlocks(blocks, activeCols, CONFIG);
       const finalName = parsed.name || compactName;
@@ -139,12 +148,17 @@ async function run() {
     });
     personalHeader += NL;
 
+    if (TIMEOUT_SKIPPED.length) {
+      showToast(`⚠️ ${TIMEOUT_SKIPPED.length} cuenta(s) no cargaron y se omitieron. Revísalas manualmente.`, "#fbbf24", 10000);
+    }
+
     showOutputEditor({
       collections: COLLECTION_ACCOUNTS,
       originals: ORIGINAL_ACCOUNTS,
       inquiries: INQUIRIES,
       personal: PERSONAL,
-      personalHeader
+      personalHeader,
+      timedOut: TIMEOUT_SKIPPED
     }, {
       accounts: COLLECTION_ACCOUNTS.length + ORIGINAL_ACCOUNTS.length,
       collections: COLLECTION_ACCOUNTS.length,
@@ -153,7 +167,8 @@ async function run() {
       personal: PERSONAL.length,
       skippedOpen: SKIPPED_OPEN,
       skippedClosed: SKIPPED_CLOSED,
-      linkedInquiries: LINKED_INQUIRIES
+      linkedInquiries: LINKED_INQUIRIES,
+      timedOut: TIMEOUT_SKIPPED.length
     }, CONFIG);
 
     setButtonAnimation('success');

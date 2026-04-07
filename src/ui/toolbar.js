@@ -111,18 +111,27 @@ export function createProgressPanel() {
   panel.id = "clasificadorProgress";
   Object.assign(panel.style, {
     position: "fixed", top: "200px", right: "20px",
-    background: "#111", color: "#fff", padding: "15px",
-    borderRadius: "8px", zIndex: "99999", fontSize: "14px",
-    minWidth: "200px", boxShadow: "0 4px 16px rgba(0,0,0,0.4)"
+    background: "#111", color: "#fff", padding: "15px 18px",
+    borderRadius: "10px", zIndex: "99999", fontSize: "14px",
+    minWidth: "220px", boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+    border: "1px solid #2a2a2a"
   });
-  panel.innerHTML = `<b>Procesando...</b><br><br><span id="progressText">Iniciando...</span>`;
+  panel.innerHTML = `
+    <div id="progressLabel" style="font-size:11px;color:#5eead4;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Iniciando...</div>
+    <div id="progressCount" style="font-size:18px;font-weight:bold;margin-bottom:4px">—</div>
+    <div id="progressName" style="color:#aaa;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px"></div>
+  `;
   document.body.appendChild(panel);
 }
 
-export function updateProgress(current, total, name) {
-  const el = document.getElementById("progressText");
+export function updateProgress(current, total, name, label = "Procesando") {
   const escapeHtml = str => (str||"").replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  if (el) el.innerHTML = `Dispute ${current} / ${total}<br><span style="color:#aaa;font-size:12px">${escapeHtml(name)}</span>`;
+  const lEl = document.getElementById("progressLabel");
+  const cEl = document.getElementById("progressCount");
+  const nEl = document.getElementById("progressName");
+  if (lEl) lEl.textContent = label;
+  if (cEl) cEl.textContent = total === "?" ? "Cargando..." : `${current} de ${total}`;
+  if (nEl) nEl.innerHTML = escapeHtml(name);
 }
 
 export function removeProgressPanel() {

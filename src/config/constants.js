@@ -1,6 +1,8 @@
-export const SCRIPT_VERSION = "20.7";
+export const SCRIPT_VERSION = "20.9";
 
 export const VERSION_NOTES = {
+  "20.9": "⚠️ Fix: cuentas lentas ya no se saltan silenciosamente — retry automático + aviso en output",
+  "20.8": "🎯 Toolbar colapsable: solo muestra el botón principal, expande al hacer hover",
   "20.7": "⚡ Optimizaciones: matching O(n) con Sets, pre-cómputo de status, timeouts reducidos",
   "20.6": "🎨 Rediseño minimalista: sin glow, paleta teal suave, paneles limpios",
   "20.5": "🛡️ Correcciones: clipboard, historial corrupto, XSS y filtros de fecha",
