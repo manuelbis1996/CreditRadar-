@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const d=require('fs').readFileSync(0,'utf8'); const j=JSON.parse(d); const f=j.tool_input?.file_path||''; process.stdout.write(f);\" | { read -r f; echo \"$f\" | grep -qi 'CreditRadar.*[/\\\\]src[/\\\\]' && cd 'c:/Users/manue/OneDrive/Documentos/CreditRadar-' && npm run build; } 2>/dev/null || true",
+            "statusMessage": "Building creditradar.user.js..."
+          }
+        ]
+      }
+    ]
+  }
+}
