@@ -9,7 +9,7 @@ export function cleanName(name) {
   n = n.split(/\s+/).map(w => EXPAND_MAP[w] || w).join(" ");
   const parts = n.split(/\s+/);
   while (parts.length > 1 && REMOVE_SUFFIXES.includes(parts[parts.length - 1])) parts.pop();
-  return parts.join(" ").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  return parts.join(" ").replace(/'/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 export function normalizeForMatch(name) {

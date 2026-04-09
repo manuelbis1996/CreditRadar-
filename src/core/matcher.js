@@ -50,7 +50,10 @@ export function getLinkedAccount(name, map, aliasMap) {
 
     const exact = wordsI.filter(w => wordsSetC.has(w));
     if (exact.length >= 2) return item;
-    if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 7) return item;
+    // Strategy 3: ambos reducen a 1 sola palabra y coinciden (umbral 5 chars)
+    if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 5) return item;
+    // Strategy 3.5: inquiry tiene 1 sola palabra de 6+ chars que aparece en el acreedor
+    if (exact.length === 1 && wordsI.length === 1 && exact[0].length >= 6) return item;
 
     const prefixesC = new Set(getPrefixes(resolvedCreditor));
     const pfx = [...prefixSetI].filter(p => prefixesC.has(p));
@@ -59,7 +62,8 @@ export function getLinkedAccount(name, map, aliasMap) {
     if (resolvedInquiry.length >= 6 && resolvedCreditor.includes(resolvedInquiry)) return item;
     if (resolvedCreditor.length >= 6 && resolvedInquiry.includes(resolvedCreditor)) return item;
 
-    const sim = jaccardSimilarity(resolvedInquiry, resolvedCreditor);
+    // Jaccard sobre palabras significativas (sin stop words)
+    const sim = jaccardSimilarity(wordsI.join(" "), wordsC.join(" "));
     if (sim >= 0.7) return item;
   }
   return null;

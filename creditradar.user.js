@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.10
+// @version      20.11
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -17,9 +17,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.10";
+  const SCRIPT_VERSION = "20.11";
 
   const VERSION_NOTES = {
+    "20.11": "🛡️ Escudo mejorado: menos falsos negativos en detección de inquiries vinculadas",
     "20.10": "🔧 Fix: dirección del cliente se copia con salto de línea correcto",
     "20.9": "⚠️ Fix: cuentas lentas ya no se saltan silenciosamente — retry automático + aviso en output",
     "20.8": "🎯 Toolbar colapsable: solo muestra el botón principal, expande al hacer hover",
@@ -61,7 +62,11 @@
     "inc", "llc", "corp", "ltd", "na", "usa", "fin"
   ];
 
-  const REMOVE_PREFIXES = ["cb/", "syncb/", "td/", "wf/", "cof/", "jpm/", "thd/", "kohls/", "comenity/"];
+  const REMOVE_PREFIXES = [
+    "cb/", "syncb/", "td/", "wf/", "cof/", "jpm/", "thd/", "kohls/", "comenity/",
+    "amex/", "disc/", "fnb/", "bk/", "usb/", "pnc/", "hsbc/", "cbna/", "1st/",
+    "ftnb/", "fnbo/", "bnb/", "ncu/"
+  ];
 
   const EXPAND_MAP = {
     "fin": "financial", "svc": "service", "svcs": "service",
@@ -848,7 +853,7 @@ upgrade = upgrade bank, upgrade lending
     n = n.split(/\s+/).map(w => EXPAND_MAP[w] || w).join(" ");
     const parts = n.split(/\s+/);
     while (parts.length > 1 && REMOVE_SUFFIXES.includes(parts[parts.length - 1])) parts.pop();
-    return parts.join(" ").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+    return parts.join(" ").replace(/'/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
   }
 
   function normalizeForMatch(name) {
@@ -1269,7 +1274,10 @@ upgrade = upgrade bank, upgrade lending
 
       const exact = wordsI.filter(w => wordsSetC.has(w));
       if (exact.length >= 2) return item;
-      if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 7) return item;
+      // Strategy 3: ambos reducen a 1 sola palabra y coinciden (umbral 5 chars)
+      if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 5) return item;
+      // Strategy 3.5: inquiry tiene 1 sola palabra de 6+ chars que aparece en el acreedor
+      if (exact.length === 1 && wordsI.length === 1 && exact[0].length >= 6) return item;
 
       const prefixesC = new Set(getPrefixes(resolvedCreditor));
       const pfx = [...prefixSetI].filter(p => prefixesC.has(p));
@@ -1278,7 +1286,8 @@ upgrade = upgrade bank, upgrade lending
       if (resolvedInquiry.length >= 6 && resolvedCreditor.includes(resolvedInquiry)) return item;
       if (resolvedCreditor.length >= 6 && resolvedInquiry.includes(resolvedCreditor)) return item;
 
-      const sim = jaccardSimilarity(resolvedInquiry, resolvedCreditor);
+      // Jaccard sobre palabras significativas (sin stop words)
+      const sim = jaccardSimilarity(wordsI.join(" "), wordsC.join(" "));
       if (sim >= 0.7) return item;
     }
     return null;

@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.10";
+export const SCRIPT_VERSION = "20.11";
 
 export const VERSION_NOTES = {
+  "20.11": "🛡️ Escudo mejorado: menos falsos negativos en detección de inquiries vinculadas",
   "20.10": "🔧 Fix: dirección del cliente se copia con salto de línea correcto",
   "20.9": "⚠️ Fix: cuentas lentas ya no se saltan silenciosamente — retry automático + aviso en output",
   "20.8": "🎯 Toolbar colapsable: solo muestra el botón principal, expande al hacer hover",
@@ -42,7 +43,11 @@ export const REMOVE_SUFFIXES = [
   "inc", "llc", "corp", "ltd", "na", "usa", "fin"
 ];
 
-export const REMOVE_PREFIXES = ["cb/", "syncb/", "td/", "wf/", "cof/", "jpm/", "thd/", "kohls/", "comenity/"];
+export const REMOVE_PREFIXES = [
+  "cb/", "syncb/", "td/", "wf/", "cof/", "jpm/", "thd/", "kohls/", "comenity/",
+  "amex/", "disc/", "fnb/", "bk/", "usb/", "pnc/", "hsbc/", "cbna/", "1st/",
+  "ftnb/", "fnbo/", "bnb/", "ncu/"
+];
 
 export const EXPAND_MAP = {
   "fin": "financial", "svc": "service", "svcs": "service",
