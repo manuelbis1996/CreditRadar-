@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.11
+// @version      20.13
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -17,9 +17,11 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.11";
+  const SCRIPT_VERSION = "20.13";
 
   const VERSION_NOTES = {
+    "20.13": "📌 Toolbar al tope del sidebar + botón Copiar Info Personal",
+    "20.12": "📌 Toolbar integrada al sidebar de comunicaciones",
     "20.11": "🛡️ Escudo mejorado: menos falsos negativos en detección de inquiries vinculadas",
     "20.10": "🔧 Fix: dirección del cliente se copia con salto de línea correcto",
     "20.9": "⚠️ Fix: cuentas lentas ya no se saltan silenciosamente — retry automático + aviso en output",
@@ -283,11 +285,8 @@ upgrade = upgrade bank, upgrade lending
   @keyframes crScaleIn { from{opacity:0;transform:translate(-50%,-50%) scale(0.93)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
 
   /* Toolbar */
-  #crToolbar { position:fixed; z-index:99999; display:flex; flex-direction:column; align-items:center; gap:0; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 16px rgba(0,0,0,0.4); transition:padding 0.2s ease, opacity 0.2s ease; }
+  #crToolbar { display:flex; flex-direction:column; align-items:center; gap:0; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 16px rgba(0,0,0,0.4); transition:padding 0.2s ease, opacity 0.2s ease; margin:4px auto; }
   #crToolbar:hover { padding:10px 8px; }
-  #crToolbarGrip { width:100%; height:12px; cursor:grab; display:flex; justify-content:center; align-items:center; color:#555; font-size:10px; user-select:none; max-height:0; overflow:hidden; opacity:0; margin-bottom:0; transition:max-height 0.2s ease 0.4s, opacity 0.15s ease 0.4s, margin-bottom 0.2s ease 0.4s; }
-  #crToolbar:hover #crToolbarGrip { max-height:18px; opacity:1; margin-bottom:6px; transition:max-height 0.2s ease 0s, opacity 0.15s ease 0s, margin-bottom 0.2s ease 0s; }
-  #crToolbarGrip:active { cursor:grabbing; color:#5eead4; }
   #clasificadorBTN { width:48px; height:48px; background:#111; color:#fff; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
   #clasificadorBTN:hover:not(:disabled) { background:#1a1a1a; border-color:#5eead4; }
   #clasificadorBTN:disabled { cursor:not-allowed; opacity:0.8; }
@@ -569,7 +568,6 @@ upgrade = upgrade bank, upgrade lending
       const up = () => {
         document.removeEventListener('mousemove', move);
         document.removeEventListener('mouseup', up);
-        if (onDragEnd) onDragEnd(panel.style.left, panel.style.top);
       };
       document.addEventListener('mousemove', move);
       document.addEventListener('mouseup', up);
@@ -605,35 +603,18 @@ upgrade = upgrade bank, upgrade lending
     }
   }
 
-  function clampToolbar() {
-    const toolbar = document.getElementById('crToolbar');
-    if (!toolbar) return;
-    const rect = toolbar.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let left = parseFloat(toolbar.style.left);
-    let top = parseFloat(toolbar.style.top);
-    if (isNaN(left)) left = rect.left;
-    if (isNaN(top)) top = rect.top;
-    left = Math.min(Math.max(left, 0), vw - rect.width);
-    top = Math.min(Math.max(top, 0), vh - rect.height);
-    toolbar.style.left = left + 'px';
-    toolbar.style.right = 'auto';
-    toolbar.style.top = top + 'px';
-  }
-
-  function addButton(config, runFn, openConfigFn, showHistoryFn) {
+  async function addButton(config, runFn, openConfigFn, showHistoryFn) {
     if (document.getElementById('crToolbar')) return;
+
+    const container = await waitForElement('#CommunicationSideBarContainer');
+    if (!container) {
+      console.warn('[Clasificador] No se encontró #CommunicationSideBarContainer');
+      return;
+    }
+
     const toolbar = document.createElement('div');
     toolbar.id = 'crToolbar';
-
-    const tPos = config.toolbarPos || { top: "120px", left: "calc(100vw - 80px)" };
-    toolbar.style.top = tPos.top;
-    if (tPos.left) toolbar.style.left = tPos.left;
-    else toolbar.style.right = "20px";
-
     toolbar.innerHTML = `
-    <div id="crToolbarGrip" title="Arrastrar">⠿</div>
     <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
       📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
     </button>
@@ -642,24 +623,12 @@ upgrade = upgrade bank, upgrade lending
       <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
     </div>
   `;
-    document.body.appendChild(toolbar);
-
-    makeDraggable(toolbar, document.getElementById('crToolbarGrip'), (left, top) => {
-      config.toolbarPos = { left, top };
-      saveConfig(config);
-    });
+    container.prepend(toolbar);
 
     document.getElementById('clasificadorBTN').onclick = runFn;
     document.getElementById('crHistoryBtn').onclick = showHistoryFn;
     document.getElementById('crSettingsBtn').onclick = openConfigFn;
     setButtonAnimation('idle');
-
-    setTimeout(clampToolbar, 0);
-    let _resizeTid;
-    window.addEventListener('resize', () => {
-      clearTimeout(_resizeTid);
-      _resizeTid = setTimeout(clampToolbar, 100);
-    });
   }
 
   function showToast(message, color = "#5eead4", duration = 5000) {
@@ -2139,16 +2108,66 @@ upgrade = upgrade bank, upgrade lending
     }
   }
 
+  async function injectPersonalCopyButton() {
+    const container = await waitForElement('.client-dash-side-top');
+    if (!container || document.getElementById('crCopyPersonalBtn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'crCopyPersonalBtn';
+    btn.textContent = '📋 Copiar Info Personal';
+    Object.assign(btn.style, {
+      width: '100%', padding: '8px 0', marginTop: '10px',
+      background: '#0d1e1d', color: '#5eead4',
+      border: '1px solid #5eead430', borderRadius: '8px',
+      cursor: 'pointer', fontSize: '12px', fontWeight: 'bold',
+      display: 'block', boxSizing: 'border-box'
+    });
+
+    btn.onclick = async () => {
+      const CLIENT = getClientData();
+      const NL = "\r\n";
+      const pFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
+      const showLabels = CONFIG.showPersonalLabels !== false;
+      let text = '';
+      pFields.filter(f => f.enabled).forEach(f => {
+        let val = CLIENT[f.key];
+        if (!val) return;
+        if (f.key === 'ssn') val = val.replace(/\D/g, '').slice(-4);
+        val = val.replace(/\n/g, NL);
+        text += showLabels ? `${f.label}: ${val}${NL}` : val + NL;
+      });
+
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = '✓ Copiado';
+        btn.style.background = '#5eead4';
+        btn.style.color = '#0f172a';
+        setTimeout(() => {
+          btn.textContent = '📋 Copiar Info Personal';
+          btn.style.background = '#0d1e1d';
+          btn.style.color = '#5eead4';
+        }, 1500);
+      } catch (e) {
+        showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
+      }
+    };
+
+    const addressDiv = container.querySelector('.client_card_info_address');
+    if (addressDiv) addressDiv.after(btn);
+    else container.prepend(btn);
+  }
+
   function initClasificador() {
     injectStyles();
     checkVersionUpdate();
     setTimeout(checkForUpdates, 2000);
-    setTimeout(() => addButton(
+    addButton(
       CONFIG,
       run,
       () => openConfigPanel(CONFIG, newConfig => { CONFIG = newConfig; }),
       showHistoryPanel
-    ), 3000);
+    );
+    injectPersonalCopyButton();
   }
 
   if (document.readyState === 'complete') {

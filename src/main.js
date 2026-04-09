@@ -9,7 +9,7 @@ import { showHistoryPanel } from './ui/history-panel.js';
 import { buildAliasMap, getLinkedAccount } from './core/matcher.js';
 import { getDisputeType, getClientData, parseAccountBlocks, buildPositiveAccountsMap, isAgency, loadRoundDisputes } from './core/parser.js';
 import { getActiveColumns, hasInDispute } from './core/matcher.js';
-import { clearAllHighlights, highlight, queryOne, queryAll } from './utils/dom.js';
+import { clearAllHighlights, highlight, queryOne, queryAll, waitForElement } from './utils/dom.js';
 
 let CONFIG = loadConfig();
 
@@ -182,16 +182,66 @@ async function run() {
   }
 }
 
+async function injectPersonalCopyButton() {
+  const container = await waitForElement('.client-dash-side-top');
+  if (!container || document.getElementById('crCopyPersonalBtn')) return;
+
+  const btn = document.createElement('button');
+  btn.id = 'crCopyPersonalBtn';
+  btn.textContent = '📋 Copiar Info Personal';
+  Object.assign(btn.style, {
+    width: '100%', padding: '8px 0', marginTop: '10px',
+    background: '#0d1e1d', color: '#5eead4',
+    border: '1px solid #5eead430', borderRadius: '8px',
+    cursor: 'pointer', fontSize: '12px', fontWeight: 'bold',
+    display: 'block', boxSizing: 'border-box'
+  });
+
+  btn.onclick = async () => {
+    const CLIENT = getClientData();
+    const NL = "\r\n";
+    const pFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
+    const showLabels = CONFIG.showPersonalLabels !== false;
+    let text = '';
+    pFields.filter(f => f.enabled).forEach(f => {
+      let val = CLIENT[f.key];
+      if (!val) return;
+      if (f.key === 'ssn') val = val.replace(/\D/g, '').slice(-4);
+      val = val.replace(/\n/g, NL);
+      text += showLabels ? `${f.label}: ${val}${NL}` : val + NL;
+    });
+
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = '✓ Copiado';
+      btn.style.background = '#5eead4';
+      btn.style.color = '#0f172a';
+      setTimeout(() => {
+        btn.textContent = '📋 Copiar Info Personal';
+        btn.style.background = '#0d1e1d';
+        btn.style.color = '#5eead4';
+      }, 1500);
+    } catch (e) {
+      showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
+    }
+  };
+
+  const addressDiv = container.querySelector('.client_card_info_address');
+  if (addressDiv) addressDiv.after(btn);
+  else container.prepend(btn);
+}
+
 function initClasificador() {
   injectStyles();
   checkVersionUpdate();
   setTimeout(checkForUpdates, 2000);
-  setTimeout(() => addButton(
+  addButton(
     CONFIG,
     run,
     () => openConfigPanel(CONFIG, newConfig => { CONFIG = newConfig; }),
     showHistoryPanel
-  ), 3000);
+  );
+  injectPersonalCopyButton();
 }
 
 if (document.readyState === 'complete') {

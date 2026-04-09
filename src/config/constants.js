@@ -1,6 +1,8 @@
-export const SCRIPT_VERSION = "20.11";
+export const SCRIPT_VERSION = "20.13";
 
 export const VERSION_NOTES = {
+  "20.13": "📌 Toolbar al tope del sidebar + botón Copiar Info Personal",
+  "20.12": "📌 Toolbar integrada al sidebar de comunicaciones",
   "20.11": "🛡️ Escudo mejorado: menos falsos negativos en detección de inquiries vinculadas",
   "20.10": "🔧 Fix: dirección del cliente se copia con salto de línea correcto",
   "20.9": "⚠️ Fix: cuentas lentas ya no se saltan silenciosamente — retry automático + aviso en output",

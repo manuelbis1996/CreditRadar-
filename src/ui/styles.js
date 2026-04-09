@@ -4,11 +4,8 @@ export const buttonAnimationStyles = `
   @keyframes crScaleIn { from{opacity:0;transform:translate(-50%,-50%) scale(0.93)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
 
   /* Toolbar */
-  #crToolbar { position:fixed; z-index:99999; display:flex; flex-direction:column; align-items:center; gap:0; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 16px rgba(0,0,0,0.4); transition:padding 0.2s ease, opacity 0.2s ease; }
+  #crToolbar { display:flex; flex-direction:column; align-items:center; gap:0; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 16px rgba(0,0,0,0.4); transition:padding 0.2s ease, opacity 0.2s ease; margin:4px auto; }
   #crToolbar:hover { padding:10px 8px; }
-  #crToolbarGrip { width:100%; height:12px; cursor:grab; display:flex; justify-content:center; align-items:center; color:#555; font-size:10px; user-select:none; max-height:0; overflow:hidden; opacity:0; margin-bottom:0; transition:max-height 0.2s ease 0.4s, opacity 0.15s ease 0.4s, margin-bottom 0.2s ease 0.4s; }
-  #crToolbar:hover #crToolbarGrip { max-height:18px; opacity:1; margin-bottom:6px; transition:max-height 0.2s ease 0s, opacity 0.15s ease 0s, margin-bottom 0.2s ease 0s; }
-  #crToolbarGrip:active { cursor:grabbing; color:#5eead4; }
   #clasificadorBTN { width:48px; height:48px; background:#111; color:#fff; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
   #clasificadorBTN:hover:not(:disabled) { background:#1a1a1a; border-color:#5eead4; }
   #clasificadorBTN:disabled { cursor:not-allowed; opacity:0.8; }

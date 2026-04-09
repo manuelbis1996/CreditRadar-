@@ -1,6 +1,5 @@
 import { SCRIPT_VERSION } from '../config/constants.js';
-import { makeDraggable } from '../utils/dom.js';
-import { saveConfig } from '../core/storage.js';
+import { waitForElement } from '../utils/dom.js';
 
 export function setButtonAnimation(status) {
   const btn = document.getElementById('clasificadorBTN');
@@ -27,35 +26,18 @@ export function setButtonAnimation(status) {
   }
 }
 
-function clampToolbar() {
-  const toolbar = document.getElementById('crToolbar');
-  if (!toolbar) return;
-  const rect = toolbar.getBoundingClientRect();
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  let left = parseFloat(toolbar.style.left);
-  let top = parseFloat(toolbar.style.top);
-  if (isNaN(left)) left = rect.left;
-  if (isNaN(top)) top = rect.top;
-  left = Math.min(Math.max(left, 0), vw - rect.width);
-  top = Math.min(Math.max(top, 0), vh - rect.height);
-  toolbar.style.left = left + 'px';
-  toolbar.style.right = 'auto';
-  toolbar.style.top = top + 'px';
-}
-
-export function addButton(config, runFn, openConfigFn, showHistoryFn) {
+export async function addButton(config, runFn, openConfigFn, showHistoryFn) {
   if (document.getElementById('crToolbar')) return;
+
+  const container = await waitForElement('#CommunicationSideBarContainer');
+  if (!container) {
+    console.warn('[Clasificador] No se encontró #CommunicationSideBarContainer');
+    return;
+  }
+
   const toolbar = document.createElement('div');
   toolbar.id = 'crToolbar';
-
-  const tPos = config.toolbarPos || { top: "120px", left: "calc(100vw - 80px)" };
-  toolbar.style.top = tPos.top;
-  if (tPos.left) toolbar.style.left = tPos.left;
-  else toolbar.style.right = "20px";
-
   toolbar.innerHTML = `
-    <div id="crToolbarGrip" title="Arrastrar">⠿</div>
     <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
       📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
     </button>
@@ -64,24 +46,12 @@ export function addButton(config, runFn, openConfigFn, showHistoryFn) {
       <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
     </div>
   `;
-  document.body.appendChild(toolbar);
-
-  makeDraggable(toolbar, document.getElementById('crToolbarGrip'), (left, top) => {
-    config.toolbarPos = { left, top };
-    saveConfig(config);
-  });
+  container.prepend(toolbar);
 
   document.getElementById('clasificadorBTN').onclick = runFn;
   document.getElementById('crHistoryBtn').onclick = showHistoryFn;
   document.getElementById('crSettingsBtn').onclick = openConfigFn;
   setButtonAnimation('idle');
-
-  setTimeout(clampToolbar, 0);
-  let _resizeTid;
-  window.addEventListener('resize', () => {
-    clearTimeout(_resizeTid);
-    _resizeTid = setTimeout(clampToolbar, 100);
-  });
 }
 
 export function showToast(message, color = "#5eead4", duration = 5000) {
