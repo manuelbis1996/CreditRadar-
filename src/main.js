@@ -28,6 +28,7 @@ async function run() {
 
     const aliasMap = buildAliasMap(CONFIG);
     const positiveAccountsMap = buildPositiveAccountsMap();
+    const positiveAccounts = [...positiveAccountsMap.keys()];
     console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
     updateProgress(0, "?", "Cargando disputes...");
@@ -158,7 +159,8 @@ async function run() {
       inquiries: INQUIRIES,
       personal: PERSONAL,
       personalHeader,
-      timedOut: TIMEOUT_SKIPPED
+      timedOut: TIMEOUT_SKIPPED,
+      positiveAccounts
     }, {
       accounts: COLLECTION_ACCOUNTS.length + ORIGINAL_ACCOUNTS.length,
       collections: COLLECTION_ACCOUNTS.length,

@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.13";
+export const SCRIPT_VERSION = "20.14";
 
 export const VERSION_NOTES = {
+  "20.14": "🛡 Vincular manual: enlaza inquiries no detectadas a cuentas positivas y guarda el alias",
   "20.13": "📌 Toolbar al tope del sidebar + botón Copiar Info Personal",
   "20.12": "📌 Toolbar integrada al sidebar de comunicaciones",
   "20.11": "🛡️ Escudo mejorado: menos falsos negativos en detección de inquiries vinculadas",

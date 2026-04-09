@@ -3,6 +3,7 @@ import { escapeHtml } from '../utils/string.js';
 import { makeDraggable } from '../utils/dom.js';
 import { saveConfig } from '../core/storage.js';
 import { showToast } from './toolbar.js';
+import { parseAliasGroups, serializeAliasGroups } from '../utils/aliases.js';
 
 export function getTagValues(container) {
   return [...container.querySelectorAll('.cr-chip-del')].map(b => b.dataset.val);
@@ -69,19 +70,6 @@ export function setupFieldDrag(list) {
   });
 }
 
-function parseAliasGroups(text) {
-  if (!text) return [];
-  return text.split('\n').map(l => l.trim()).filter(l => l && l.includes('=')).map(l => {
-    const eqIdx = l.indexOf('=');
-    const main = l.slice(0, eqIdx).trim();
-    const aliases = l.slice(eqIdx + 1).split(',').map(a => a.trim()).filter(Boolean);
-    return { main, aliases };
-  });
-}
-
-function serializeAliasGroups(groups) {
-  return groups.map(g => `${g.main} = ${g.aliases.join(', ')}`).join('\n');
-}
 
 function buildAliasCard(group) {
   const card = document.createElement('div');

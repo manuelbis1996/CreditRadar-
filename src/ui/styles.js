@@ -169,6 +169,8 @@ export const buttonAnimationStyles = `
   .cr-editor-str-val { flex:1; font-size:12px; color:#ccc; }
   .cr-editor-str-del { width:22px; height:22px; border-radius:4px; border:none; background:#1e1e1e; color:#555; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
   .cr-editor-str-del:hover { background:#f87171; color:#fff; }
+  .cr-inq-link-btn { width:28px; height:22px; border-radius:4px; border:none; background:#0d1e1d; color:#5eead4; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; margin-right:2px; flex-shrink:0; }
+  .cr-inq-link-btn:hover { background:#5eead4; color:#000; }
   .cr-editor-dragging { opacity:0.35; }
   .cr-editor-dragover { border-color:#5eead4 !important; background:#0d1e1d; }
 

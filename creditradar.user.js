@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.13
+// @version      20.14
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -17,9 +17,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.13";
+  const SCRIPT_VERSION = "20.14";
 
   const VERSION_NOTES = {
+    "20.14": "🛡 Vincular manual: enlaza inquiries no detectadas a cuentas positivas y guarda el alias",
     "20.13": "📌 Toolbar al tope del sidebar + botón Copiar Info Personal",
     "20.12": "📌 Toolbar integrada al sidebar de comunicaciones",
     "20.11": "🛡️ Escudo mejorado: menos falsos negativos en detección de inquiries vinculadas",
@@ -450,6 +451,8 @@ upgrade = upgrade bank, upgrade lending
   .cr-editor-str-val { flex:1; font-size:12px; color:#ccc; }
   .cr-editor-str-del { width:22px; height:22px; border-radius:4px; border:none; background:#1e1e1e; color:#555; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
   .cr-editor-str-del:hover { background:#f87171; color:#fff; }
+  .cr-inq-link-btn { width:28px; height:22px; border-radius:4px; border:none; background:#0d1e1d; color:#5eead4; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; margin-right:2px; flex-shrink:0; }
+  .cr-inq-link-btn:hover { background:#5eead4; color:#000; }
   .cr-editor-dragging { opacity:0.35; }
   .cr-editor-dragover { border-color:#5eead4 !important; background:#0d1e1d; }
 
@@ -850,6 +853,34 @@ upgrade = upgrade bank, upgrade lending
     return union === 0 ? 0 : intersection / union;
   }
 
+  function parseAliasGroups(text) {
+    if (!text) return [];
+    return text.split('\n').map(l => l.trim()).filter(l => l && l.includes('=')).map(l => {
+      const eqIdx = l.indexOf('=');
+      const main = l.slice(0, eqIdx).trim();
+      const aliases = l.slice(eqIdx + 1).split(',').map(a => a.trim()).filter(Boolean);
+      return { main, aliases };
+    });
+  }
+
+  function serializeAliasGroups(groups) {
+    return groups.map(g => `${g.main} = ${g.aliases.join(', ')}`).join('\n');
+  }
+
+  function addInquiryAlias(config, inquiryName, accountName) {
+    const groups = parseAliasGroups(config.aliases || '');
+    const accLower = accountName.trim().toLowerCase();
+    const inqLower = inquiryName.trim().toLowerCase();
+    const group = groups.find(g => g.main.toLowerCase() === accLower);
+    if (group) {
+      if (!group.aliases.includes(inqLower)) group.aliases.push(inqLower);
+    } else {
+      groups.push({ main: accLower, aliases: [inqLower] });
+    }
+    config.aliases = serializeAliasGroups(groups);
+    saveConfig(config);
+  }
+
   function getTagValues(container) {
     return [...container.querySelectorAll('.cr-chip-del')].map(b => b.dataset.val);
   }
@@ -915,19 +946,6 @@ upgrade = upgrade bank, upgrade lending
     });
   }
 
-  function parseAliasGroups(text) {
-    if (!text) return [];
-    return text.split('\n').map(l => l.trim()).filter(l => l && l.includes('=')).map(l => {
-      const eqIdx = l.indexOf('=');
-      const main = l.slice(0, eqIdx).trim();
-      const aliases = l.slice(eqIdx + 1).split(',').map(a => a.trim()).filter(Boolean);
-      return { main, aliases };
-    });
-  }
-
-  function serializeAliasGroups(groups) {
-    return groups.map(g => `${g.main} = ${g.aliases.join(', ')}`).join('\n');
-  }
 
   function buildAliasCard(group) {
     const card = document.createElement('div');
@@ -1633,6 +1651,71 @@ upgrade = upgrade bank, upgrade lending
 
     const body = panel.querySelector('#crEditorBody');
 
+    const onLinkInquiry = (inquiryName, accountName) => {
+      addInquiryAlias(config, inquiryName, accountName);
+      showToast(`🛡 "${inquiryName}" vinculada a "${accountName}" — alias guardado`, '#5eead4', 5000);
+    };
+
+    function toggleLinkForm(item, inquiryName, positiveAccounts, onLink, updateBadge) {
+      if (item.dataset.linkFormId) {
+        document.getElementById(item.dataset.linkFormId)?.remove();
+        delete item.dataset.linkFormId;
+        return;
+      }
+      const formId = 'crLinkForm_' + Date.now();
+      item.dataset.linkFormId = formId;
+
+      const form = document.createElement('div');
+      form.id = formId;
+      form.style.cssText = 'margin-bottom:4px;padding:8px 10px;background:#141414;border:1px solid #2a2a2a;border-radius:7px;';
+      form.innerHTML = `
+      <input class="cr-link-search" placeholder="Buscar cuenta positiva..."
+        style="width:100%;box-sizing:border-box;background:#111;color:#ccc;border:1px solid #222;
+               border-radius:6px;padding:6px 9px;font-size:11px;outline:none;margin-bottom:6px;">
+      <div class="cr-link-list" style="max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;"></div>
+      <button style="margin-top:6px;font-size:11px;padding:3px 10px;background:#1e1e1e;color:#555;
+                     border:1px solid #2a2a2a;border-radius:6px;cursor:pointer;" id="${formId}_cancel">Cancelar</button>`;
+
+      const listEl = form.querySelector('.cr-link-list');
+
+      const renderList = (accounts) => {
+        listEl.innerHTML = '';
+        if (!accounts.length) {
+          listEl.innerHTML = '<div style="color:#444;font-size:11px;padding:6px 0;text-align:center;">Sin resultados</div>';
+          return;
+        }
+        accounts.forEach(acc => {
+          const btn = document.createElement('button');
+          btn.style.cssText = 'width:100%;text-align:left;padding:5px 8px;font-size:11px;font-weight:bold;' +
+            'background:#0d1e1d;color:#5eead4;border:1px solid #5eead430;border-radius:6px;cursor:pointer;';
+          btn.textContent = acc;
+          btn.onclick = () => {
+            onLink(inquiryName, acc);
+            form.remove();
+            delete item.dataset.linkFormId;
+            item.remove();
+            updateBadge();
+          };
+          listEl.appendChild(btn);
+        });
+      };
+
+      renderList(positiveAccounts);
+
+      form.querySelector('.cr-link-search').addEventListener('input', e => {
+        const q = e.target.value.trim().toLowerCase();
+        renderList(q ? positiveAccounts.filter(a => a.includes(q)) : positiveAccounts);
+      });
+
+      form.querySelector(`#${formId}_cancel`).onclick = () => {
+        form.remove();
+        delete item.dataset.linkFormId;
+      };
+
+      item.after(form);
+      form.querySelector('.cr-link-search').focus();
+    }
+
     function buildAccountSection(title, accounts) {
       const section = document.createElement('div');
       section.className = 'cr-editor-section';
@@ -1664,7 +1747,9 @@ upgrade = upgrade bank, upgrade lending
       return section;
     }
 
-    function buildStringSection(title, items) {
+    function buildStringSection(title, items, options = {}) {
+      const { isInquiries = false, positiveAccounts = [], onLink } = options;
+
       const section = document.createElement('div');
       section.className = 'cr-editor-section';
       section.dataset.sectionType = 'strings';
@@ -1688,9 +1773,21 @@ upgrade = upgrade bank, upgrade lending
       items.forEach(val => {
         const item = document.createElement('div');
         item.className = 'cr-editor-str-item';
-        item.innerHTML = `<span class="cr-editor-str-val">${escapeHtml(val)}</span>
-        <button class="cr-editor-str-del" title="Eliminar">✕</button>`;
-        item.querySelector('.cr-editor-str-del').onclick = () => { item.remove(); updateBadge(); };
+        if (isInquiries) {
+          item.innerHTML = `<span class="cr-editor-str-val">${escapeHtml(val)}</span>
+          <button class="cr-inq-link-btn" title="Vincular a cuenta positiva">🛡</button>
+          <button class="cr-editor-str-del" title="Eliminar">✕</button>`;
+          item.querySelector('.cr-editor-str-del').onclick = () => {
+            if (item.dataset.linkFormId) document.getElementById(item.dataset.linkFormId)?.remove();
+            item.remove(); updateBadge();
+          };
+          item.querySelector('.cr-inq-link-btn').onclick = () =>
+            toggleLinkForm(item, val, positiveAccounts, onLink, updateBadge);
+        } else {
+          item.innerHTML = `<span class="cr-editor-str-val">${escapeHtml(val)}</span>
+          <button class="cr-editor-str-del" title="Eliminar">✕</button>`;
+          item.querySelector('.cr-editor-str-del').onclick = () => { item.remove(); updateBadge(); };
+        }
         list.appendChild(item);
       });
       updateBadge();
@@ -1699,7 +1796,11 @@ upgrade = upgrade bank, upgrade lending
 
     if (data.collections.length) body.appendChild(buildAccountSection('COLLECTION AGENCIES', data.collections));
     if (data.originals.length) body.appendChild(buildAccountSection('ORIGINAL CREDITORS', data.originals));
-    if (data.inquiries.length) body.appendChild(buildStringSection('INQUIRIES', data.inquiries));
+    if (data.inquiries.length) body.appendChild(buildStringSection('INQUIRIES', data.inquiries, {
+      isInquiries: true,
+      positiveAccounts: data.positiveAccounts || [],
+      onLink: onLinkInquiry
+    }));
     if (data.personal.length) body.appendChild(buildStringSection('PERSONAL INFORMATION', data.personal));
     if (data.timedOut?.length) body.appendChild(buildStringSection('⚠️ NO CARGARON (REVISAR MANUALMENTE)', data.timedOut));
 
@@ -1954,6 +2055,7 @@ upgrade = upgrade bank, upgrade lending
 
       const aliasMap = buildAliasMap(CONFIG);
       const positiveAccountsMap = buildPositiveAccountsMap();
+      const positiveAccounts = [...positiveAccountsMap.keys()];
       console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
       updateProgress(0, "?", "Cargando disputes...");
@@ -2084,7 +2186,8 @@ upgrade = upgrade bank, upgrade lending
         inquiries: INQUIRIES,
         personal: PERSONAL,
         personalHeader,
-        timedOut: TIMEOUT_SKIPPED
+        timedOut: TIMEOUT_SKIPPED,
+        positiveAccounts
       }, {
         accounts: COLLECTION_ACCOUNTS.length + ORIGINAL_ACCOUNTS.length,
         collections: COLLECTION_ACCOUNTS.length,
