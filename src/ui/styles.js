@@ -109,8 +109,6 @@ export const buttonAnimationStyles = `
   .cr-copy-btn.copied { background:#60a5fa; color:#fff; }
   .cr-dismiss-btn { padding:11px 16px; background:#1e1e1e; color:#666; border:1px solid #2a2a2a; border-radius:9px; cursor:pointer; font-size:13px; transition:all 0.2s; }
   .cr-dismiss-btn:hover { background:#252525; color:#ccc; }
-  .cr-cf-btn { padding:11px 16px; background:#4F7CFF18; color:#4F7CFF; border:1px solid #4F7CFF33; border-radius:9px; cursor:pointer; font-size:13px; font-family:'DM Sans',sans-serif; transition:all 0.2s; }
-  .cr-cf-btn:hover { background:#4F7CFF; color:#fff; }
 
   /* Alias Cards */
   .cr-alias-card { background:#1a1a1a; border:1px solid #222; border-radius:9px; margin-bottom:7px; overflow:hidden; transition:border-color 0.2s; }

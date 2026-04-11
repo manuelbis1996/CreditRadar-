@@ -129,7 +129,6 @@ export function showOutputEditor(data, stats, config) {
     <div id="crEditorBody" style="flex:1;overflow-y:auto;padding:14px 16px;min-height:0;"></div>
     <div class="cr-out-foot">
       <button class="cr-copy-btn" id="crCopyBtn">📋 Generar y Copiar</button>
-      <button class="cr-cf-btn" id="crSaveCFBtn">→ CreditFlow</button>
       <button class="cr-dismiss-btn" id="crOutDismiss">Cerrar</button>
     </div>
   `;
@@ -293,14 +292,6 @@ export function showOutputEditor(data, stats, config) {
   const close = () => { overlay.remove(); panel.remove(); };
   bindClose(close, overlay, document.getElementById('crOutClose'), document.getElementById('crOutDismiss'));
 
-  document.getElementById('crSaveCFBtn').onclick = () => {
-    const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
-    const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
-    if (!nombre) { showToast('⚠️ No se detectó nombre del cliente', '#fbbf24', 3000); return; }
-    const saved = saveToCreditFlow(nombre);
-    showToast(saved ? `✓ "${nombre}" guardado en CreditFlow` : `"${nombre}" ya existe en CreditFlow`, saved ? '#34D399' : '#fbbf24', 4000);
-  };
-
   document.getElementById('crCopyBtn').onclick = async () => {
     const btn = document.getElementById('crCopyBtn');
     btn.disabled = true;
@@ -352,6 +343,12 @@ export function showOutputEditor(data, stats, config) {
     }
 
     addHistoryEntry(output, stats, data.personalHeader);
+
+    // Auto-save to CreditFlow on copy
+    const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
+    const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
+    if (nombre) saveToCreditFlow(nombre);
+
     try {
       await navigator.clipboard.writeText(output);
       btn.textContent = '✓ Listo';

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.19
+// @version      20.20
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -18,9 +18,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.19";
+  const SCRIPT_VERSION = "20.20";
 
   const VERSION_NOTES = {
+    "20.20": "⚡ Auto-guardar en CreditFlow al copiar el reporte",
     "20.19": "🔗 CreditFlow: página independiente, sin conflicto con Tampermonkey",
     "20.18": "🔗 CreditFlow: CRM integrado para gestionar clientes de reparación de crédito",
     "20.17": "📊 Reporte diario ahora muestra el estado asignado a cada cliente",
@@ -457,8 +458,6 @@ upgrade = upgrade bank, upgrade lending
   .cr-copy-btn.copied { background:#60a5fa; color:#fff; }
   .cr-dismiss-btn { padding:11px 16px; background:#1e1e1e; color:#666; border:1px solid #2a2a2a; border-radius:9px; cursor:pointer; font-size:13px; transition:all 0.2s; }
   .cr-dismiss-btn:hover { background:#252525; color:#ccc; }
-  .cr-cf-btn { padding:11px 16px; background:#4F7CFF18; color:#4F7CFF; border:1px solid #4F7CFF33; border-radius:9px; cursor:pointer; font-size:13px; font-family:'DM Sans',sans-serif; transition:all 0.2s; }
-  .cr-cf-btn:hover { background:#4F7CFF; color:#fff; }
 
   /* Alias Cards */
   .cr-alias-card { background:#1a1a1a; border:1px solid #222; border-radius:9px; margin-bottom:7px; overflow:hidden; transition:border-color 0.2s; }
@@ -1786,7 +1785,6 @@ upgrade = upgrade bank, upgrade lending
     <div id="crEditorBody" style="flex:1;overflow-y:auto;padding:14px 16px;min-height:0;"></div>
     <div class="cr-out-foot">
       <button class="cr-copy-btn" id="crCopyBtn">📋 Generar y Copiar</button>
-      <button class="cr-cf-btn" id="crSaveCFBtn">→ CreditFlow</button>
       <button class="cr-dismiss-btn" id="crOutDismiss">Cerrar</button>
     </div>
   `;
@@ -1950,14 +1948,6 @@ upgrade = upgrade bank, upgrade lending
     const close = () => { overlay.remove(); panel.remove(); };
     bindClose(close, overlay, document.getElementById('crOutClose'), document.getElementById('crOutDismiss'));
 
-    document.getElementById('crSaveCFBtn').onclick = () => {
-      const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
-      const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
-      if (!nombre) { showToast('⚠️ No se detectó nombre del cliente', '#fbbf24', 3000); return; }
-      const saved = saveToCreditFlow(nombre);
-      showToast(saved ? `✓ "${nombre}" guardado en CreditFlow` : `"${nombre}" ya existe en CreditFlow`, saved ? '#34D399' : '#fbbf24', 4000);
-    };
-
     document.getElementById('crCopyBtn').onclick = async () => {
       const btn = document.getElementById('crCopyBtn');
       btn.disabled = true;
@@ -2009,6 +1999,12 @@ upgrade = upgrade bank, upgrade lending
       }
 
       addHistoryEntry(output, stats, data.personalHeader);
+
+      // Auto-save to CreditFlow on copy
+      const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
+      const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
+      if (nombre) saveToCreditFlow(nombre);
+
       try {
         await navigator.clipboard.writeText(output);
         btn.textContent = '✓ Listo';
