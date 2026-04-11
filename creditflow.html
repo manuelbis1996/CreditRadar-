@@ -101,6 +101,13 @@ tr:last-child td{border-bottom:none}
 .tpl-card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .tpl-card-hdr span{font-size:13px;font-weight:600}
 .tpl-preview{font-size:12.5px;color:var(--text-2);line-height:1.5;white-space:pre-wrap;max-height:60px;overflow:hidden}
+.hist-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:default}
+.hist-card:hover{border-color:var(--accent)}
+.hist-date{font-size:11px;color:var(--text-3);white-space:nowrap;min-width:72px}
+.hist-name{font-size:14px;font-weight:600;flex:1}
+.hist-stats{display:flex;gap:8px;flex-wrap:wrap}
+.hist-pill{padding:2px 9px;border-radius:12px;font-size:11px;font-weight:500;background:var(--surface);border:1px solid var(--border);color:var(--text-2)}
+.hist-output{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:18px 22px;font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--text);max-height:60vh;overflow-y:auto;margin-bottom:14px;font-family:'DM Sans',sans-serif}
 @media(max-width:768px){
   .sidebar{width:58px}.brand h1{font-size:0}.brand p{display:none}
   .nav-item span{display:none}.nav-item{justify-content:center;padding:12px;border-left:none}
@@ -131,6 +138,10 @@ tr:last-child td{border-bottom:none}
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       <span>Plantillas</span>
     </div>
+    <div class="nav-item" data-view="historial" onclick="nav('historial')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span>Historial</span>
+    </div>
     <div class="nav-item" data-view="activity" onclick="nav('activity')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       <span>Actividad</span>
@@ -142,6 +153,7 @@ tr:last-child td{border-bottom:none}
     <div id="v-reparacion" class="hidden"></div>
     <div id="v-reportes" class="hidden"></div>
     <div id="v-plantillas" class="hidden"></div>
+    <div id="v-historial" class="hidden"></div>
     <div id="v-activity" class="hidden"></div>
   </main>
 </div>
@@ -217,7 +229,7 @@ function statusColor(id) { const s = getStatus(id); return s ? s.color : '#5A658
 function nav(v) {
   S.view = v;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === v));
-  ['dashboard','reparacion','reportes','plantillas','activity'].forEach(x =>
+  ['dashboard','reparacion','reportes','plantillas','historial','activity'].forEach(x =>
     document.getElementById('v-'+x).classList.toggle('hidden', x !== v));
   render();
 }
@@ -580,6 +592,74 @@ function copyReport() {
     });
 }
 
+// ─── HISTORIAL ───
+function loadHistory() {
+  return store.get('cr_history', []);
+}
+
+function fmtHistDate(id) {
+  const d = new Date(id);
+  return d.toLocaleDateString('es', {day:'numeric', month:'short', year:'numeric'}) + ' ' +
+    d.toLocaleTimeString('es', {hour:'2-digit', minute:'2-digit'});
+}
+
+function showHistorialOutput(entry) {
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-overlay" onclick="closeModal()"><div class="modal modal-wide" onclick="event.stopPropagation()">
+    <h3>${entry.clientName}</h3>
+    <div style="font-size:11px;color:var(--text-3);margin-bottom:14px">${fmtHistDate(entry.id)}</div>
+    <div class="hist-output">${entry.output || ''}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-primary btn-sm" onclick="copyHistOutput(${entry.id})">📋 Copiar</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cerrar</button>
+    </div>
+  </div></div>`;
+}
+
+function copyHistOutput(id) {
+  const entries = loadHistory();
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  navigator.clipboard.writeText(e.output || '')
+    .then(() => showToast('✓ Copiado'))
+    .catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = e.output || '';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      showToast('✓ Copiado');
+    });
+}
+
+function renderHistorial() {
+  const entries = loadHistory();
+  const sv = document.getElementById('hist-search')?.value || '';
+  const fil = entries.filter(e => !sv || e.clientName.toLowerCase().includes(sv.toLowerCase()));
+
+  const rows = fil.map(e => {
+    const s = e.stats || {};
+    const pills = [
+      s.accounts  ? `${s.accounts} cuentas`   : '',
+      s.inquiries ? `${s.inquiries} inquiries` : '',
+      s.personal  ? `${s.personal} personal`   : '',
+    ].filter(Boolean).map(p => `<span class="hist-pill">${p}</span>`).join('');
+    return `<div class="hist-card" onclick="showHistorialOutput(${JSON.stringify(e).replace(/"/g,'&quot;')})">
+      <div class="hist-date">${fmtHistDate(e.id)}</div>
+      <div class="hist-name">${e.clientName}</div>
+      <div class="hist-stats">${pills}</div>
+      <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();copyHistOutput(${e.id})" title="Copiar">📋</button>
+    </div>`;
+  }).join('');
+
+  document.getElementById('v-historial').innerHTML = `
+    <div class="page-hdr"><h2>Historial</h2>
+      <input class="search-box" id="hist-search" placeholder="Buscar cliente..." value="${sv}" oninput="renderHistorial()" style="width:220px">
+    </div>
+    <div class="card">
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:14px">${fil.length} de ${entries.length} registros</div>
+      ${rows || '<div class="empty"><p>Sin historial</p></div>'}
+    </div>`;
+}
+
 // ─── RENDER ───
 function render() {
   const t = today();
@@ -756,6 +836,9 @@ function render() {
       ${aLogs.slice().reverse().map(l => `<div class="act-item"><span class="act-dot" style="background:${actColor(l.type)}"></span><div style="flex:1"><div style="font-size:13.5px">${l.desc}</div><div class="act-time">${fmtTime(l.ts)}</div></div></div>`).join('')
         || '<div class="empty" style="padding:30px"><p>Sin actividad</p></div>'}
     </div>`;
+
+  // HISTORIAL (renders independently, has its own search state)
+  if (S.view === 'historial') renderHistorial();
 }
 
 render();
