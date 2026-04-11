@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.18";
+export const SCRIPT_VERSION = "20.19";
 
 export const VERSION_NOTES = {
+  "20.19": "🔗 CreditFlow: página independiente, sin conflicto con Tampermonkey",
   "20.18": "🔗 CreditFlow: CRM integrado para gestionar clientes de reparación de crédito",
   "20.17": "📊 Reporte diario ahora muestra el estado asignado a cada cliente",
   "20.16": "🏷️ Estados de cliente: asigna estados con colores a cada entrada del historial",
