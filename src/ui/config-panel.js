@@ -176,6 +176,18 @@ function getAliasesText(pane) {
   );
 }
 
+function buildClientStatusItem(st) {
+  const item = document.createElement('div');
+  item.className = 'cr-cstatus-item';
+  item.innerHTML = `
+    <input type="color" class="cr-cstatus-color" value="${st.color || '#5eead4'}">
+    <input class="cr-cstatus-name" value="${escapeHtml(st.name || '')}" placeholder="Nombre del estado">
+    <button class="cr-cstatus-del" title="Eliminar">✕</button>
+  `;
+  item.querySelector('.cr-cstatus-del').onclick = () => item.remove();
+  return item;
+}
+
 export function openConfigPanel(config, onConfigSaved) {
   document.getElementById('clasificadorConfigPanel')?.remove();
   const panel = document.createElement('div');
@@ -224,6 +236,7 @@ export function openConfigPanel(config, onConfigSaved) {
       <button class="cr-tab" data-tab="fields">Campos</button>
       <button class="cr-tab" data-tab="aliases">Aliases</button>
       <button class="cr-tab" data-tab="personal">Personal</button>
+      <button class="cr-tab" data-tab="clientstatus">Est. Cliente</button>
     </div>
     <div class="cr-body">
       <div class="cr-pane active" id="cr-pane-agencies">
@@ -270,6 +283,11 @@ export function openConfigPanel(config, onConfigSaved) {
         <div class="cr-lbl">Activá y reordenná los campos del cliente en el output</div>
         <div class="cr-fields" id="crPersonalList">${personalItemsHTML}</div>
       </div>
+      <div class="cr-pane" id="cr-pane-clientstatus">
+        <div class="cr-lbl">Estados disponibles para asignar a clientes en el historial</div>
+        <div id="crClientStatusList" class="cr-fields"></div>
+        <button class="cr-alias-add-btn" id="crClientStatusAdd" style="margin-top:8px;width:100%">+ Agregar estado</button>
+      </div>
     </div>
     <div class="cr-footer">
       <button class="cr-btn cr-btn-ok" id="crCfgSave">Guardar</button>
@@ -292,6 +310,14 @@ export function openConfigPanel(config, onConfigSaved) {
   setupFieldDrag(document.getElementById('crFieldList'));
   setupFieldDrag(document.getElementById('crPersonalList'));
   setupAliasPane(panel.querySelector('#cr-pane-aliases'), config.aliases || '');
+
+  const csList = document.getElementById('crClientStatusList');
+  (config.clientStatuses || []).forEach(st => csList.appendChild(buildClientStatusItem(st)));
+  document.getElementById('crClientStatusAdd').onclick = () => {
+    csList.appendChild(buildClientStatusItem({ name: '', color: '#5eead4' }));
+    csList.lastElementChild.querySelector('.cr-cstatus-name').focus();
+  };
+
   makeDraggable(panel, panel.querySelector('#crCfgHandle'));
 
   document.getElementById('crCfgClose').onclick = () => panel.remove();
@@ -308,6 +334,11 @@ export function openConfigPanel(config, onConfigSaved) {
     config.colors.closedPositive = document.getElementById('cfg_colorClosed').value;
     config.colors.inquiryLinked = document.getElementById('cfg_colorInquiry').value;
     config.aliases = getAliasesText(panel.querySelector('#cr-pane-aliases'));
+    config.clientStatuses = [...document.getElementById('crClientStatusList').querySelectorAll('.cr-cstatus-item')]
+      .map(item => ({
+        name: item.querySelector('.cr-cstatus-name').value.trim(),
+        color: item.querySelector('.cr-cstatus-color').value
+      })).filter(g => g.name);
     config.fieldOrder = [...document.getElementById('crFieldList').querySelectorAll('.cr-fitem')]
       .map(item => ({
         key: item.dataset.key,

@@ -1,8 +1,145 @@
 import { escapeHtml } from '../utils/string.js';
 import { makeDraggable, bindClose } from '../utils/dom.js';
-import { loadHistory, saveHistory } from '../core/storage.js';
+import { loadConfig, loadHistory, saveHistory } from '../core/storage.js';
 import { createOverlay, createModal } from './modals.js';
 import { showToast } from './toolbar.js';
+
+/* ── Daily Report ── */
+
+function showDailyReport() {
+  const entries = loadHistory();
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Remove existing
+  document.getElementById('crReportOverlay')?.remove();
+  document.getElementById('crReportModal')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'crReportOverlay';
+  overlay.className = 'cr-report-overlay';
+  document.body.appendChild(overlay);
+
+  const modal = document.createElement('div');
+  modal.id = 'crReportModal';
+  modal.className = 'cr-report-modal';
+  document.body.appendChild(modal);
+
+  function getEntriesForDate(dateStr) {
+    const dayStart = new Date(dateStr + 'T00:00:00').getTime();
+    const dayEnd = dayStart + 86400000;
+    return entries.filter(e => e.id >= dayStart && e.id < dayEnd);
+  }
+
+  function fmtDateShort(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    return (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear();
+  }
+
+  function generateReport(dateStr) {
+    const dayEntries = getEntriesForDate(dateStr).filter(e => !e.reported);
+    const d = new Date(dateStr + 'T12:00:00');
+    const dateLabel = d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    let text = `Manuelbis\n${fmtDateShort(dateStr)}\n`;
+
+    if (!dayEntries.length) {
+      text += `\nSin clientes procesados.\n`;
+    } else {
+      // Group by status
+      const groups = new Map();
+      dayEntries.forEach(e => {
+        const key = e.status || '';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(e);
+      });
+
+      // Statuses first, then "sin estado" at the end
+      const sorted = [...groups.entries()].sort((a, b) => {
+        if (!a[0]) return 1;
+        if (!b[0]) return -1;
+        return 0;
+      });
+
+      sorted.forEach(([status, items]) => {
+        text += `\n${status || 'Sin estado'}\n`;
+        items.forEach((e, i) => {
+          text += `${i + 1}. ${e.clientName}\n`;
+        });
+      });
+    }
+
+    return { text, count: dayEntries.length, dateLabel };
+  }
+
+  function renderReport(dateStr) {
+    const { text, count, dateLabel } = generateReport(dateStr);
+
+    modal.innerHTML = `
+      <div class="cr-report-head">
+        <div class="cr-report-head-left">
+          <div class="cr-report-title">Reporte Diario</div>
+          <div class="cr-report-subtitle">${escapeHtml(dateLabel)} — ${count} cliente${count !== 1 ? 's' : ''}</div>
+        </div>
+        <button class="cr-x" id="crReportClose">✕</button>
+      </div>
+      <div class="cr-report-filters">
+        <span style="font-size:11px;color:#666">Fecha:</span>
+        <input type="date" class="cr-report-date" id="crReportDate" value="${dateStr}">
+      </div>
+      <div class="cr-report-body">
+        ${count ? `<div class="cr-report-box">${escapeHtml(text)}</div>` : '<div class="cr-report-empty">Sin clientes procesados en esta fecha</div>'}
+      </div>
+      <div class="cr-report-foot">
+        <button class="cr-report-btn-copy" id="crReportCopy">📋 Copiar</button>
+        <button class="cr-report-btn-wa" id="crReportWA">📲 WhatsApp</button>
+        <button class="cr-report-btn-close" id="crReportClose2">Cerrar</button>
+      </div>
+    `;
+
+    const close = () => { overlay.remove(); modal.remove(); };
+    overlay.onclick = close;
+    document.getElementById('crReportClose').onclick = close;
+    document.getElementById('crReportClose2').onclick = close;
+
+    document.getElementById('crReportDate').onchange = (ev) => {
+      renderReport(ev.target.value);
+    };
+
+    const markCfpbReported = () => {
+      dayEntries.filter(e => e.status === 'CFPB y FTC').forEach(e => { e.reported = true; });
+      saveHistory(entries);
+    };
+
+    document.getElementById('crReportCopy').onclick = async () => {
+      const btn = document.getElementById('crReportCopy');
+      try {
+        await navigator.clipboard.writeText(text);
+        markCfpbReported();
+        btn.textContent = '✓ Copiado';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '📋 Copiar'; btn.classList.remove('copied'); }, 2000);
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        markCfpbReported();
+        btn.textContent = '✓ Copiado';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '📋 Copiar'; btn.classList.remove('copied'); }, 2000);
+      }
+    };
+
+    document.getElementById('crReportWA').onclick = () => {
+      markCfpbReported();
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+    };
+  }
+
+  renderReport(today);
+}
 
 export function showHistoryPanel() {
   document.getElementById('crHistoryPanel')?.remove();
@@ -26,14 +163,17 @@ export function showHistoryPanel() {
     </div>
     <div class="cr-hist-body" id="crHistBody"></div>
     <div class="cr-hist-footer">
+      <button class="cr-hist-report-btn" id="crHistReport">📊 Reporte del Día</button>
       <button class="cr-hist-clear-btn" id="crHistClear">🗑 Limpiar historial</button>
     </div>
   `;
   document.body.appendChild(panel);
   makeDraggable(panel, panel.querySelector('#crHistHandle'));
   document.getElementById('crHistClose').onclick = () => panel.remove();
+  document.getElementById('crHistReport').onclick = () => showDailyReport();
 
   let entries = loadHistory();
+  const clientStatuses = (loadConfig().clientStatuses || []);
 
   function formatDate(ts) {
     const d = new Date(ts);
@@ -53,6 +193,7 @@ export function showHistoryPanel() {
       const el = document.createElement('div');
       el.className = 'cr-hist-entry';
       const s = entry.stats || {};
+      const statusObj = entry.status ? clientStatuses.find(st => st.name === entry.status) : null;
       el.innerHTML = `
         <div class="cr-hist-row">
           <span class="cr-hist-name">${escapeHtml(entry.clientName || 'Cliente')}</span>
@@ -62,6 +203,11 @@ export function showHistoryPanel() {
           ${s.collections ? `<span class="cr-stat"><b>${s.collections}</b> colecciones</span>` : ''}
           ${s.originals ? `<span class="cr-stat"><b>${s.originals}</b> originales</span>` : ''}
           ${s.inquiries ? `<span class="cr-stat"><b>${s.inquiries}</b> inquiries</span>` : ''}
+        </div>
+        <div class="cr-hist-status-row">
+          <button class="cr-hist-status-btn"${statusObj ? ` style="border-color:${statusObj.color}40;background:${statusObj.color}15;color:${statusObj.color}"` : ''}>
+            ${statusObj ? `<span class="cr-status-dot" style="background:${statusObj.color}"></span>` : ''}${entry.status ? escapeHtml(entry.status) : 'Sin estado'}
+          </button>
         </div>
         <div class="cr-hist-actions">
           <button class="cr-hist-btn cr-hist-btn-view">👁 Ver</button>
@@ -118,6 +264,44 @@ export function showHistoryPanel() {
         entries = entries.filter(e => e.id !== entry.id);
         saveHistory(entries);
         applyFilter();
+      };
+
+      el.querySelector('.cr-hist-status-btn').onclick = (ev) => {
+        ev.stopPropagation();
+        document.querySelector('.cr-status-dropdown')?.remove();
+        const btn = ev.currentTarget;
+        const row = btn.closest('.cr-hist-status-row');
+        const dd = document.createElement('div');
+        dd.className = 'cr-status-dropdown';
+        let ddHtml = `<button class="cr-status-option" data-status=""><span class="cr-status-dot" style="background:#555"></span>Sin estado</button>`;
+        clientStatuses.forEach(st => {
+          ddHtml += `<button class="cr-status-option" data-status="${escapeHtml(st.name)}"><span class="cr-status-dot" style="background:${st.color}"></span>${escapeHtml(st.name)}</button>`;
+        });
+        dd.innerHTML = ddHtml;
+        row.appendChild(dd);
+        dd.querySelectorAll('.cr-status-option').forEach(opt => {
+          opt.onclick = (e) => {
+            e.stopPropagation();
+            entry.status = opt.dataset.status || '';
+            saveHistory(entries);
+            dd.remove();
+            const stObj = entry.status ? clientStatuses.find(st => st.name === entry.status) : null;
+            if (stObj) {
+              btn.style.cssText = `border-color:${stObj.color}40;background:${stObj.color}15;color:${stObj.color}`;
+              btn.innerHTML = `<span class="cr-status-dot" style="background:${stObj.color}"></span>${escapeHtml(stObj.name)}`;
+            } else {
+              btn.style.cssText = '';
+              btn.innerHTML = 'Sin estado';
+            }
+          };
+        });
+        const closeDd = (e) => {
+          if (!dd.contains(e.target) && e.target !== btn) {
+            dd.remove();
+            document.removeEventListener('click', closeDd);
+          }
+        };
+        setTimeout(() => document.addEventListener('click', closeDd), 0);
       };
 
       body.appendChild(el);
