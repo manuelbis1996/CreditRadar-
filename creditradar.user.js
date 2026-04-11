@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.20
+// @version      20.21
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -18,9 +18,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.20";
+  const SCRIPT_VERSION = "20.21";
 
   const VERSION_NOTES = {
+    "20.21": "🔗 Botón CreditFlow en toolbar + toast confirmación al guardar",
     "20.20": "⚡ Auto-guardar en CreditFlow al copiar el reporte",
     "20.19": "🔗 CreditFlow: página independiente, sin conflicto con Tampermonkey",
     "20.18": "🔗 CreditFlow: CRM integrado para gestionar clientes de reparación de crédito",
@@ -733,6 +734,7 @@ upgrade = upgrade bank, upgrade lending
     </button>
     <div class="cr-tb-extras">
       <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
+      <button id="crCFBtn" aria-label="CreditFlow CRM" title="Abrir CreditFlow">🔗</button>
       <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
     </div>
   `;
@@ -740,6 +742,7 @@ upgrade = upgrade bank, upgrade lending
 
     document.getElementById('clasificadorBTN').onclick = runFn;
     document.getElementById('crHistoryBtn').onclick = showHistoryFn;
+    document.getElementById('crCFBtn').onclick = () => window.open('https://manuelbis1996.github.io/CreditRadar-/creditflow.html', '_blank');
     document.getElementById('crSettingsBtn').onclick = openConfigFn;
     setButtonAnimation('idle');
   }
@@ -2003,7 +2006,13 @@ upgrade = upgrade bank, upgrade lending
       // Auto-save to CreditFlow on copy
       const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
       const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
-      if (nombre) saveToCreditFlow(nombre);
+      if (nombre) {
+        const saved = saveToCreditFlow(nombre);
+        showToast(
+          saved ? `🔗 "${nombre}" guardado en CreditFlow` : `🔗 "${nombre}" ya estaba en CreditFlow`,
+          saved ? '#34D399' : '#fbbf24', 4000
+        );
+      }
 
       try {
         await navigator.clipboard.writeText(output);

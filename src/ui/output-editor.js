@@ -347,7 +347,13 @@ export function showOutputEditor(data, stats, config) {
     // Auto-save to CreditFlow on copy
     const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
     const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
-    if (nombre) saveToCreditFlow(nombre);
+    if (nombre) {
+      const saved = saveToCreditFlow(nombre);
+      showToast(
+        saved ? `🔗 "${nombre}" guardado en CreditFlow` : `🔗 "${nombre}" ya estaba en CreditFlow`,
+        saved ? '#34D399' : '#fbbf24', 4000
+      );
+    }
 
     try {
       await navigator.clipboard.writeText(output);

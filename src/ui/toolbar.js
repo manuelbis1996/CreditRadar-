@@ -43,6 +43,7 @@ export async function addButton(config, runFn, openConfigFn, showHistoryFn) {
     </button>
     <div class="cr-tb-extras">
       <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
+      <button id="crCFBtn" aria-label="CreditFlow CRM" title="Abrir CreditFlow">🔗</button>
       <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
     </div>
   `;
@@ -50,6 +51,7 @@ export async function addButton(config, runFn, openConfigFn, showHistoryFn) {
 
   document.getElementById('clasificadorBTN').onclick = runFn;
   document.getElementById('crHistoryBtn').onclick = showHistoryFn;
+  document.getElementById('crCFBtn').onclick = () => window.open('https://manuelbis1996.github.io/CreditRadar-/creditflow.html', '_blank');
   document.getElementById('crSettingsBtn').onclick = openConfigFn;
   setButtonAnimation('idle');
 }
