@@ -1,6 +1,10 @@
-export const SCRIPT_VERSION = "20.14";
+export const SCRIPT_VERSION = "20.18";
 
 export const VERSION_NOTES = {
+  "20.18": "🔗 CreditFlow: CRM integrado para gestionar clientes de reparación de crédito",
+  "20.17": "📊 Reporte diario ahora muestra el estado asignado a cada cliente",
+  "20.16": "🏷️ Estados de cliente: asigna estados con colores a cada entrada del historial",
+  "20.15": "📊 Reporte diario: genera resumen del día desde Historial con copia y WhatsApp",
   "20.14": "🛡 Vincular manual: enlaza inquiries no detectadas a cuentas positivas y guarda el alias",
   "20.13": "📌 Toolbar al tope del sidebar + botón Copiar Info Personal",
   "20.12": "📌 Toolbar integrada al sidebar de comunicaciones",
@@ -157,11 +161,35 @@ export const DEFAULT_CONFIG = {
     { key: "id", label: "ID", enabled: false }
   ],
   aliases: DEFAULT_ALIASES,
-  toolbarPos: { top: "120px", left: "calc(100vw - 80px)" }
+  toolbarPos: { top: "120px", left: "calc(100vw - 80px)" },
+  clientStatuses: [
+    { name: "CFPB y FTC", color: "#f59e0b" },
+    { name: "En espera", color: "#60a5fa" },
+    { name: "No reimporta", color: "#f87171" },
+    { name: "No contesta", color: "#a78bfa" }
+  ]
 };
 
 export const HISTORY_KEY = "cr_history";
 export const HISTORY_MAX = 50;
+
+// CreditFlow CRM storage keys
+export const CF_RECORDS_KEY = "cf_records";
+export const CF_LOG_KEY = "cf_log";
+export const CF_STATUSES_KEY = "cf_statuses";
+export const CF_TEMPLATES_KEY = "cf_templates";
+
+export const CF_DEFAULT_STATUSES = [
+  { id: 'carta',      label: 'Carta',       color: '#34D399', numbered: true  },
+  { id: 'espera',     label: 'En espera',   color: '#FBBF24', numbered: false },
+  { id: 'nocontesta', label: 'No contesta', color: '#F87171', numbered: false },
+];
+
+export const CF_DEFAULT_TEMPLATES = [
+  { id: 't1', statusId: 'nocontesta', label: 'Seguimiento',   msg: 'Hola {nombre}, le escribo de parte del equipo de reparación de crédito. Hemos intentado comunicarnos con usted. ¿Podría confirmarnos un buen horario para contactarle? Gracias.' },
+  { id: 't2', statusId: 'espera',     label: 'Actualización', msg: 'Hola {nombre}, le informamos que su caso sigue en proceso. Estamos esperando respuesta del buró. Le mantendremos informado. Cualquier duda estamos a la orden.' },
+  { id: 't3', statusId: 'carta',      label: 'Carta enviada', msg: 'Hola {nombre}, le confirmamos que su carta de disputa ha sido enviada exitosamente. El proceso puede tomar de 30 a 45 días. Le avisaremos cuando tengamos respuesta.' },
+];
 
 export const SELECTORS = {
   compact: {

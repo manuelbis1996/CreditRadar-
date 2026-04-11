@@ -13,6 +13,7 @@ const banner = `// ==UserScript==
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
+// @match        https://manuelbis1996.github.io/CreditRadar-/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue

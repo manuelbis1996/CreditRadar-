@@ -1,4 +1,5 @@
 import { SCRIPT_VERSION, SELECTORS, DEFAULT_CONFIG } from './config/constants.js';
+import { initCreditFlow } from './ui/creditflow-panel.js';
 import { loadConfig } from './core/storage.js';
 import { injectStyles } from './ui/styles.js';
 import { addButton, setButtonAnimation, showToast, createProgressPanel, updateProgress, removeProgressPanel } from './ui/toolbar.js';
@@ -246,8 +247,11 @@ function initClasificador() {
   injectPersonalCopyButton();
 }
 
+const IS_CREDITFLOW = window.location.hostname.includes('github.io');
+const init = IS_CREDITFLOW ? initCreditFlow : initClasificador;
+
 if (document.readyState === 'complete') {
-  initClasificador();
+  init();
 } else {
-  window.addEventListener("load", initClasificador);
+  window.addEventListener('load', init);
 }

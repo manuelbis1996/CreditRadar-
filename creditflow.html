@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CreditFlow — Reparación de Crédito</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0B0F1A;--surface:#131825;--surface-2:#1A2035;--border:#2A3150;--text:#E8ECF4;--text-2:#8B95B0;--text-3:#5A6580;--accent:#4F7CFF;--accent-glow:#4F7CFF33;--green:#34D399;--green-bg:#34D39918;--amber:#FBBF24;--amber-bg:#FBBF2418;--red:#F87171;--red-bg:#F8717118;--purple:#A78BFA;--purple-bg:#A78BFA18;--orange:#FB923C;--wa:#25D366}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);padding:24px 0;position:fixed;top:0;left:0;bottom:0;z-index:10;display:flex;flex-direction:column}
+.brand{padding:0 20px 24px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.brand h1{font-family:'Playfair Display',serif;font-size:21px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.brand p{font-size:10px;color:var(--text-3);margin-top:3px;text-transform:uppercase;letter-spacing:1.5px}
+.nav-item{display:flex;align-items:center;gap:11px;padding:10px 20px;color:var(--text-2);cursor:pointer;transition:all .2s;font-size:13.5px;border-left:3px solid transparent}
+.nav-item:hover{color:var(--text);background:var(--surface-2)}
+.nav-item.active{color:var(--accent);background:var(--accent-glow);border-left-color:var(--accent);font-weight:500}
+.sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border)}
+.sidebar-footer p{font-size:11px;color:var(--text-3)}
+.main{margin-left:220px;flex:1;padding:28px 36px}
+.page-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.page-hdr h2{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;letter-spacing:-.5px}
+.page-hdr .subtitle{font-size:13px;color:var(--text-3)}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .2s;font-family:'DM Sans',sans-serif}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 4px 12px var(--accent-glow)}
+.btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.btn-ghost{background:var(--surface-2);color:var(--text-2);border:1px solid var(--border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--text-3)}
+.btn-danger{background:var(--red-bg);color:var(--red);border:none}
+.btn-danger:hover{background:var(--red);color:#fff}
+.btn-sm{padding:5px 11px;font-size:12px;border-radius:7px}
+.btn-export{background:var(--green-bg);color:var(--green);border:none}
+.btn-export:hover{background:var(--green);color:#fff}
+.btn-wa{background:#25D36618;color:var(--wa);border:none}
+.btn-wa:hover{background:var(--wa);color:#fff}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;transition:border-color .2s}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{text-align:center}
+.stat-val{font-family:'Playfair Display',serif;font-size:32px;font-weight:800;margin-bottom:2px}
+.stat-lbl{font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:1px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 14px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:12px 14px;font-size:13.5px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:hover td{background:var(--surface-2)}
+tr:last-child td{border-bottom:none}
+.chk-cell{text-align:center}
+.chk{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);background:var(--surface-2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s}
+.chk.checked{background:var(--green);border-color:var(--green)}
+.chk.checked::after{content:'✓';color:#fff;font-size:13px;font-weight:700}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:100;animation:fadeIn .15s}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:28px;width:520px;max-width:92vw;max-height:85vh;overflow-y:auto;animation:slideUp .2s}
+.modal-wide{width:620px}
+.modal h3{font-family:'Playfair Display',serif;font-size:20px;margin-bottom:18px}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg.full{grid-column:1/-1}
+.fl{font-size:11px;font-weight:500;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px}
+.fi,.fs,.ft{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 13px;color:var(--text);font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s}
+.fi:focus,.fs:focus,.ft:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.fs{cursor:pointer}.fs option{background:var(--surface-2)}
+.ft{resize:vertical;min-height:70px}
+.f-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px;grid-column:1/-1}
+.act-item{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.act-item:last-child{border-bottom:none}
+.act-dot{width:7px;height:7px;border-radius:50%;margin-top:6px;flex-shrink:0}
+.act-time{font-size:11px;color:var(--text-3);margin-top:2px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:16px;font-size:11.5px;font-weight:500;white-space:nowrap}
+.status-select{border-radius:16px;padding:4px 10px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;outline:none;-webkit-appearance:none;appearance:none;text-align:center;min-width:110px;border:1px solid var(--border);background:var(--surface-2);color:var(--text)}
+.empty{text-align:center;padding:50px 20px;color:var(--text-3)}
+.empty p{font-size:14px;margin-bottom:14px}
+.hidden{display:none}
+.inline-actions{display:flex;gap:5px}
+.search-box{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:8px 14px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;width:200px}
+.search-box:focus{border-color:var(--accent)}
+.date-filter{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:7px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none}
+.report-box{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:20px 24px;font-size:14px;line-height:1.8;white-space:pre-wrap;color:var(--text);max-height:55vh;overflow-y:auto;margin-bottom:16px}
+.rpt-section{margin-bottom:10px}
+.rpt-title{font-weight:700;margin-bottom:2px}
+.copy-toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 24px;border-radius:10px;font-size:13px;font-weight:500;z-index:200;animation:slideUp .2s}
+.status-list-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.status-list-item:last-child{border-bottom:none}
+.status-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+.status-name{flex:1;font-size:14px;font-weight:500}
+.color-input{width:36px;height:28px;border:none;border-radius:6px;cursor:pointer;background:none;padding:0}
+.add-status-row{display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.add-status-input{flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:8px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none}
+.add-status-input:focus{border-color:var(--accent)}
+.filter-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filter-pill{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);transition:all .2s}
+.filter-pill:hover{border-color:var(--text-3);color:var(--text)}
+.filter-pill.active{color:#fff}
+.bulk-preview{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin:12px 0;max-height:180px;overflow-y:auto;font-size:13px;line-height:1.6}
+.bulk-preview .bp-item{display:flex;align-items:center;gap:8px;padding:3px 0}
+.bulk-preview .bp-num{color:var(--text-3);font-size:11px;min-width:20px}
+.tpl-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px}
+.tpl-card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.tpl-card-hdr span{font-size:13px;font-weight:600}
+.tpl-preview{font-size:12.5px;color:var(--text-2);line-height:1.5;white-space:pre-wrap;max-height:60px;overflow:hidden}
+@media(max-width:768px){
+  .sidebar{width:58px}.brand h1{font-size:0}.brand p{display:none}
+  .nav-item span{display:none}.nav-item{justify-content:center;padding:12px;border-left:none}
+  .main{margin-left:58px;padding:16px 12px}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
+  .form-grid{grid-template-columns:1fr}.page-hdr h2{font-size:20px}.sidebar-footer{display:none}
+  .filter-bar{gap:5px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar">
+    <div class="brand"><h1>CreditFlow</h1><p>Reparación</p></div>
+    <div class="nav-item active" data-view="dashboard" onclick="nav('dashboard')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <span>Dashboard</span>
+    </div>
+    <div class="nav-item" data-view="reparacion" onclick="nav('reparacion')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span>Reparación</span>
+    </div>
+    <div class="nav-item" data-view="reportes" onclick="nav('reportes')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      <span>Reportes</span>
+    </div>
+    <div class="nav-item" data-view="plantillas" onclick="nav('plantillas')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <span>Plantillas</span>
+    </div>
+    <div class="nav-item" data-view="activity" onclick="nav('activity')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span>Actividad</span>
+    </div>
+    <div class="sidebar-footer"><p id="storage-label">Datos guardados localmente</p></div>
+  </nav>
+  <main class="main">
+    <div id="v-dashboard"></div>
+    <div id="v-reparacion" class="hidden"></div>
+    <div id="v-reportes" class="hidden"></div>
+    <div id="v-plantillas" class="hidden"></div>
+    <div id="v-activity" class="hidden"></div>
+  </main>
+</div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script>
+// ─── STORAGE BRIDGE ──────────────────────────────────────────────────────────
+// Uses GM_getValue/GM_setValue when available (Tampermonkey userscript),
+// otherwise falls back to localStorage so the page works standalone.
+const store = {
+  get(key, def) {
+    try {
+      if (typeof GM_getValue !== 'undefined') {
+        const v = GM_getValue(key, null);
+        return v ? (typeof v === 'string' ? JSON.parse(v) : v) : def;
+      }
+      const v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : def;
+    } catch(e) { return def; }
+  },
+  set(key, val) {
+    try {
+      if (typeof GM_setValue !== 'undefined') { GM_setValue(key, JSON.stringify(val)); return; }
+      localStorage.setItem(key, JSON.stringify(val));
+    } catch(e) {}
+  },
+  isGM() { return typeof GM_getValue !== 'undefined'; }
+};
+
+// Update footer label
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('storage-label').textContent =
+    store.isGM() ? 'Datos en Tampermonkey (GM)' : 'Datos en localStorage';
+});
+
+// ─── KEYS & DEFAULTS ─────────────────────────────────────────────────────────
+const KEYS = { records:'cf_records', log:'cf_log', statuses:'cf_statuses', templates:'cf_templates' };
+
+const DEFAULT_STATUSES = [
+  {id:'carta',      label:'Carta',       color:'#34D399', numbered:true},
+  {id:'espera',     label:'En espera',   color:'#FBBF24', numbered:false},
+  {id:'nocontesta', label:'No contesta', color:'#F87171', numbered:false},
+];
+
+const DEFAULT_TEMPLATES = [
+  {id:'t1', statusId:'nocontesta', label:'Seguimiento',   msg:'Hola {nombre}, le escribo de parte del equipo de reparación de crédito. Hemos intentado comunicarnos con usted. ¿Podría confirmarnos un buen horario para contactarle? Gracias.'},
+  {id:'t2', statusId:'espera',     label:'Actualización', msg:'Hola {nombre}, le informamos que su caso sigue en proceso. Estamos esperando respuesta del buró. Le mantendremos informado. Cualquier duda estamos a la orden.'},
+  {id:'t3', statusId:'carta',      label:'Carta enviada', msg:'Hola {nombre}, le confirmamos que su carta de disputa ha sido enviada exitosamente. El proceso puede tomar de 30 a 45 días. Le avisaremos cuando tengamos respuesta.'},
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let S = {
+  records:   store.get(KEYS.records, []),
+  log:       store.get(KEYS.log, []),
+  statuses:  store.get(KEYS.statuses, null) || JSON.parse(JSON.stringify(DEFAULT_STATUSES)),
+  templates: store.get(KEYS.templates, null) || JSON.parse(JSON.stringify(DEFAULT_TEMPLATES)),
+  view:'dashboard', search:'', filterStatus:'all', reportDate:'', reportResp:'',
+};
+S.records.forEach(r => { if(!r.estatus) r.estatus=''; });
+
+const save = () => {
+  store.set(KEYS.records, S.records);
+  store.set(KEYS.log, S.log);
+  store.set(KEYS.statuses, S.statuses);
+  store.set(KEYS.templates, S.templates);
+};
+const addLog = (t,d) => S.log.push({id:Date.now()+'l',type:t,desc:d,ts:new Date().toISOString()});
+const today = () => new Date().toISOString().split('T')[0];
+const fmtTime = ts => new Date(ts).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+const fmtDateShort = ts => { if(!ts) return ''; const d=new Date(ts+'T12:00:00'); return(d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear(); };
+const fmtLong = () => new Date().toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const actColor = t => t.includes('add')||t.includes('bulk')?'var(--accent)':t.includes('carta')?'var(--purple)':t.includes('cfbp')?'var(--green)':t.includes('delete')?'var(--red)':t.includes('estatus')?'var(--orange)':'var(--text-3)';
+
+function getStatus(id){return S.statuses.find(s=>s.id===id)||null}
+function statusLabel(id){const s=getStatus(id);return s?s.label:'Sin estatus'}
+function statusColor(id){const s=getStatus(id);return s?s.color:'#5A6580'}
+
+// ─── NAV ─────────────────────────────────────────────────────────────────────
+function nav(v){
+  S.view=v;
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.dataset.view===v));
+  ['dashboard','reparacion','reportes','plantillas','activity'].forEach(x=>document.getElementById('v-'+x).classList.toggle('hidden',x!==v));
+  render();
+}
+function closeModal(){document.getElementById('modal-root').innerHTML='';}
+function showToast(msg){
+  document.getElementById('toast-root').innerHTML=`<div class="copy-toast">${msg}</div>`;
+  setTimeout(()=>{document.getElementById('toast-root').innerHTML='';},2500);
+}
+
+// ─── STATUS MANAGER ──────────────────────────────────────────────────────────
+function showStatusManager(){renderStatusModal();}
+function renderStatusModal(){
+  const items=S.statuses.map((s,i)=>`
+    <div class="status-list-item">
+      <span class="status-dot" style="background:${s.color}"></span>
+      <span class="status-name">${s.label}</span>
+      <label style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:4px;cursor:pointer">
+        <input type="checkbox" ${s.numbered?'checked':''} onchange="toggleNumbered(${i});renderStatusModal()"> Num.
+      </label>
+      <input type="color" class="color-input" value="${s.color}" onchange="updateStatusColor(${i},this.value);renderStatusModal()">
+      <button class="btn btn-ghost btn-sm" onclick="promptEditStatus(${i})">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="removeStatus(${i});renderStatusModal()">🗑️</button>
+    </div>`).join('');
+  document.getElementById('modal-root').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h3>Gestionar Estatus</h3>
+      <div>${items}</div>
+      <div class="add-status-row">
+        <input class="add-status-input" id="new-status-name" placeholder="Nuevo estatus..." onkeydown="if(event.key==='Enter')addNewStatus()">
+        <input type="color" class="color-input" id="new-status-color" value="#A78BFA">
+        <button class="btn btn-primary btn-sm" onclick="addNewStatus()">+ Agregar</button>
+      </div>
+    </div>
+  </div>`;
+}
+function addNewStatus(){
+  const name=document.getElementById('new-status-name').value.trim();
+  if(!name)return;
+  S.statuses.push({id:'custom_'+Date.now(),label:name,color:document.getElementById('new-status-color').value,numbered:false});
+  save();renderStatusModal();render();
+}
+function removeStatus(i){
+  if(!confirm('¿Eliminar "'+S.statuses[i].label+'"?'))return;
+  const rid=S.statuses[i].id;S.statuses.splice(i,1);
+  S.records.forEach(r=>{if(r.estatus===rid)r.estatus='';});
+  save();render();
+}
+function updateStatusColor(i,c){S.statuses[i].color=c;save();render();}
+function toggleNumbered(i){S.statuses[i].numbered=!S.statuses[i].numbered;save();render();}
+function promptEditStatus(i){
+  const n=prompt('Nuevo nombre:',S.statuses[i].label);
+  if(n&&n.trim()){S.statuses[i].label=n.trim();save();renderStatusModal();render();}
+}
+
+// ─── RECORD MODAL ────────────────────────────────────────────────────────────
+function showRecordModal(existing){
+  const r=existing||{nombre:'',nombreResp:'Manuelbis',carta:false,cartaFecha:today(),cfbp:false,cfbpFecha:'',estatus:'carta',comentario:''};
+  const sOpts=S.statuses.map(s=>`<option value="${s.id}" ${r.estatus===s.id?'selected':''}>${s.label}</option>`).join('')+`<option value="" ${!r.estatus?'selected':''}>Sin estatus</option>`;
+  document.getElementById('modal-root').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">
+    <h3>${existing?'Editar Registro':'Nuevo Registro'}</h3>
+    <div class="form-grid">
+      <div class="fg full"><label class="fl">Nombre</label><input class="fi" id="r-nombre" value="${r.nombre}" placeholder="Nombre completo"></div>
+      <div class="fg"><label class="fl">Responsable</label><input class="fi" id="r-resp" value="${r.nombreResp||'Manuelbis'}"></div>
+      <div class="fg"><label class="fl">Estatus</label><select class="fs" id="r-estatus">${sOpts}</select></div>
+      <div class="fg"><label class="fl">Fecha Carta</label><input class="fi" id="r-cartaFecha" type="date" value="${r.cartaFecha||today()}"></div>
+      <div class="fg"><label class="fl">Fecha CFBP</label><input class="fi" id="r-cfbpFecha" type="date" value="${r.cfbpFecha||''}"></div>
+      <div class="fg full"><label class="fl">Comentario</label><textarea class="ft" id="r-comentario">${r.comentario||''}</textarea></div>
+      <div class="f-actions">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveRecord('${existing?r.id:''}')">${existing?'Guardar':'Agregar'}</button>
+      </div>
+    </div>
+  </div></div>`;
+}
+function saveRecord(eid){
+  const nombre=document.getElementById('r-nombre').value.trim();if(!nombre)return;
+  const data={nombre,nombreResp:document.getElementById('r-resp').value.trim()||'Manuelbis',estatus:document.getElementById('r-estatus').value,cartaFecha:document.getElementById('r-cartaFecha').value,cfbpFecha:document.getElementById('r-cfbpFecha').value,comentario:document.getElementById('r-comentario').value.trim()};
+  if(eid){const idx=S.records.findIndex(r=>r.id===eid);if(idx>-1)S.records[idx]={...S.records[idx],...data};addLog('edit','Editado: '+data.nombre);}
+  else{data.id=Date.now().toString();data.carta=false;data.cfbp=false;data.createdAt=new Date().toISOString();S.records.push(data);addLog('add','Nuevo: '+data.nombre);}
+  save();closeModal();render();
+}
+
+// ─── BULK ADD ────────────────────────────────────────────────────────────────
+function showBulkModal(){
+  document.getElementById('modal-root').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal()"><div class="modal modal-wide" onclick="event.stopPropagation()">
+    <h3>Agregar Clientes en Lote</h3>
+    <p style="font-size:13px;color:var(--text-2);margin-bottom:14px">Pega una lista de nombres (uno por línea).</p>
+    <div class="form-grid">
+      <div class="fg"><label class="fl">Responsable</label><input class="fi" id="b-resp" value="Manuelbis"></div>
+      <div class="fg"><label class="fl">Estatus</label>
+        <select class="fs" id="b-estatus">${S.statuses.map(s=>`<option value="${s.id}">${s.label}</option>`).join('')}<option value="">Sin estatus</option></select>
+      </div>
+      <div class="fg"><label class="fl">Fecha Carta</label><input class="fi" id="b-fecha" type="date" value="${today()}"></div>
+      <div class="fg"></div>
+      <div class="fg full">
+        <label class="fl">Lista de Nombres (uno por línea)</label>
+        <textarea class="ft" id="b-names" style="min-height:150px" placeholder="Mary Marlyn Duarte Castillo&#10;Aneurys G Polanco" oninput="previewBulk()"></textarea>
+      </div>
+      <div class="fg full" id="b-preview"></div>
+      <div class="f-actions">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="executeBulk()">Agregar Todos</button>
+      </div>
+    </div>
+  </div></div>`;
+}
+function previewBulk(){
+  const names=document.getElementById('b-names').value.split('\n').map(n=>n.trim()).filter(Boolean);
+  if(!names.length){document.getElementById('b-preview').innerHTML='';return;}
+  document.getElementById('b-preview').innerHTML=`
+    <div class="bulk-preview">${names.map((n,i)=>`<div class="bp-item"><span class="bp-num">${i+1}.</span> ${n}</div>`).join('')}</div>
+    <div style="font-size:12px;color:var(--text-2)">${names.length} cliente${names.length>1?'s':''} se agregarán</div>`;
+}
+function executeBulk(){
+  const names=document.getElementById('b-names').value.split('\n').map(n=>n.trim()).filter(Boolean);
+  if(!names.length)return;
+  const resp=document.getElementById('b-resp').value.trim()||'Manuelbis';
+  const estatus=document.getElementById('b-estatus').value;
+  const fecha=document.getElementById('b-fecha').value;
+  names.forEach((nombre,i)=>{
+    S.records.push({id:(Date.now()+i).toString(),nombre,nombreResp:resp,estatus,carta:false,cfbp:false,cartaFecha:fecha,cfbpFecha:'',comentario:'',createdAt:new Date().toISOString()});
+  });
+  addLog('bulk',`${names.length} clientes agregados en lote`);
+  save();closeModal();render();showToast(`✓ ${names.length} clientes agregados`);
+}
+
+// ─── RECORD ACTIONS ──────────────────────────────────────────────────────────
+function deleteRecord(id){
+  if(!confirm('¿Eliminar?'))return;
+  const r=S.records.find(x=>x.id===id);
+  S.records=S.records.filter(x=>x.id!==id);
+  addLog('delete','Eliminado: '+(r?.nombre||''));save();render();
+}
+function toggleCarta(id){
+  const r=S.records.find(x=>x.id===id);if(!r)return;
+  r.carta=!r.carta;if(r.carta&&!r.cartaFecha)r.cartaFecha=today();
+  addLog('carta',r.carta?'Carta ✓: '+r.nombre:'Carta desmarcada: '+r.nombre);save();render();
+}
+function toggleCfbp(id){
+  const r=S.records.find(x=>x.id===id);if(!r)return;
+  r.cfbp=!r.cfbp;if(r.cfbp&&!r.cfbpFecha)r.cfbpFecha=today();
+  addLog('cfbp',r.cfbp?'CFBP ✓: '+r.nombre:'CFBP desmarcado: '+r.nombre);save();render();
+}
+function changeEstatus(id,val){
+  const r=S.records.find(x=>x.id===id);if(!r)return;
+  r.estatus=val;addLog('estatus','Estatus → '+statusLabel(val)+': '+r.nombre);save();render();
+}
+function exportCSV(){
+  const h=['Nombre','Responsable','Estatus','Carta','Fecha Carta','CFBP','Fecha CFBP','Comentario'];
+  const rows=S.records.map(r=>[r.nombre,r.nombreResp,statusLabel(r.estatus),r.carta?'Sí':'No',r.cartaFecha||'',r.cfbp?'Sí':'No',r.cfbpFecha||'',r.comentario||'']);
+  const csv=[h,...rows].map(r=>r.map(c=>'"'+(c||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='reparacion_'+today()+'.csv';a.click();
+}
+
+// ─── WHATSAPP ────────────────────────────────────────────────────────────────
+function sendWhatsAppReport(){
+  const date=document.getElementById('rpt-date')?.value||'';
+  const resp=document.getElementById('rpt-resp')?.value||'';
+  window.open('https://wa.me/?text='+encodeURIComponent(generateReportText(date,resp)),'_blank');
+}
+function sendWhatsAppToClient(recordId,templateId){
+  const r=S.records.find(x=>x.id===recordId);
+  const tpl=S.templates.find(x=>x.id===templateId);
+  if(!r||!tpl)return;
+  const msg=tpl.msg.replace(/\{nombre\}/g,r.nombre).replace(/\{responsable\}/g,r.nombreResp).replace(/\{fecha\}/g,r.cartaFecha||'');
+  const phone=r.phone?r.phone.replace(/\D/g,''):'';
+  window.open(phone?`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`:`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+function showWhatsAppModal(recordId){
+  const r=S.records.find(x=>x.id===recordId);if(!r)return;
+  const items=S.templates.map(t=>{
+    const preview=t.msg.replace(/\{nombre\}/g,r.nombre).replace(/\{responsable\}/g,r.nombreResp).replace(/\{fecha\}/g,r.cartaFecha||'');
+    const match=!t.statusId||t.statusId===r.estatus;
+    const sc=t.statusId?statusColor(t.statusId):'var(--text-3)';
+    return`<div class="tpl-card" style="${match?'':'opacity:.55'}">
+      <div class="tpl-card-hdr"><span>${t.label} ${t.statusId?`<span class="badge" style="background:${sc}18;color:${sc}">${statusLabel(t.statusId)}</span>`:''}</span>
+        <button class="btn btn-wa btn-sm" onclick="sendWhatsAppToClient('${r.id}','${t.id}')">📲 Enviar</button>
+      </div>
+      <div class="tpl-preview">${preview}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('modal-root').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal()"><div class="modal modal-wide" onclick="event.stopPropagation()">
+    <h3>Enviar WhatsApp a ${r.nombre}</h3>
+    ${items||'<p style="color:var(--text-3);text-align:center;padding:20px">No hay plantillas. Crea una en la sección Plantillas.</p>'}
+  </div></div>`;
+}
+
+// ─── TEMPLATES ───────────────────────────────────────────────────────────────
+function showTemplateModal(existing){
+  const t=existing||{id:'',statusId:'',label:'',msg:''};
+  const sOpts=S.statuses.map(s=>`<option value="${s.id}" ${t.statusId===s.id?'selected':''}>${s.label}</option>`).join('');
+  document.getElementById('modal-root').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal()"><div class="modal modal-wide" onclick="event.stopPropagation()">
+    <h3>${existing?'Editar Plantilla':'Nueva Plantilla'}</h3>
+    <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">Usa <strong>{nombre}</strong>, <strong>{responsable}</strong> y <strong>{fecha}</strong> como variables.</p>
+    <div class="form-grid">
+      <div class="fg"><label class="fl">Nombre de Plantilla</label><input class="fi" id="tpl-label" value="${t.label}" placeholder="Ej: Seguimiento"></div>
+      <div class="fg"><label class="fl">Estatus Asociado</label>
+        <select class="fs" id="tpl-status"><option value="">Todos los estatus</option>${sOpts}</select>
+      </div>
+      <div class="fg full"><label class="fl">Mensaje</label>
+        <textarea class="ft" id="tpl-msg" style="min-height:120px">${t.msg}</textarea>
+      </div>
+      <div class="f-actions">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveTemplate('${existing?t.id:''}')">${existing?'Guardar':'Crear'}</button>
+      </div>
+    </div>
+  </div></div>`;
+}
+function saveTemplate(eid){
+  const label=document.getElementById('tpl-label').value.trim();
+  const msg=document.getElementById('tpl-msg').value.trim();
+  if(!label||!msg)return;
+  const data={label,statusId:document.getElementById('tpl-status').value,msg};
+  if(eid){const idx=S.templates.findIndex(t=>t.id===eid);if(idx>-1)S.templates[idx]={...S.templates[idx],...data};}
+  else{data.id='tpl_'+Date.now();S.templates.push(data);}
+  save();closeModal();render();
+}
+function deleteTemplate(id){
+  if(!confirm('¿Eliminar esta plantilla?'))return;
+  S.templates=S.templates.filter(t=>t.id!==id);save();render();
+}
+
+// ─── REPORT ──────────────────────────────────────────────────────────────────
+function getFilteredForReport(date,resp){
+  return S.records.filter(r=>{
+    const mD=!date||r.cartaFecha===date;
+    const mR=!resp||r.nombreResp.toLowerCase().includes(resp.toLowerCase());
+    return mD&&mR;
+  });
+}
+function generateReportText(date,resp){
+  const f=getFilteredForReport(date,resp);
+  let t=(resp||'Manuelbis')+'\n'+fmtDateShort(date||today())+'\n';
+  S.statuses.forEach(st=>{
+    const g=f.filter(r=>r.estatus===st.id);if(!g.length)return;
+    t+='\n'+st.label+':\n';
+    g.forEach((r,i)=>{t+=st.numbered?(i+1)+'. '+r.nombre+'\n':r.nombre+'\n';});
+  });
+  const ns=f.filter(r=>!r.estatus||!getStatus(r.estatus));
+  if(ns.length){t+='\nSin estatus:\n';ns.forEach(r=>{t+=r.nombre+'\n';});}
+  if(!f.length)t+='\nSin registros para esta fecha.\n';
+  return t.trim();
+}
+function generateReportHTML(date,resp){
+  const f=getFilteredForReport(date,resp);
+  let h=`<div style="font-weight:700;font-size:16px">${resp||'Manuelbis'}</div><div style="color:var(--text-2);margin-bottom:14px">${fmtDateShort(date||today())}</div>`;
+  S.statuses.forEach(st=>{
+    const g=f.filter(r=>r.estatus===st.id);if(!g.length)return;
+    h+=`<div class="rpt-section"><div class="rpt-title" style="color:${st.color}">${st.label}:</div>`;
+    g.forEach((r,i)=>{h+=`<div>${st.numbered?(i+1)+'. '+r.nombre:r.nombre}</div>`;});
+    h+='</div>';
+  });
+  const ns=f.filter(r=>!r.estatus||!getStatus(r.estatus));
+  if(ns.length){h+='<div class="rpt-section"><div class="rpt-title" style="color:var(--text-3)">Sin estatus:</div>';ns.forEach(r=>{h+=`<div>${r.nombre}</div>`;});h+='</div>';}
+  if(!f.length)h+='<div style="color:var(--text-3);text-align:center;padding:20px">Sin registros para estos filtros.</div>';
+  return h;
+}
+function copyReport(){
+  const text=generateReportText(document.getElementById('rpt-date')?.value||'',document.getElementById('rpt-resp')?.value||'');
+  navigator.clipboard.writeText(text).then(()=>showToast('✓ Copiado')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('✓ Copiado');
+  });
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function render(){
+  const t=today();
+  const statusCounts={};S.statuses.forEach(st=>{statusCounts[st.id]=S.records.filter(r=>r.estatus===st.id).length;});
+  const todayCount=S.log.filter(l=>l.ts.startsWith(t)).length;
+
+  // DASHBOARD
+  const recentActs=S.log.filter(l=>l.ts.startsWith(t)).slice(-8).reverse().map(l=>
+    `<div class="act-item"><span class="act-dot" style="background:${actColor(l.type)}"></span><div style="flex:1"><div style="font-size:13px">${l.desc}</div><div class="act-time">${fmtTime(l.ts)}</div></div></div>`
+  ).join('')||'<p style="color:var(--text-3);font-size:13px;padding:20px;text-align:center">Sin actividad hoy.</p>';
+
+  const recentRows=S.records.slice(-5).reverse().map(r=>{
+    const c=statusColor(r.estatus);
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)"><div><div style="font-size:13.5px;font-weight:500">${r.nombre}</div><div style="font-size:11px;color:var(--text-3)">${r.nombreResp} · ${r.cartaFecha||'—'}</div></div><span class="badge" style="background:${c}18;color:${c}">${statusLabel(r.estatus)}</span></div>`;
+  }).join('')||'<p style="color:var(--text-3);font-size:13px">Sin registros.</p>';
+
+  document.getElementById('v-dashboard').innerHTML=`
+    <div class="page-hdr"><h2>Dashboard</h2><span class="subtitle">${fmtLong()}</span></div>
+    <div class="stat-grid">
+      <div class="card stat-card"><div class="stat-val" style="color:var(--accent)">${S.records.length}</div><div class="stat-lbl">Total</div></div>
+      ${S.statuses.map(st=>`<div class="card stat-card"><div class="stat-val" style="color:${st.color}">${statusCounts[st.id]||0}</div><div class="stat-lbl">${st.label}</div></div>`).join('')}
+      <div class="card stat-card"><div class="stat-val" style="color:var(--text-2)">${todayCount}</div><div class="stat-lbl">Acciones Hoy</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card"><div style="font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text-2)">Últimos Registros</div>${recentRows}</div>
+      <div class="card"><div style="font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text-2)">Actividad Hoy</div>${recentActs}</div>
+    </div>`;
+
+  // REPARACIÓN
+  const sv=document.getElementById('search-input')?.value??S.search;S.search=sv;
+  let fil=S.records.filter(r=>r.nombre.toLowerCase().includes(sv.toLowerCase()));
+  if(S.filterStatus!=='all'){fil=fil.filter(r=>S.filterStatus==='none'?!r.estatus:r.estatus===S.filterStatus);}
+
+  const tRows=fil.map(r=>{
+    const opts=S.statuses.map(s=>`<option value="${s.id}" ${r.estatus===s.id?'selected':''}>${s.label}</option>`).join('')+`<option value="" ${!r.estatus?'selected':''}>—</option>`;
+    const sc=statusColor(r.estatus);
+    return`<tr>
+    <td style="font-weight:500;min-width:180px">${r.nombre}</td>
+    <td>${r.nombreResp}</td>
+    <td><select class="status-select" style="background:${sc}18;color:${sc};border-color:${sc}" onchange="changeEstatus('${r.id}',this.value)">${opts}</select></td>
+    <td class="chk-cell"><div class="chk ${r.carta?'checked':''}" onclick="toggleCarta('${r.id}')"></div></td>
+    <td style="color:var(--text-2);font-size:12.5px;white-space:nowrap">${r.cartaFecha||'—'}</td>
+    <td class="chk-cell"><div class="chk ${r.cfbp?'checked':''}" onclick="toggleCfbp('${r.id}')"></div></td>
+    <td style="color:var(--text-2);font-size:12.5px;white-space:nowrap">${r.cfbpFecha||'—'}</td>
+    <td style="color:var(--text-2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comentario||'—'}</td>
+    <td><div class="inline-actions">
+      <button class="btn btn-wa btn-sm" onclick="showWhatsAppModal('${r.id}')" title="WhatsApp">📲</button>
+      <button class="btn btn-ghost btn-sm" onclick="showRecordModal(S.records.find(x=>x.id==='${r.id}'))">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')">🗑️</button>
+    </div></td></tr>`;
+  }).join('');
+
+  const pills=`<div class="filter-bar">
+    <span style="font-size:11px;color:var(--text-3);margin-right:4px">Filtrar:</span>
+    <span class="filter-pill ${S.filterStatus==='all'?'active':''}" style="${S.filterStatus==='all'?'background:var(--accent);color:#fff;border-color:var(--accent)':''}" onclick="S.filterStatus='all';render()">Todos (${S.records.length})</span>
+    ${S.statuses.map(st=>`<span class="filter-pill ${S.filterStatus===st.id?'active':''}" style="${S.filterStatus===st.id?'background:'+st.color+';color:#fff;border-color:'+st.color:''}" onclick="S.filterStatus='${st.id}';render()">${st.label} (${statusCounts[st.id]||0})</span>`).join('')}
+    <span class="filter-pill ${S.filterStatus==='none'?'active':''}" style="${S.filterStatus==='none'?'background:var(--text-3);color:#fff;border-color:var(--text-3)':''}" onclick="S.filterStatus='none';render()">Sin estatus</span>
+  </div>`;
+
+  document.getElementById('v-reparacion').innerHTML=`
+    <div class="page-hdr"><h2>Reparación</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input class="search-box" id="search-input" placeholder="Buscar..." value="${S.search}" oninput="S.search=this.value;render()">
+        <button class="btn btn-ghost btn-sm" onclick="showStatusManager()">⚙️ Estatus</button>
+        <button class="btn btn-export btn-sm" onclick="exportCSV()">📥 CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="showBulkModal()">📋 Lote</button>
+        <button class="btn btn-primary" onclick="showRecordModal()">+ Nuevo</button>
+      </div>
+    </div>
+    ${pills}
+    ${!S.records.length?'<div class="card empty"><p>No hay registros</p><button class="btn btn-primary" onclick="showRecordModal()">+ Agregar</button></div>':`
+    <div class="card"><div class="tbl-wrap"><table><thead><tr>
+      <th>Nombre</th><th>Resp.</th><th>Estatus</th><th>Carta</th><th>F. Carta</th><th>CFBP</th><th>F. CFBP</th><th>Comentario</th><th></th>
+    </tr></thead><tbody>${tRows}</tbody></table></div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;color:var(--text-3)">
+      <span>Mostrando ${fil.length} de ${S.records.length}</span>
+      <span>${S.statuses.map(s=>`${s.label}: ${statusCounts[s.id]||0}`).join(' · ')}</span>
+    </div></div>`}`;
+
+  // REPORTES
+  const rDate=document.getElementById('rpt-date')?.value||S.reportDate||t;
+  const rResp=document.getElementById('rpt-resp')?.value||S.reportResp||'';
+  S.reportDate=rDate;S.reportResp=rResp;
+  const resps=[...new Set(S.records.map(r=>r.nombreResp).filter(Boolean))];
+  const respOpts=resps.map(r=>`<option value="${r}" ${r===rResp?'selected':''}>${r}</option>`).join('');
+  const rptFil=getFilteredForReport(rDate,rResp);
+  const summaryCards=S.statuses.map(st=>{
+    const cnt=rptFil.filter(r=>r.estatus===st.id).length;
+    return`<div style="text-align:center;padding:16px;background:${st.color}18;border-radius:10px"><div style="font-size:28px;font-weight:800;color:${st.color};font-family:'Playfair Display',serif">${cnt}</div><div style="font-size:11px;color:${st.color};text-transform:uppercase;letter-spacing:1px">${st.label}</div></div>`;
+  }).join('');
+
+  document.getElementById('v-reportes').innerHTML=`
+    <div class="page-hdr"><h2>Reportes</h2>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:12px;color:var(--text-2)">Fecha:</label>
+        <input type="date" class="date-filter" id="rpt-date" value="${rDate}" onchange="S.reportDate=this.value;render()">
+        <label style="font-size:12px;color:var(--text-2)">Resp:</label>
+        <select class="fs" id="rpt-resp" style="width:150px;padding:7px 12px;font-size:13px;border-radius:9px" onchange="S.reportResp=this.value;render()">
+          <option value="">Todos</option>${respOpts}
+        </select>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="font-size:14px;font-weight:600;color:var(--text-2)">Vista Previa</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="copyReport()">📋 Copiar</button>
+          <button class="btn btn-wa btn-sm" onclick="sendWhatsAppReport()">📲 WhatsApp</button>
+        </div>
+      </div>
+      <div class="report-box">${generateReportHTML(rDate,rResp)}</div>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text-2)">Resumen</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px">${summaryCards}</div>
+    </div>`;
+
+  // PLANTILLAS
+  const tplItems=S.templates.map(tpl=>{
+    const sc=tpl.statusId?statusColor(tpl.statusId):'var(--text-3)';
+    const lbl=tpl.statusId?statusLabel(tpl.statusId):'Todos';
+    return`<div class="tpl-card">
+      <div class="tpl-card-hdr">
+        <span>${tpl.label} <span class="badge" style="background:${sc}18;color:${sc}">${lbl}</span></span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="showTemplateModal(S.templates.find(x=>x.id==='${tpl.id}'))">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${tpl.id}')">🗑️</button>
+        </div>
+      </div>
+      <div class="tpl-preview">${tpl.msg}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('v-plantillas').innerHTML=`
+    <div class="page-hdr"><h2>Plantillas de WhatsApp</h2>
+      <button class="btn btn-primary" onclick="showTemplateModal()">+ Nueva Plantilla</button>
+    </div>
+    <div class="card">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:16px">Usa <strong>{nombre}</strong>, <strong>{responsable}</strong> y <strong>{fecha}</strong> como variables.</p>
+      ${tplItems||'<div class="empty" style="padding:30px"><p>No hay plantillas creadas</p></div>'}
+    </div>`;
+
+  // ACTIVIDAD
+  const aEl=document.getElementById('act-date');const aDate=aEl?aEl.value:t;
+  const aLogs=S.log.filter(l=>l.ts.startsWith(aDate));
+  const aLabel=aDate===t?'Hoy':new Date(aDate+'T12:00:00').toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});
+
+  document.getElementById('v-activity').innerHTML=`
+    <div class="page-hdr"><h2>Actividad</h2>
+      <div style="display:flex;align-items:center;gap:10px">
+        <label style="font-size:12px;color:var(--text-2)">Fecha:</label>
+        <input type="date" class="date-filter" id="act-date" value="${aDate}" onchange="render()">
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text-2)">${aLabel}
+        <span style="margin-left:8px;font-size:12px;color:var(--text-3)">${aLogs.length} acciones</span>
+      </div>
+      ${aLogs.slice().reverse().map(l=>`<div class="act-item"><span class="act-dot" style="background:${actColor(l.type)}"></span><div style="flex:1"><div style="font-size:13.5px">${l.desc}</div><div class="act-time">${fmtTime(l.ts)}</div></div></div>`).join('')||'<div class="empty" style="padding:30px"><p>Sin actividad</p></div>'}
+    </div>`;
+}
+
+render();
+</script>
+</body>
+</html>

@@ -109,6 +109,8 @@ export const buttonAnimationStyles = `
   .cr-copy-btn.copied { background:#60a5fa; color:#fff; }
   .cr-dismiss-btn { padding:11px 16px; background:#1e1e1e; color:#666; border:1px solid #2a2a2a; border-radius:9px; cursor:pointer; font-size:13px; transition:all 0.2s; }
   .cr-dismiss-btn:hover { background:#252525; color:#ccc; }
+  .cr-cf-btn { padding:11px 16px; background:#4F7CFF18; color:#4F7CFF; border:1px solid #4F7CFF33; border-radius:9px; cursor:pointer; font-size:13px; font-family:'DM Sans',sans-serif; transition:all 0.2s; }
+  .cr-cf-btn:hover { background:#4F7CFF; color:#fff; }
 
   /* Alias Cards */
   .cr-alias-card { background:#1a1a1a; border:1px solid #222; border-radius:9px; margin-bottom:7px; overflow:hidden; transition:border-color 0.2s; }
@@ -206,6 +208,49 @@ export const buttonAnimationStyles = `
   .cr-hist-footer { padding:12px 16px; border-top:1px solid #1e1e1e; flex-shrink:0; }
   .cr-hist-clear-btn { width:100%; padding:9px; background:transparent; color:#555; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; }
   .cr-hist-clear-btn:hover { background:#f8717122; color:#f87171; border-color:#f8717144; }
+
+  /* Daily Report */
+  .cr-report-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:9999998; animation:crFadeIn 0.15s ease; }
+  .cr-report-modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:14px; z-index:9999999; width:520px; max-width:92vw; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,0.8); animation:crScaleIn 0.22s ease; overflow:hidden; }
+  .cr-report-head { padding:18px 20px 14px; border-bottom:1px solid #1e1e1e; display:flex; justify-content:space-between; align-items:center; }
+  .cr-report-head-left { display:flex; flex-direction:column; gap:2px; }
+  .cr-report-title { font-size:16px; font-weight:700; letter-spacing:-0.3px; }
+  .cr-report-subtitle { font-size:11px; color:#555; }
+  .cr-report-filters { padding:12px 20px; border-bottom:1px solid #1e1e1e; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .cr-report-date { background:#111; border:1px solid #222; border-radius:7px; padding:6px 10px; color:#ddd; font-size:12px; outline:none; transition:border-color 0.2s; }
+  .cr-report-date:focus { border-color:#5eead4; }
+  .cr-report-body { flex:1; overflow-y:auto; padding:14px 20px; min-height:0; }
+  .cr-report-body::-webkit-scrollbar { width:3px; }
+  .cr-report-body::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
+  .cr-report-box { background:#0d0d0d; border:1px solid #222; border-radius:8px; padding:16px 18px; font-family:monospace; font-size:12px; line-height:1.8; white-space:pre-wrap; color:#bbb; max-height:45vh; overflow-y:auto; }
+  .cr-report-box::-webkit-scrollbar { width:3px; }
+  .cr-report-box::-webkit-scrollbar-thumb { background:#333; border-radius:2px; }
+  .cr-report-empty { text-align:center; color:#444; font-size:13px; padding:30px 0; }
+  .cr-report-foot { padding:12px 20px; border-top:1px solid #1e1e1e; display:flex; gap:9px; }
+  .cr-report-btn-copy { flex:1; padding:10px; background:#5eead4; color:#0f172a; border:none; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .cr-report-btn-copy:hover { background:#2dd4bf; }
+  .cr-report-btn-copy.copied { background:#60a5fa; color:#fff; }
+  .cr-report-btn-wa { padding:10px 16px; background:#25D36622; color:#25D366; border:none; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .cr-report-btn-wa:hover { background:#25D366; color:#fff; }
+  .cr-report-btn-close { padding:10px 16px; background:#1e1e1e; color:#666; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:13px; transition:all 0.2s; }
+  .cr-report-btn-close:hover { background:#252525; color:#ccc; }
+  .cr-hist-report-btn { width:100%; padding:9px; background:#0d1e1d; color:#5eead4; border:1px solid #5eead430; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; margin-bottom:8px; }
+  .cr-hist-report-btn:hover { background:#5eead4; color:#0f172a; }
+
+  /* Client Status */
+  .cr-hist-status-row { position:relative; margin-bottom:6px; }
+  .cr-hist-status-btn { padding:3px 10px; border-radius:20px; border:1px solid #2a2a2a; background:#1a1a1a; color:#555; font-size:11px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:5px; }
+  .cr-hist-status-btn:hover { border-color:#444; color:#888; }
+  .cr-status-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+  .cr-status-dropdown { position:absolute; top:100%; left:0; margin-top:4px; background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; padding:4px; z-index:10; min-width:160px; box-shadow:0 8px 24px rgba(0,0,0,0.5); animation:crFadeIn 0.12s ease; }
+  .cr-status-option { display:flex; align-items:center; gap:8px; width:100%; padding:6px 10px; border:none; background:transparent; color:#bbb; font-size:11px; cursor:pointer; border-radius:5px; transition:background 0.1s; text-align:left; }
+  .cr-status-option:hover { background:#252525; color:#fff; }
+  .cr-cstatus-item { display:flex; align-items:center; gap:8px; background:#1a1a1a; border:1px solid #222; border-radius:8px; padding:8px 10px; }
+  .cr-cstatus-color { width:32px; height:28px; border-radius:6px; border:1px solid #2a2a2a; cursor:pointer; background:none; padding:1px; flex-shrink:0; }
+  .cr-cstatus-name { flex:1; background:#111; color:#ddd; border:1px solid #222; border-radius:6px; padding:5px 8px; font-size:12px; outline:none; transition:border-color 0.2s; }
+  .cr-cstatus-name:focus { border-color:#333; }
+  .cr-cstatus-del { width:24px; height:24px; border-radius:5px; border:none; background:#1e1e1e; color:#555; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; flex-shrink:0; }
+  .cr-cstatus-del:hover { background:#f87171; color:#fff; }
 `;
 
 export function injectStyles() {

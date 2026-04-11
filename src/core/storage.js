@@ -13,6 +13,7 @@ export function loadConfig() {
       if (parsed.aliases === undefined) parsed.aliases = DEFAULT_CONFIG.aliases;
       if (parsed.showPersonalLabels === undefined) parsed.showPersonalLabels = DEFAULT_CONFIG.showPersonalLabels;
       if (!parsed.toolbarPos) parsed.toolbarPos = DEFAULT_CONFIG.toolbarPos;
+      if (!parsed.clientStatuses) parsed.clientStatuses = DEFAULT_CONFIG.clientStatuses;
       return parsed;
     }
   } catch (e) {
@@ -46,6 +47,17 @@ export function saveHistory(entries) {
   } catch (e) {
     console.error('[CreditRadar] Error guardando historial:', e);
   }
+}
+
+export function loadCFData(key, def) {
+  try {
+    const v = GM_getValue(key, null);
+    return v ? (typeof v === 'string' ? JSON.parse(v) : v) : def;
+  } catch(e) { return def; }
+}
+
+export function saveCFData(key, val) {
+  try { GM_setValue(key, JSON.stringify(val)); } catch(e) {}
 }
 
 export function addHistoryEntry(output, stats, personalHeader) {
