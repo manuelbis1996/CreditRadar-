@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.30";
+export const SCRIPT_VERSION = "20.31";
 
 export const VERSION_NOTES = {
+  "20.31": "📲 WhatsApp: teléfono del cliente se guarda automáticamente desde Pulse",
   "20.30": "🔗 Botón CreditFlow sin texto — solo ícono",
   "20.29": "🔗 Botón CreditFlow prominente en toolbar — siempre visible como el botón principal",
   "20.28": "🔧 fix: CreditFlow carga datos al abrir sin necesidad de cambiar de ventana",

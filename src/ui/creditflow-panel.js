@@ -7,7 +7,7 @@ function todayStr() { return new Date().toISOString().split('T')[0]; }
  * Saves a client from CreditRadar output directly into CreditFlow GM storage.
  * Returns true if added, false if already existed.
  */
-export function saveToCreditFlow(nombre, nombreResp) {
+export function saveToCreditFlow(nombre, nombreResp, phone) {
   if (!nombre) return false;
   const records = loadCFData(CF_RECORDS_KEY, []);
   if (records.some(r => r.nombre.toLowerCase() === nombre.toLowerCase())) return false;
@@ -15,6 +15,7 @@ export function saveToCreditFlow(nombre, nombreResp) {
     id: Date.now().toString(),
     nombre,
     nombreResp: nombreResp || 'Manuelbis',
+    phone: (phone || '').replace(/\D/g,''),
     estatus: 'carta',
     carta: false, cfbp: false,
     cartaFecha: todayStr(), cfbpFecha: '',
@@ -34,7 +35,7 @@ export function saveToCreditFlow(nombre, nombreResp) {
  * If the client already exists, just marks carta = true.
  * Returns 'added' | 'updated' | 'already_complete'
  */
-export function saveAndComplete(nombre, nombreResp) {
+export function saveAndComplete(nombre, nombreResp, phone) {
   if (!nombre) return 'error';
   const records = loadCFData(CF_RECORDS_KEY, []);
   const idx = records.findIndex(r => r.nombre.toLowerCase() === nombre.toLowerCase());
@@ -44,6 +45,7 @@ export function saveAndComplete(nombre, nombreResp) {
     records[idx].cfbp  = true;
     records[idx].cartaFecha = records[idx].cartaFecha || todayStr();
     records[idx].cfbpFecha  = todayStr();
+    if (phone && !records[idx].phone) records[idx].phone = phone.replace(/\D/g,'');
     saveCFData(CF_RECORDS_KEY, records);
     const log = loadCFData(CF_LOG_KEY, []);
     log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Completado (carta + CFBP): ' + nombre, ts: new Date().toISOString() });
@@ -54,6 +56,7 @@ export function saveAndComplete(nombre, nombreResp) {
     id: Date.now().toString(),
     nombre,
     nombreResp: nombreResp || 'Manuelbis',
+    phone: (phone || '').replace(/\D/g,''),
     estatus: 'carta',
     carta: true, cfbp: true,
     cartaFecha: todayStr(), cfbpFecha: todayStr(),

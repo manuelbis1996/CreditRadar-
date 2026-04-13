@@ -315,6 +315,7 @@ function showRecordModal(existing) {
     <div class="form-grid">
       <div class="fg full"><label class="fl">Nombre</label><input class="fi" id="r-nombre" value="${r.nombre}" placeholder="Nombre completo"></div>
       <div class="fg"><label class="fl">Responsable</label><input class="fi" id="r-resp" value="${r.nombreResp||'Manuelbis'}"></div>
+      <div class="fg"><label class="fl">Teléfono</label><input class="fi" id="r-phone" type="tel" value="${r.phone||''}" placeholder="18091234567"></div>
       <div class="fg"><label class="fl">Estatus</label><select class="fs" id="r-estatus">${sOpts}</select></div>
       <div class="fg"><label class="fl">Fecha Carta</label><input class="fi" id="r-cartaFecha" type="date" value="${r.cartaFecha||today()}"></div>
       <div class="fg"><label class="fl">Fecha CFBP</label><input class="fi" id="r-cfbpFecha" type="date" value="${r.cfbpFecha||''}"></div>
@@ -338,7 +339,8 @@ function saveRecord(eid) {
     cartaFecha: document.getElementById('r-cartaFecha').value,
     cfbpFecha:  document.getElementById('r-cfbpFecha').value,
     comentario: document.getElementById('r-comentario').value.trim(),
-    link:       document.getElementById('r-link').value.trim()
+    link:       document.getElementById('r-link').value.trim(),
+    phone:      document.getElementById('r-phone').value.replace(/\D/g,'')
   };
   if (eid) {
     const idx = S.records.findIndex(r => r.id === eid);

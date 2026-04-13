@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.30
+// @version      20.31
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.30";
+  const SCRIPT_VERSION = "20.31";
 
   const VERSION_NOTES = {
+    "20.31": "📲 WhatsApp: teléfono del cliente se guarda automáticamente desde Pulse",
     "20.30": "🔗 Botón CreditFlow sin texto — solo ícono",
     "20.29": "🔗 Botón CreditFlow prominente en toolbar — siempre visible como el botón principal",
     "20.28": "🔧 fix: CreditFlow carga datos al abrir sin necesidad de cambiar de ventana",
@@ -327,7 +328,7 @@ upgrade = upgrade bank, upgrade lending
    * Saves a client from CreditRadar output directly into CreditFlow GM storage.
    * Returns true if added, false if already existed.
    */
-  function saveToCreditFlow(nombre, nombreResp) {
+  function saveToCreditFlow(nombre, nombreResp, phone) {
     if (!nombre) return false;
     const records = loadCFData(CF_RECORDS_KEY, []);
     if (records.some(r => r.nombre.toLowerCase() === nombre.toLowerCase())) return false;
@@ -335,6 +336,7 @@ upgrade = upgrade bank, upgrade lending
       id: Date.now().toString(),
       nombre,
       nombreResp: 'Manuelbis',
+      phone: ('').replace(/\D/g,''),
       estatus: 'carta',
       carta: false, cfbp: false,
       cartaFecha: todayStr(), cfbpFecha: '',
@@ -354,7 +356,7 @@ upgrade = upgrade bank, upgrade lending
    * If the client already exists, just marks carta = true.
    * Returns 'added' | 'updated' | 'already_complete'
    */
-  function saveAndComplete(nombre, nombreResp) {
+  function saveAndComplete(nombre, nombreResp, phone) {
     if (!nombre) return 'error';
     const records = loadCFData(CF_RECORDS_KEY, []);
     const idx = records.findIndex(r => r.nombre.toLowerCase() === nombre.toLowerCase());
@@ -364,6 +366,7 @@ upgrade = upgrade bank, upgrade lending
       records[idx].cfbp  = true;
       records[idx].cartaFecha = records[idx].cartaFecha || todayStr();
       records[idx].cfbpFecha  = todayStr();
+      if (phone && !records[idx].phone) records[idx].phone = phone.replace(/\D/g,'');
       saveCFData(CF_RECORDS_KEY, records);
       const log = loadCFData(CF_LOG_KEY, []);
       log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Completado (carta + CFBP): ' + nombre, ts: new Date().toISOString() });
@@ -374,6 +377,7 @@ upgrade = upgrade bank, upgrade lending
       id: Date.now().toString(),
       nombre,
       nombreResp: 'Manuelbis',
+      phone: (phone || '').replace(/\D/g,''),
       estatus: 'carta',
       carta: true, cfbp: true,
       cartaFecha: todayStr(), cfbpFecha: todayStr(),
@@ -2688,9 +2692,10 @@ upgrade = upgrade bank, upgrade lending
     });
 
     btn.onclick = () => {
-      const nombre = getClientData().name;
+      const CLIENT = getClientData();
+      const nombre = CLIENT.name;
       if (!nombre) { showToast('⚠️ No se detectó nombre del cliente', '#f87171', 3000); return; }
-      const result = saveAndComplete(nombre);
+      const result = saveAndComplete(nombre, undefined, CLIENT.cell);
       const msgs = {
         added:            `✅ "${nombre}" guardado — carta + CFBP marcados`,
         updated:          `✅ "${nombre}" — carta + CFBP marcados`,

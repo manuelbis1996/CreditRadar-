@@ -251,9 +251,10 @@ async function injectSaveCompleteButton() {
   });
 
   btn.onclick = () => {
-    const nombre = getClientData().name;
+    const CLIENT = getClientData();
+    const nombre = CLIENT.name;
     if (!nombre) { showToast('⚠️ No se detectó nombre del cliente', '#f87171', 3000); return; }
-    const result = saveAndComplete(nombre);
+    const result = saveAndComplete(nombre, undefined, CLIENT.cell);
     const msgs = {
       added:            `✅ "${nombre}" guardado — carta + CFBP marcados`,
       updated:          `✅ "${nombre}" — carta + CFBP marcados`,
