@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.27
+// @version      20.28
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.27";
+  const SCRIPT_VERSION = "20.28";
 
   const VERSION_NOTES = {
+    "20.28": "🔧 fix: CreditFlow carga datos al abrir sin necesidad de cambiar de ventana",
     "20.27": "✅ Guardar y marcar completo: ejecuta Save Changes + marca carta y CFBP en CreditFlow",
     "20.26": "✅ Botón 'Guardar y marcar como completo' al lado de Save Changes en Pulse",
     "20.25": "⚡ CreditFlow: sync instantáneo con GM_addValueChangeListener — sin polling",
