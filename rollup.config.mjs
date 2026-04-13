@@ -17,6 +17,7 @@ const banner = `// ==UserScript==
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
+// @grant        unsafeWindow
 // @connect      raw.githubusercontent.com
 // @grant        GM_xmlhttpRequest
 // @updateURL    https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js

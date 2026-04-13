@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.22
+// @version      20.23
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -9,6 +9,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
+// @grant        unsafeWindow
 // @connect      raw.githubusercontent.com
 // @grant        GM_xmlhttpRequest
 // @updateURL    https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js
@@ -18,9 +19,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.22";
+  const SCRIPT_VERSION = "20.23";
 
   const VERSION_NOTES = {
+    "20.23": "🔧 fix: exponer GM storage a creditflow.html vía unsafeWindow",
     "20.22": "🔗 Botón CreditFlow en cada entrada del Historial",
     "20.21": "🔗 Botón CreditFlow en toolbar + toast confirmación al guardar",
     "20.20": "⚡ Auto-guardar en CreditFlow al copiar el reporte",
@@ -340,11 +342,18 @@ upgrade = upgrade bank, upgrade lending
 
   /**
    * Entry point when userscript detects it's on the CreditFlow GitHub Pages.
-   * creditflow.html handles the full UI and auto-detects GM storage via its
-   * own storage bridge — no body rewrite needed here.
+   * Exposes GM_getValue/GM_setValue to the page context via unsafeWindow so
+   * creditflow.html's storage bridge can use GM storage instead of localStorage.
    */
   function initCreditFlow() {
-    // Update the footer label once the DOM is ready
+    try {
+      /* global unsafeWindow */
+      unsafeWindow.GM_getValue = GM_getValue;
+      unsafeWindow.GM_setValue = GM_setValue;
+    } catch(e) {
+      console.warn('[CreditFlow] No se pudo exponer GM storage al contexto de página:', e);
+    }
+
     const label = document.getElementById('storage-label');
     if (label) label.textContent = 'Datos en Tampermonkey (GM)';
   }

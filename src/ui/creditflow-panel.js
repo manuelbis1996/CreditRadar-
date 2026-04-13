@@ -30,11 +30,18 @@ export function saveToCreditFlow(nombre, nombreResp) {
 
 /**
  * Entry point when userscript detects it's on the CreditFlow GitHub Pages.
- * creditflow.html handles the full UI and auto-detects GM storage via its
- * own storage bridge — no body rewrite needed here.
+ * Exposes GM_getValue/GM_setValue to the page context via unsafeWindow so
+ * creditflow.html's storage bridge can use GM storage instead of localStorage.
  */
 export function initCreditFlow() {
-  // Update the footer label once the DOM is ready
+  try {
+    /* global unsafeWindow */
+    unsafeWindow.GM_getValue = GM_getValue;
+    unsafeWindow.GM_setValue = GM_setValue;
+  } catch(e) {
+    console.warn('[CreditFlow] No se pudo exponer GM storage al contexto de página:', e);
+  }
+
   const label = document.getElementById('storage-label');
   if (label) label.textContent = 'Datos en Tampermonkey (GM)';
 }
