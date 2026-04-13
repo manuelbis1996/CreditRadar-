@@ -865,11 +865,14 @@ function syncFromGM() {
   render();
 }
 
+// On page load GM is not yet exposed — sync as soon as the userscript signals ready
+window.addEventListener('cr-gm-ready', () => syncFromGM());
+
 // Event-driven sync: fires instantly when another tab saves to GM storage
 if (typeof GM_addValueChangeListener !== 'undefined') {
   GM_addValueChangeListener('cf_records', (_key, _old, _new, remote) => { if (remote) syncFromGM(); });
 }
-// Fallback: sync when tab becomes visible (covers cases without GM listener)
+// Fallback: sync when tab becomes visible
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syncFromGM(); });
 </script>
 </body>
