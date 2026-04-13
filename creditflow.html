@@ -194,17 +194,13 @@ const DEFAULT_TEMPLATES = [
   {id:'t3',statusId:'carta',     label:'Carta enviada', msg:'Hola {nombre}, le confirmamos que su carta de disputa ha sido enviada exitosamente. El proceso puede tomar de 30 a 45 días. Le avisaremos cuando tengamos respuesta.'},
 ];
 
-// Migrate: ensure all default statuses exist in saved data
+// Migrate: guarantee all default statuses are present, defaults appear first in order
 function migrateStatuses(saved) {
-  let changed = false;
-  DEFAULT_STATUSES.forEach(def => {
-    if (!saved.find(s => s.id === def.id)) {
-      saved.push({...def});
-      changed = true;
-    }
-  });
-  if (changed) store.set('cf_statuses', saved);
-  return saved;
+  const custom = saved.filter(s => !DEFAULT_STATUSES.find(d => d.id === s.id));
+  const merged = DEFAULT_STATUSES.map(def => saved.find(s => s.id === def.id) || {...def});
+  const result = [...merged, ...custom];
+  store.set('cf_statuses', result);
+  return result;
 }
 
 let S = {
