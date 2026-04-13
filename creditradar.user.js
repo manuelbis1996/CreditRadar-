@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.29
+// @version      20.30
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.29";
+  const SCRIPT_VERSION = "20.30";
 
   const VERSION_NOTES = {
+    "20.30": "🔗 Botón CreditFlow sin texto — solo ícono",
     "20.29": "🔗 Botón CreditFlow prominente en toolbar — siempre visible como el botón principal",
     "20.28": "🔧 fix: CreditFlow carga datos al abrir sin necesidad de cambiar de ventana",
     "20.27": "✅ Guardar y marcar completo: ejecuta Save Changes + marca carta y CFBP en CreditFlow",
@@ -793,9 +794,7 @@ upgrade = upgrade bank, upgrade lending
     <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
       📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
     </button>
-    <button id="crCFBtn" aria-label="CreditFlow CRM" title="Abrir CreditFlow">
-      🔗<span class="cr-ver" style="color:#34d399">CreditFlow</span>
-    </button>
+    <button id="crCFBtn" aria-label="CreditFlow CRM" title="Abrir CreditFlow">🔗</button>
     <div class="cr-tb-extras">
       <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
       <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
