@@ -39,6 +39,7 @@ export function initCreditFlow() {
     /* global unsafeWindow */
     unsafeWindow.GM_getValue = GM_getValue;
     unsafeWindow.GM_setValue = GM_setValue;
+    unsafeWindow.GM_addValueChangeListener = GM_addValueChangeListener;
   } catch(e) {
     console.warn('[CreditFlow] No se pudo exponer GM storage al contexto de página:', e);
   }

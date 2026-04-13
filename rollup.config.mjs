@@ -17,6 +17,7 @@ const banner = `// ==UserScript==
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
+// @grant        GM_addValueChangeListener
 // @grant        unsafeWindow
 // @connect      raw.githubusercontent.com
 // @grant        GM_xmlhttpRequest

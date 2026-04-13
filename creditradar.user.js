@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.24
+// @version      20.25
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -9,6 +9,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
+// @grant        GM_addValueChangeListener
 // @grant        unsafeWindow
 // @connect      raw.githubusercontent.com
 // @grant        GM_xmlhttpRequest
@@ -19,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.24";
+  const SCRIPT_VERSION = "20.25";
 
   const VERSION_NOTES = {
+    "20.25": "⚡ CreditFlow: sync instantáneo con GM_addValueChangeListener — sin polling",
     "20.24": "🔗 CreditFlow: guarda link de Pulse automáticamente al agregar cliente",
     "20.23": "🔧 fix: exponer GM storage a creditflow.html vía unsafeWindow",
     "20.22": "🔗 Botón CreditFlow en cada entrada del Historial",
@@ -352,6 +354,7 @@ upgrade = upgrade bank, upgrade lending
       /* global unsafeWindow */
       unsafeWindow.GM_getValue = GM_getValue;
       unsafeWindow.GM_setValue = GM_setValue;
+      unsafeWindow.GM_addValueChangeListener = GM_addValueChangeListener;
     } catch(e) {
       console.warn('[CreditFlow] No se pudo exponer GM storage al contexto de página:', e);
     }

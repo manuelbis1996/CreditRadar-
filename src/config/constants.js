@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.24";
+export const SCRIPT_VERSION = "20.25";
 
 export const VERSION_NOTES = {
+  "20.25": "⚡ CreditFlow: sync instantáneo con GM_addValueChangeListener — sin polling",
   "20.24": "🔗 CreditFlow: guarda link de Pulse automáticamente al agregar cliente",
   "20.23": "🔧 fix: exponer GM storage a creditflow.html vía unsafeWindow",
   "20.22": "🔗 Botón CreditFlow en cada entrada del Historial",
