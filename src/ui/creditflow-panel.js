@@ -19,6 +19,7 @@ export function saveToCreditFlow(nombre, nombreResp) {
     carta: false, cfbp: false,
     cartaFecha: todayStr(), cfbpFecha: '',
     comentario: '',
+    link: window.location.href,
     createdAt: new Date().toISOString(),
   });
   saveCFData(CF_RECORDS_KEY, records);

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.23
+// @version      20.24
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -19,9 +19,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.23";
+  const SCRIPT_VERSION = "20.24";
 
   const VERSION_NOTES = {
+    "20.24": "🔗 CreditFlow: guarda link de Pulse automáticamente al agregar cliente",
     "20.23": "🔧 fix: exponer GM storage a creditflow.html vía unsafeWindow",
     "20.22": "🔗 Botón CreditFlow en cada entrada del Historial",
     "20.21": "🔗 Botón CreditFlow en toolbar + toast confirmación al guardar",
@@ -331,6 +332,7 @@ upgrade = upgrade bank, upgrade lending
       carta: false, cfbp: false,
       cartaFecha: todayStr(), cfbpFecha: '',
       comentario: '',
+      link: window.location.href,
       createdAt: new Date().toISOString(),
     });
     saveCFData(CF_RECORDS_KEY, records);

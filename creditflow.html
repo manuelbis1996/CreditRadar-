@@ -305,7 +305,6 @@ function showRecordModal(existing) {
       <div class="fg"><label class="fl">Estatus</label><select class="fs" id="r-estatus">${sOpts}</select></div>
       <div class="fg"><label class="fl">Fecha Carta</label><input class="fi" id="r-cartaFecha" type="date" value="${r.cartaFecha||today()}"></div>
       <div class="fg"><label class="fl">Fecha CFBP</label><input class="fi" id="r-cfbpFecha" type="date" value="${r.cfbpFecha||''}"></div>
-      <div class="fg full"><label class="fl">Link</label><input class="fi" id="r-link" type="url" value="${r.link||''}" placeholder="https://..."></div>
       <div class="fg full"><label class="fl">Comentario</label><textarea class="ft" id="r-comentario">${r.comentario||''}</textarea></div>
       <div class="f-actions">
         <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -324,8 +323,7 @@ function saveRecord(eid) {
     estatus:    document.getElementById('r-estatus').value,
     cartaFecha: document.getElementById('r-cartaFecha').value,
     cfbpFecha:  document.getElementById('r-cfbpFecha').value,
-    comentario: document.getElementById('r-comentario').value.trim(),
-    link:       document.getElementById('r-link').value.trim()
+    comentario: document.getElementById('r-comentario').value.trim()
   };
   if (eid) {
     const idx = S.records.findIndex(r => r.id === eid);
