@@ -3,6 +3,7 @@ import { makeDraggable, bindClose } from '../utils/dom.js';
 import { loadConfig, loadHistory, saveHistory } from '../core/storage.js';
 import { createOverlay, createModal } from './modals.js';
 import { showToast } from './toolbar.js';
+import { saveToCreditFlow } from './creditflow-panel.js';
 
 /* ── Daily Report ── */
 
@@ -68,11 +69,11 @@ function showDailyReport() {
       });
     }
 
-    return { text, count: dayEntries.length, dateLabel };
+    return { text, count: dayEntries.length, dateLabel, dayEntries };
   }
 
   function renderReport(dateStr) {
-    const { text, count, dateLabel } = generateReport(dateStr);
+    const { text, count, dateLabel, dayEntries } = generateReport(dateStr);
 
     modal.innerHTML = `
       <div class="cr-report-head">
@@ -212,6 +213,7 @@ export function showHistoryPanel() {
         <div class="cr-hist-actions">
           <button class="cr-hist-btn cr-hist-btn-view">👁 Ver</button>
           <button class="cr-hist-btn cr-hist-btn-copy">📋 Copiar</button>
+          <button class="cr-hist-btn cr-hist-btn-cf">🔗 CreditFlow</button>
           <button class="cr-hist-btn cr-hist-btn-del">🗑</button>
         </div>
       `;
@@ -248,6 +250,14 @@ export function showHistoryPanel() {
             showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
           }
         };
+      };
+
+      el.querySelector('.cr-hist-btn-cf').onclick = () => {
+        const saved = saveToCreditFlow(entry.clientName);
+        showToast(
+          saved ? `🔗 "${entry.clientName}" guardado en CreditFlow` : `🔗 "${entry.clientName}" ya está en CreditFlow`,
+          saved ? '#34D399' : '#fbbf24', 3500
+        );
       };
 
       el.querySelector('.cr-hist-btn-copy').onclick = async () => {

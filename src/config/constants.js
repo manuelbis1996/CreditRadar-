@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.21";
+export const SCRIPT_VERSION = "20.22";
 
 export const VERSION_NOTES = {
+  "20.22": "🔗 Botón CreditFlow en cada entrada del Historial",
   "20.21": "🔗 Botón CreditFlow en toolbar + toast confirmación al guardar",
   "20.20": "⚡ Auto-guardar en CreditFlow al copiar el reporte",
   "20.19": "🔗 CreditFlow: página independiente, sin conflicto con Tampermonkey",

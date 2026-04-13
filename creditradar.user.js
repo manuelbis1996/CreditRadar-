@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.21
+// @version      20.22
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -18,9 +18,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.21";
+  const SCRIPT_VERSION = "20.22";
 
   const VERSION_NOTES = {
+    "20.22": "🔗 Botón CreditFlow en cada entrada del Historial",
     "20.21": "🔗 Botón CreditFlow en toolbar + toast confirmación al guardar",
     "20.20": "⚡ Auto-guardar en CreditFlow al copiar el reporte",
     "20.19": "🔗 CreditFlow: página independiente, sin conflicto con Tampermonkey",
@@ -2092,11 +2093,11 @@ upgrade = upgrade bank, upgrade lending
         });
       }
 
-      return { text, count: dayEntries.length, dateLabel };
+      return { text, count: dayEntries.length, dateLabel, dayEntries };
     }
 
     function renderReport(dateStr) {
-      const { text, count, dateLabel } = generateReport(dateStr);
+      const { text, count, dateLabel, dayEntries } = generateReport(dateStr);
 
       modal.innerHTML = `
       <div class="cr-report-head">
@@ -2236,6 +2237,7 @@ upgrade = upgrade bank, upgrade lending
         <div class="cr-hist-actions">
           <button class="cr-hist-btn cr-hist-btn-view">👁 Ver</button>
           <button class="cr-hist-btn cr-hist-btn-copy">📋 Copiar</button>
+          <button class="cr-hist-btn cr-hist-btn-cf">🔗 CreditFlow</button>
           <button class="cr-hist-btn cr-hist-btn-del">🗑</button>
         </div>
       `;
@@ -2272,6 +2274,14 @@ upgrade = upgrade bank, upgrade lending
               showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
             }
           };
+        };
+
+        el.querySelector('.cr-hist-btn-cf').onclick = () => {
+          const saved = saveToCreditFlow(entry.clientName);
+          showToast(
+            saved ? `🔗 "${entry.clientName}" guardado en CreditFlow` : `🔗 "${entry.clientName}" ya está en CreditFlow`,
+            saved ? '#34D399' : '#fbbf24', 3500
+          );
         };
 
         el.querySelector('.cr-hist-btn-copy').onclick = async () => {
