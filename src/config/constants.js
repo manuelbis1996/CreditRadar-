@@ -192,6 +192,7 @@ export const CF_DEFAULT_STATUSES = [
   { id: 'carta',      label: 'Carta',       color: '#34D399', numbered: true  },
   { id: 'espera',     label: 'En espera',   color: '#FBBF24', numbered: false },
   { id: 'nocontesta', label: 'No contesta', color: '#F87171', numbered: false },
+  { id: 'cfpb_ftc',   label: 'CFPB y FTC',  color: '#818CF8', numbered: false },
 ];
 
 export const CF_DEFAULT_TEMPLATES = [

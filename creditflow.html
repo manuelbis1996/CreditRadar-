@@ -182,9 +182,10 @@ document.getElementById('storage-label').textContent =
   store.isGM() ? 'Datos en Tampermonkey (GM)' : 'Datos en localStorage';
 
 const DEFAULT_STATUSES = [
-  {id:'carta',    label:'Carta',       color:'#34D399', numbered:true},
-  {id:'espera',   label:'En espera',   color:'#FBBF24', numbered:false},
-  {id:'nocontesta',label:'No contesta',color:'#F87171', numbered:false},
+  {id:'carta',     label:'Carta',       color:'#34D399', numbered:true},
+  {id:'espera',    label:'En espera',   color:'#FBBF24', numbered:false},
+  {id:'nocontesta',label:'No contesta', color:'#F87171', numbered:false},
+  {id:'cfpb_ftc',  label:'CFPB y FTC',  color:'#818CF8', numbered:false},
 ];
 
 const DEFAULT_TEMPLATES = [
@@ -193,10 +194,23 @@ const DEFAULT_TEMPLATES = [
   {id:'t3',statusId:'carta',     label:'Carta enviada', msg:'Hola {nombre}, le confirmamos que su carta de disputa ha sido enviada exitosamente. El proceso puede tomar de 30 a 45 días. Le avisaremos cuando tengamos respuesta.'},
 ];
 
+// Migrate: ensure all default statuses exist in saved data
+function migrateStatuses(saved) {
+  let changed = false;
+  DEFAULT_STATUSES.forEach(def => {
+    if (!saved.find(s => s.id === def.id)) {
+      saved.push({...def});
+      changed = true;
+    }
+  });
+  if (changed) store.set('cf_statuses', saved);
+  return saved;
+}
+
 let S = {
   records:   store.get('cf_records',   []),
   log:       store.get('cf_log',       []),
-  statuses:  store.get('cf_statuses',  JSON.parse(JSON.stringify(DEFAULT_STATUSES))),
+  statuses:  migrateStatuses(store.get('cf_statuses', JSON.parse(JSON.stringify(DEFAULT_STATUSES)))),
   templates: store.get('cf_templates', JSON.parse(JSON.stringify(DEFAULT_TEMPLATES))),
   view: 'dashboard',
   search: '',
