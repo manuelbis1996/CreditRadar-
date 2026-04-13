@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.32
+// @version      20.33
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.32";
+  const SCRIPT_VERSION = "20.33";
 
   const VERSION_NOTES = {
+    "20.33": "🚀 8 nuevas funciones: días, notas, export/import, badge estatus, hover, 3 formatos copia, cuentas nuevas",
     "20.32": "📲 Teléfono se captura en todos los puntos de guardado — copiar, historial y completo",
     "20.31": "📲 WhatsApp: teléfono del cliente se guarda automáticamente desde Pulse",
     "20.30": "🔗 Botón CreditFlow sin texto — solo ícono",
@@ -560,6 +561,8 @@ upgrade = upgrade bank, upgrade lending
   .cr-editor-section-badge { background:#1a1a1a; border:1px solid #222; color:#555; font-size:10px; font-family:monospace; padding:1px 7px; border-radius:10px; }
   .cr-editor-card { background:#1a1a1a; border:1px solid #222; border-radius:8px; margin-bottom:4px; overflow:hidden; transition:border-color 0.15s; }
   .cr-editor-card:hover { border-color:#2e2e2e; }
+  .cr-editor-card--new { border-color:#34d39940 !important; background:#0d1e1d; }
+  .cr-new-badge { margin-left:auto; background:#34d399; color:#0f172a; font-size:9px; font-weight:700; padding:2px 6px; border-radius:4px; letter-spacing:0.05em; flex-shrink:0; }
   .cr-editor-card-head { display:flex; align-items:center; gap:7px; padding:8px 10px; cursor:grab; user-select:none; }
   .cr-editor-card-head:active { cursor:grabbing; }
   .cr-editor-grip { color:#444; font-size:10px; flex-shrink:0; }
@@ -1834,6 +1837,18 @@ upgrade = upgrade bank, upgrade lending
     return `<div class="cr-out-stats">${chips.join('')}</div>`;
   }
 
+  // F8: Get set of account names from the last history entry for this client
+  function getPrevAccountNames(clientName) {
+    if (!clientName) return new Set();
+    try {
+      const history = loadHistory();
+      const prev = history.filter(e => e.clientName?.toLowerCase() === clientName.toLowerCase())
+                          .sort((a, b) => b.id - a.id)[1]; // second-to-last = previous report
+      if (!prev?.output) return new Set();
+      return new Set(prev.output.split('\n').map(l => l.trim().toLowerCase()).filter(Boolean));
+    } catch(e) { return new Set(); }
+  }
+
   function showOutputEditor(data, stats, config) {
     document.getElementById('crOverlay')?.remove();
     document.getElementById('crOutputPanel')?.remove();
@@ -1927,6 +1942,11 @@ upgrade = upgrade bank, upgrade lending
       form.querySelector('.cr-link-search').focus();
     }
 
+    // F8: prev account names for highlighting new accounts
+    const clientFirstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
+    const clientName = clientFirstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
+    const prevNames = getPrevAccountNames(clientName);
+
     function buildAccountSection(title, accounts) {
       const section = document.createElement('div');
       section.className = 'cr-editor-section';
@@ -1951,6 +1971,17 @@ upgrade = upgrade bank, upgrade lending
       accounts.forEach(acc => {
         const card = buildAccountEditorCard(acc, updateBadge);
         card.setAttribute('draggable', 'true');
+        // F8: mark as new if not found in any line of previous report
+        if (prevNames.size > 0 && acc.name) {
+          const isNew = ![...prevNames].some(line => line.includes(acc.name.toLowerCase()));
+          if (isNew) {
+            card.classList.add('cr-editor-card--new');
+            const newBadge = document.createElement('span');
+            newBadge.className = 'cr-new-badge';
+            newBadge.textContent = 'NUEVA';
+            card.querySelector('.cr-editor-card-head')?.appendChild(newBadge);
+          }
+        }
         list.appendChild(card);
       });
       updateBadge();
@@ -2629,55 +2660,6 @@ upgrade = upgrade bank, upgrade lending
     }
   }
 
-  async function injectPersonalCopyButton() {
-    const container = await waitForElement('.client-dash-side-top');
-    if (!container || document.getElementById('crCopyPersonalBtn')) return;
-
-    const btn = document.createElement('button');
-    btn.id = 'crCopyPersonalBtn';
-    btn.textContent = '📋 Copiar Info Personal';
-    Object.assign(btn.style, {
-      width: '100%', padding: '8px 0', marginTop: '10px',
-      background: '#0d1e1d', color: '#5eead4',
-      border: '1px solid #5eead430', borderRadius: '8px',
-      cursor: 'pointer', fontSize: '12px', fontWeight: 'bold',
-      display: 'block', boxSizing: 'border-box'
-    });
-
-    btn.onclick = async () => {
-      const CLIENT = getClientData();
-      const NL = "\r\n";
-      const pFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
-      const showLabels = CONFIG.showPersonalLabels !== false;
-      let text = '';
-      pFields.filter(f => f.enabled).forEach(f => {
-        let val = CLIENT[f.key];
-        if (!val) return;
-        if (f.key === 'ssn') val = val.replace(/\D/g, '').slice(-4);
-        val = val.replace(/\n/g, NL);
-        text += showLabels ? `${f.label}: ${val}${NL}` : val + NL;
-      });
-
-      try {
-        await navigator.clipboard.writeText(text);
-        btn.textContent = '✓ Copiado';
-        btn.style.background = '#5eead4';
-        btn.style.color = '#0f172a';
-        setTimeout(() => {
-          btn.textContent = '📋 Copiar Info Personal';
-          btn.style.background = '#0d1e1d';
-          btn.style.color = '#5eead4';
-        }, 1500);
-      } catch (e) {
-        showToast('⚠️ No se pudo copiar al portapapeles', '#f87171', 3000);
-      }
-    };
-
-    const addressDiv = container.querySelector('.client_card_info_address');
-    if (addressDiv) addressDiv.after(btn);
-    else container.prepend(btn);
-  }
-
   async function injectSaveCompleteButton() {
     const addDiv = await waitForElement('#addBtn');
     if (!addDiv || document.getElementById('crSaveCompleteBtn')) return;
@@ -2712,6 +2694,204 @@ upgrade = upgrade bank, upgrade lending
     addDiv.appendChild(btn);
   }
 
+  // F4: Auto-sync phone from current Pulse page to existing CF record
+  function syncPhoneToRecord() {
+    const CLIENT = getClientData();
+    if (!CLIENT.name || !CLIENT.cell) return;
+    const phone = CLIENT.cell.replace(/\D/g,'');
+    if (!phone) return;
+    try {
+      const raw = GM_getValue('cf_records', null);
+      const records = raw ? JSON.parse(raw) : [];
+      const idx = records.findIndex(r => r.nombre.toLowerCase() === CLIENT.name.toLowerCase());
+      if (idx > -1 && !records[idx].phone) {
+        records[idx].phone = phone;
+        GM_setValue('cf_records', JSON.stringify(records));
+      }
+    } catch(e) {}
+  }
+
+  // F5: Status badge — shows CF status inline, click to change
+  async function injectStatusBadge() {
+    const container = await waitForElement('.client-dash-side-top');
+    if (!container) return;
+
+    function readCFRecord(name) {
+      try {
+        const raw = GM_getValue('cf_records', null);
+        const records = raw ? JSON.parse(raw) : [];
+        return records.find(r => r.nombre.toLowerCase() === name.toLowerCase()) || null;
+      } catch(e) { return null; }
+    }
+    function readCFStatuses() {
+      try {
+        const raw = GM_getValue('cf_statuses', null);
+        return raw ? JSON.parse(raw) : [];
+      } catch(e) { return []; }
+    }
+
+    function renderBadge() {
+      document.getElementById('crStatusBadge')?.remove();
+      const CLIENT = getClientData();
+      if (!CLIENT.name) return;
+      const record = readCFRecord(CLIENT.name);
+      const statuses = readCFStatuses();
+      const badge = document.createElement('div');
+      badge.id = 'crStatusBadge';
+      if (!record) {
+        Object.assign(badge.style, { marginTop:'8px', fontSize:'11px', color:'#555', cursor:'default' });
+        badge.textContent = 'No está en CreditFlow';
+        container.appendChild(badge);
+        return;
+      }
+      const st = statuses.find(s => s.id === record.estatus);
+      const color = st ? st.color : '#5A6580';
+      const label = st ? st.label : 'Sin estatus';
+      badge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:5px;background:${color}18;color:${color};border:1px solid ${color}40;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer" id="crStatusBadgeInner">
+      <span style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0"></span>${label}
+    </span>`;
+      Object.assign(badge.style, { marginTop:'8px', position:'relative' });
+      badge.querySelector('#crStatusBadgeInner').onclick = (e) => {
+        e.stopPropagation();
+        document.getElementById('crStatusDd')?.remove();
+        const dd = document.createElement('div');
+        dd.id = 'crStatusDd';
+        Object.assign(dd.style, { position:'absolute', top:'100%', left:'0', background:'#1a1a1a', border:'1px solid #2a2a2a', borderRadius:'8px', padding:'6px', zIndex:'999999', minWidth:'150px', boxShadow:'0 8px 24px rgba(0,0,0,0.5)', marginTop:'4px' });
+        statuses.forEach(s => {
+          const opt = document.createElement('div');
+          opt.style.cssText = `display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:12px;color:${s.color}`;
+          opt.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:${s.color}"></span>${s.label}`;
+          opt.onmouseenter = () => opt.style.background = s.color+'22';
+          opt.onmouseleave = () => opt.style.background = '';
+          opt.onclick = () => {
+            try {
+              const raw2 = GM_getValue('cf_records', null);
+              const recs2 = raw2 ? JSON.parse(raw2) : [];
+              const i2 = recs2.findIndex(r => r.nombre.toLowerCase() === CLIENT.name.toLowerCase());
+              if (i2 > -1) { recs2[i2].estatus = s.id; GM_setValue('cf_records', JSON.stringify(recs2)); }
+            } catch(e) {}
+            dd.remove();
+            renderBadge();
+            showToast(`Estatus → ${s.label}`, s.color, 2500);
+          };
+          dd.appendChild(opt);
+        });
+        badge.appendChild(dd);
+        setTimeout(() => document.addEventListener('click', function h(){ dd.remove(); document.removeEventListener('click',h); }), 0);
+      };
+      container.appendChild(badge);
+    }
+
+    renderBadge();
+    // Re-render when client changes
+    const observer = new MutationObserver(() => { setTimeout(renderBadge, 300); });
+    const nameEl = document.querySelector('.client_card_info_name');
+    if (nameEl) observer.observe(nameEl, { childList:true, subtree:true, characterData:true });
+  }
+
+  // F6: Hover summary tooltip
+  async function injectHoverSummary() {
+    const nameEl = await waitForElement('.client_card_info_name');
+    if (!nameEl) return;
+
+    let tooltip = null;
+    nameEl.addEventListener('mouseenter', () => {
+      const CLIENT = getClientData();
+      if (!CLIENT.name) return;
+      try {
+        const raw = GM_getValue('cf_records', null);
+        const records = raw ? JSON.parse(raw) : [];
+        const r = records.find(rec => rec.nombre.toLowerCase() === CLIENT.name.toLowerCase());
+        if (!r) return;
+        const raw2 = GM_getValue('cf_statuses', null);
+        const statuses = raw2 ? JSON.parse(raw2) : [];
+        const st = statuses.find(s => s.id === r.estatus);
+        const days = r.createdAt ? Math.floor((Date.now()-new Date(r.createdAt).getTime())/86400000) : '—';
+        tooltip = document.createElement('div');
+        tooltip.id = 'crHoverTooltip';
+        tooltip.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #2a2a2a">📊 CreditFlow</div>
+        <div style="display:grid;gap:5px;font-size:11px">
+          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#666">Estatus</span><span style="color:${st?st.color:'#aaa'};font-weight:600">${st?st.label:'—'}</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#666">Carta</span><span style="color:${r.carta?'#34d399':'#f87171'}">${r.carta?'✅ Sí':'❌ No'}</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#666">CFBP</span><span style="color:${r.cfbp?'#34d399':'#f87171'}">${r.cfbp?'✅ Sí':'❌ No'}</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#666">Teléfono</span><span style="color:#ccc">${r.phone||'—'}</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#666">Días</span><span style="color:${days>60?'#f87171':days>30?'#fbbf24':'#aaa'}">${days === '—' ? '—' : days+'d'}</span></div>
+        </div>`;
+        Object.assign(tooltip.style, { position:'fixed', background:'#111', border:'1px solid #2a2a2a', borderRadius:'10px', padding:'12px 14px', zIndex:'9999999', minWidth:'180px', boxShadow:'0 8px 24px rgba(0,0,0,0.6)', pointerEvents:'none' });
+        document.body.appendChild(tooltip);
+        const rect = nameEl.getBoundingClientRect();
+        tooltip.style.top = (rect.bottom + 8) + 'px';
+        tooltip.style.left = rect.left + 'px';
+      } catch(e) {}
+    });
+    nameEl.addEventListener('mouseleave', () => { tooltip?.remove(); tooltip = null; });
+  }
+
+  // F7: Copy personal info with 3 formats
+  async function injectPersonalCopyButton() {
+    const container = await waitForElement('.client-dash-side-top');
+    if (!container || document.getElementById('crCopyPersonalBtn')) return;
+
+    const wrap = document.createElement('div');
+    wrap.id = 'crCopyPersonalBtn';
+    Object.assign(wrap.style, { marginTop:'10px', display:'flex', gap:'4px', boxSizing:'border-box' });
+
+    const formats = [
+      { id:'std',   label:'📋 Copiar',   title:'Formato estándar' },
+      { id:'cfpb',  label:'CFPB',        title:'Solo Name + SSN4 + DOB' },
+      { id:'wa',    label:'WhatsApp',    title:'Formato mensaje WhatsApp' },
+    ];
+
+    formats.forEach(fmt => {
+      const btn = document.createElement('button');
+      btn.title = fmt.title;
+      btn.textContent = fmt.label;
+      Object.assign(btn.style, {
+        flex: fmt.id === 'std' ? '2' : '1',
+        padding:'7px 4px', background:'#0d1e1d', color:'#5eead4',
+        border:'1px solid #5eead430', borderRadius:'8px',
+        cursor:'pointer', fontSize:'11px', fontWeight:'bold'
+      });
+      btn.onclick = async () => {
+        const CLIENT = getClientData();
+        const NL = "\r\n";
+        let text = '';
+        if (fmt.id === 'std') {
+          const pFields = CONFIG.personalFields || DEFAULT_CONFIG.personalFields;
+          const showLabels = CONFIG.showPersonalLabels !== false;
+          pFields.filter(f => f.enabled).forEach(f => {
+            let val = CLIENT[f.key];
+            if (!val) return;
+            if (f.key === 'ssn') val = val.replace(/\D/g, '').slice(-4);
+            val = val.replace(/\n/g, NL);
+            text += showLabels ? `${f.label}: ${val}${NL}` : val + NL;
+          });
+        } else if (fmt.id === 'cfpb') {
+          const ssn4 = CLIENT.ssn ? CLIENT.ssn.replace(/\D/g,'').slice(-4) : '';
+          text = [CLIENT.name, ssn4 ? 'SSN: '+ssn4 : '', CLIENT.dob ? 'DOB: '+CLIENT.dob : ''].filter(Boolean).join(NL);
+        } else if (fmt.id === 'wa') {
+          text = `Hola, le contactamos sobre el caso de ${CLIENT.name}.`;
+          if (CLIENT.cell) text += NL + `Tel: ${CLIENT.cell}`;
+          if (CLIENT.dob)  text += NL + `DOB: ${CLIENT.dob}`;
+        }
+        try {
+          await navigator.clipboard.writeText(text);
+          const orig = btn.textContent;
+          btn.textContent = '✓';
+          btn.style.background = '#5eead4';
+          btn.style.color = '#0f172a';
+          setTimeout(() => { btn.textContent = orig; btn.style.background = '#0d1e1d'; btn.style.color = '#5eead4'; }, 1500);
+        } catch(e) { showToast('⚠️ No se pudo copiar', '#f87171', 3000); }
+      };
+      wrap.appendChild(btn);
+    });
+
+    const addressDiv = container.querySelector('.client_card_info_address');
+    if (addressDiv) addressDiv.after(wrap);
+    else container.prepend(wrap);
+  }
+
   function initClasificador() {
     injectStyles();
     checkVersionUpdate();
@@ -2724,6 +2904,9 @@ upgrade = upgrade bank, upgrade lending
     );
     injectPersonalCopyButton();
     injectSaveCompleteButton();
+    syncPhoneToRecord();
+    injectStatusBadge();
+    injectHoverSummary();
   }
 
   const IS_CREDITFLOW = window.location.hostname.includes('github.io');

@@ -147,6 +147,11 @@ tr:last-child td{border-bottom:none}
       <span>Actividad</span>
     </div>
     <div class="sidebar-footer">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="exportData()" title="Exportar backup JSON">📤 Exportar</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="document.getElementById('import-file').click()" title="Importar backup JSON">📥 Importar</button>
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
+      </div>
       <p style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:3px">CreditFlow v1.0</p>
       <p id="storage-label">Datos guardados localmente</p>
     </div>
@@ -722,6 +727,9 @@ function render() {
     const opts = S.statuses.map(s => `<option value="${s.id}" ${r.estatus===s.id?'selected':''}>${s.label}</option>`).join('') +
       `<option value="" ${!r.estatus?'selected':''}>—</option>`;
     const sc = statusColor(r.estatus);
+    const days = r.createdAt ? Math.floor((Date.now()-new Date(r.createdAt).getTime())/86400000) : '—';
+    const daysColor = days === '—' ? 'var(--text-3)' : days > 60 ? '#f87171' : days > 30 ? '#fbbf24' : 'var(--text-2)';
+    const notesCount = (r.notes||[]).length;
     return `<tr>
       <td style="font-weight:500;min-width:180px">${r.nombre}</td>
       <td>${r.nombreResp}</td>
@@ -731,8 +739,10 @@ function render() {
       <td class="chk-cell"><div class="chk ${r.cfbp?'checked':''}" onclick="toggleCfbp('${r.id}')"></div></td>
       <td style="color:var(--text-2);font-size:12.5px;white-space:nowrap">${r.cfbpFecha||'—'}</td>
       <td style="color:var(--text-2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comentario||'—'}</td>
+      <td style="color:${daysColor};font-size:12px;white-space:nowrap;text-align:center">${days === '—' ? '—' : days+'d'}</td>
       <td><div class="inline-actions">
         ${r.link ? `<button class="btn btn-primary btn-sm" onclick="window.open('${r.link.replace(/'/g,'%27')}','_blank')" title="Ir a perfil en Pulse">🔗 Ir</button>` : `<button class="btn btn-ghost btn-sm" style="opacity:.35;cursor:not-allowed" title="Edita el registro para agregar el link de Pulse" disabled>🔗 Ir</button>`}
+        <button class="btn btn-ghost btn-sm" onclick="showNotesModal('${r.id}')" title="Notas${notesCount?' ('+notesCount+')':''}">📝${notesCount?`<span style="font-size:9px;margin-left:2px">${notesCount}</span>`:''}</button>
         <button class="btn btn-wa btn-sm" onclick="showWhatsAppModal('${r.id}')" title="WhatsApp">📲</button>
         <button class="btn btn-ghost btn-sm" onclick="showRecordModal(S.records.find(x=>x.id==='${r.id}'))">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')">🗑️</button>
@@ -762,7 +772,7 @@ function render() {
     ${!S.records.length
       ? '<div class="card empty"><p>No hay registros</p><button class="btn btn-primary" onclick="showRecordModal()">+ Agregar</button></div>'
       : `<div class="card"><div class="tbl-wrap"><table><thead><tr>
-          <th>Nombre</th><th>Resp.</th><th>Estatus</th><th>Carta</th><th>F. Carta</th><th>CFBP</th><th>F. CFBP</th><th>Comentario</th><th>Pulse</th>
+          <th>Nombre</th><th>Resp.</th><th>Estatus</th><th>Carta</th><th>F. Carta</th><th>CFBP</th><th>F. CFBP</th><th>Comentario</th><th>Días</th><th>Pulse</th>
         </tr></thead><tbody>${tRows}</tbody></table></div>
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;color:var(--text-3);flex-wrap:wrap;gap:8px">
           <span>Mostrando ${fil.length} de ${S.records.length}</span>
@@ -860,6 +870,87 @@ function render() {
 }
 
 render();
+
+// ─── EXPORT / IMPORT ───
+function exportData() {
+  const data = JSON.stringify({records:S.records,statuses:S.statuses,templates:S.templates,log:S.log}, null, 2);
+  const d = new Date().toISOString().slice(0,10);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([data], {type:'application/json'}));
+  a.download = `creditflow-backup-${d}.json`;
+  a.click();
+}
+function importData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (!d.records) { alert('Archivo inválido.'); return; }
+      if (!confirm(`¿Importar ${d.records.length} registros? Se reemplazarán los datos actuales.`)) return;
+      S.records   = d.records   || [];
+      S.statuses  = migrateStatuses(d.statuses || JSON.parse(JSON.stringify(DEFAULT_STATUSES)));
+      S.templates = d.templates || JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+      S.log       = d.log       || [];
+      save(); render();
+    } catch(err) { alert('Error al leer el archivo: ' + err.message); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ─── NOTES ───
+function showNotesModal(recordId) {
+  const r = S.records.find(x => x.id === recordId);
+  if (!r) return;
+  if (!r.notes) r.notes = [];
+  // Migrate old comentario to first note
+  if (r.comentario && r.notes.length === 0) {
+    r.notes.push({id:'n0', text:r.comentario, ts: r.createdAt || new Date().toISOString()});
+  }
+  function renderNotesList() {
+    return r.notes.slice().reverse().map(n => `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="flex:1">
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:4px">${new Date(n.ts).toLocaleDateString('es-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+          <div style="font-size:13px;color:var(--text);white-space:pre-wrap">${n.text}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteNote('${recordId}','${n.id}')">🗑️</button>
+      </div>`).join('') || '<p style="color:var(--text-3);text-align:center;padding:16px 0">Sin notas</p>';
+  }
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-overlay" onclick="closeModal()"><div class="modal modal-wide" onclick="event.stopPropagation()">
+    <h3>Notas — ${r.nombre}</h3>
+    <div id="notes-list" style="max-height:260px;overflow-y:auto;margin-bottom:14px">${renderNotesList()}</div>
+    <div class="fg full" style="margin-bottom:10px">
+      <label class="fl">Nueva nota</label>
+      <textarea class="ft" id="new-note-text" style="min-height:70px" placeholder="Escribe una nota..."></textarea>
+    </div>
+    <div class="f-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cerrar</button>
+      <button class="btn btn-primary" onclick="addNote('${recordId}')">Guardar nota</button>
+    </div>
+  </div></div>`;
+}
+function addNote(recordId) {
+  const text = document.getElementById('new-note-text').value.trim();
+  if (!text) return;
+  const r = S.records.find(x => x.id === recordId);
+  if (!r) return;
+  if (!r.notes) r.notes = [];
+  r.notes.push({id: Date.now().toString(), text, ts: new Date().toISOString()});
+  save();
+  showNotesModal(recordId);
+}
+function deleteNote(recordId, noteId) {
+  const r = S.records.find(x => x.id === recordId);
+  if (!r || !r.notes) return;
+  if (!confirm('¿Eliminar esta nota?')) return;
+  r.notes = r.notes.filter(n => n.id !== noteId);
+  save();
+  showNotesModal(recordId);
+}
 
 function syncFromGM() {
   S.records   = store.get('cf_records', []);

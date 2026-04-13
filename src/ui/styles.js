@@ -145,6 +145,8 @@ export const buttonAnimationStyles = `
   .cr-editor-section-badge { background:#1a1a1a; border:1px solid #222; color:#555; font-size:10px; font-family:monospace; padding:1px 7px; border-radius:10px; }
   .cr-editor-card { background:#1a1a1a; border:1px solid #222; border-radius:8px; margin-bottom:4px; overflow:hidden; transition:border-color 0.15s; }
   .cr-editor-card:hover { border-color:#2e2e2e; }
+  .cr-editor-card--new { border-color:#34d39940 !important; background:#0d1e1d; }
+  .cr-new-badge { margin-left:auto; background:#34d399; color:#0f172a; font-size:9px; font-weight:700; padding:2px 6px; border-radius:4px; letter-spacing:0.05em; flex-shrink:0; }
   .cr-editor-card-head { display:flex; align-items:center; gap:7px; padding:8px 10px; cursor:grab; user-select:none; }
   .cr-editor-card-head:active { cursor:grabbing; }
   .cr-editor-grip { color:#444; font-size:10px; flex-shrink:0; }

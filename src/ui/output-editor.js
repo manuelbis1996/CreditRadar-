@@ -1,6 +1,6 @@
 import { escapeHtml } from '../utils/string.js';
 import { bindClose } from '../utils/dom.js';
-import { addHistoryEntry } from '../core/storage.js';
+import { addHistoryEntry, loadHistory } from '../core/storage.js';
 import { formatAccount, getClientData } from '../core/parser.js';
 import { showToast } from './toolbar.js';
 import { addInquiryAlias } from '../utils/aliases.js';
@@ -108,6 +108,18 @@ function buildCompactStats(stats) {
   return `<div class="cr-out-stats">${chips.join('')}</div>`;
 }
 
+// F8: Get set of account names from the last history entry for this client
+function getPrevAccountNames(clientName) {
+  if (!clientName) return new Set();
+  try {
+    const history = loadHistory();
+    const prev = history.filter(e => e.clientName?.toLowerCase() === clientName.toLowerCase())
+                        .sort((a, b) => b.id - a.id)[1]; // second-to-last = previous report
+    if (!prev?.output) return new Set();
+    return new Set(prev.output.split('\n').map(l => l.trim().toLowerCase()).filter(Boolean));
+  } catch(e) { return new Set(); }
+}
+
 export function showOutputEditor(data, stats, config) {
   document.getElementById('crOverlay')?.remove();
   document.getElementById('crOutputPanel')?.remove();
@@ -201,6 +213,11 @@ export function showOutputEditor(data, stats, config) {
     form.querySelector('.cr-link-search').focus();
   }
 
+  // F8: prev account names for highlighting new accounts
+  const clientFirstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
+  const clientName = clientFirstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
+  const prevNames = getPrevAccountNames(clientName);
+
   function buildAccountSection(title, accounts) {
     const section = document.createElement('div');
     section.className = 'cr-editor-section';
@@ -225,6 +242,17 @@ export function showOutputEditor(data, stats, config) {
     accounts.forEach(acc => {
       const card = buildAccountEditorCard(acc, updateBadge);
       card.setAttribute('draggable', 'true');
+      // F8: mark as new if not found in any line of previous report
+      if (prevNames.size > 0 && acc.name) {
+        const isNew = ![...prevNames].some(line => line.includes(acc.name.toLowerCase()));
+        if (isNew) {
+          card.classList.add('cr-editor-card--new');
+          const newBadge = document.createElement('span');
+          newBadge.className = 'cr-new-badge';
+          newBadge.textContent = 'NUEVA';
+          card.querySelector('.cr-editor-card-head')?.appendChild(newBadge);
+        }
+      }
       list.appendChild(card);
     });
     updateBadge();
