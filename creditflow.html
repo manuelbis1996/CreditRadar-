@@ -717,7 +717,7 @@ function render() {
       <td style="color:var(--text-2);font-size:12.5px;white-space:nowrap">${r.cfbpFecha||'—'}</td>
       <td style="color:var(--text-2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comentario||'—'}</td>
       <td><div class="inline-actions">
-        ${r.link ? `<button class="btn btn-ghost btn-sm" onclick="window.open('${r.link.replace(/'/g,'%27')}','_blank')" title="Ir al link">🔗</button>` : ''}
+        ${r.link ? `<button class="btn btn-primary btn-sm" onclick="window.open('${r.link.replace(/'/g,'%27')}','_blank')" title="Ir a perfil en Pulse">🔗 Ir</button>` : `<button class="btn btn-ghost btn-sm" style="opacity:.35;cursor:not-allowed" title="Edita el registro para agregar el link de Pulse" disabled>🔗 Ir</button>`}
         <button class="btn btn-wa btn-sm" onclick="showWhatsAppModal('${r.id}')" title="WhatsApp">📲</button>
         <button class="btn btn-ghost btn-sm" onclick="showRecordModal(S.records.find(x=>x.id==='${r.id}'))">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')">🗑️</button>
@@ -747,7 +747,7 @@ function render() {
     ${!S.records.length
       ? '<div class="card empty"><p>No hay registros</p><button class="btn btn-primary" onclick="showRecordModal()">+ Agregar</button></div>'
       : `<div class="card"><div class="tbl-wrap"><table><thead><tr>
-          <th>Nombre</th><th>Resp.</th><th>Estatus</th><th>Carta</th><th>F. Carta</th><th>CFBP</th><th>F. CFBP</th><th>Comentario</th><th></th>
+          <th>Nombre</th><th>Resp.</th><th>Estatus</th><th>Carta</th><th>F. Carta</th><th>CFBP</th><th>F. CFBP</th><th>Comentario</th><th>Pulse</th>
         </tr></thead><tbody>${tRows}</tbody></table></div>
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px;color:var(--text-3);flex-wrap:wrap;gap:8px">
           <span>Mostrando ${fil.length} de ${S.records.length}</span>
