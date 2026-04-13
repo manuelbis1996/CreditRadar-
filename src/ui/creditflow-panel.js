@@ -30,6 +30,43 @@ export function saveToCreditFlow(nombre, nombreResp) {
 }
 
 /**
+ * Saves a client and marks carta as complete (carta: true).
+ * If the client already exists, just marks carta = true.
+ * Returns 'added' | 'updated' | 'already_complete'
+ */
+export function saveAndComplete(nombre, nombreResp) {
+  if (!nombre) return 'error';
+  const records = loadCFData(CF_RECORDS_KEY, []);
+  const idx = records.findIndex(r => r.nombre.toLowerCase() === nombre.toLowerCase());
+  if (idx > -1) {
+    if (records[idx].carta) return 'already_complete';
+    records[idx].carta = true;
+    records[idx].cartaFecha = todayStr();
+    saveCFData(CF_RECORDS_KEY, records);
+    const log = loadCFData(CF_LOG_KEY, []);
+    log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Carta completada: ' + nombre, ts: new Date().toISOString() });
+    saveCFData(CF_LOG_KEY, log);
+    return 'updated';
+  }
+  records.push({
+    id: Date.now().toString(),
+    nombre,
+    nombreResp: nombreResp || 'Manuelbis',
+    estatus: 'carta',
+    carta: true, cfbp: false,
+    cartaFecha: todayStr(), cfbpFecha: '',
+    comentario: '',
+    link: window.location.href,
+    createdAt: new Date().toISOString(),
+  });
+  saveCFData(CF_RECORDS_KEY, records);
+  const log = loadCFData(CF_LOG_KEY, []);
+  log.push({ id: Date.now() + 'l', type: 'add', desc: 'Guardado y completado: ' + nombre, ts: new Date().toISOString() });
+  saveCFData(CF_LOG_KEY, log);
+  return 'added';
+}
+
+/**
  * Entry point when userscript detects it's on the CreditFlow GitHub Pages.
  * Exposes GM_getValue/GM_setValue to the page context via unsafeWindow so
  * creditflow.html's storage bridge can use GM storage instead of localStorage.

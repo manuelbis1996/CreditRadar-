@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.25";
+export const SCRIPT_VERSION = "20.26";
 
 export const VERSION_NOTES = {
+  "20.26": "✅ Botón 'Guardar y marcar como completo' al lado de Save Changes en Pulse",
   "20.25": "⚡ CreditFlow: sync instantáneo con GM_addValueChangeListener — sin polling",
   "20.24": "🔗 CreditFlow: guarda link de Pulse automáticamente al agregar cliente",
   "20.23": "🔧 fix: exponer GM storage a creditflow.html vía unsafeWindow",

@@ -1,5 +1,5 @@
 import { SCRIPT_VERSION, SELECTORS, DEFAULT_CONFIG } from './config/constants.js';
-import { initCreditFlow } from './ui/creditflow-panel.js';
+import { initCreditFlow, saveAndComplete } from './ui/creditflow-panel.js';
 import { loadConfig } from './core/storage.js';
 import { injectStyles } from './ui/styles.js';
 import { addButton, setButtonAnimation, showToast, createProgressPanel, updateProgress, removeProgressPanel } from './ui/toolbar.js';
@@ -234,6 +234,38 @@ async function injectPersonalCopyButton() {
   else container.prepend(btn);
 }
 
+async function injectSaveCompleteButton() {
+  const addDiv = await waitForElement('#addBtn');
+  if (!addDiv || document.getElementById('crSaveCompleteBtn')) return;
+
+  const btn = document.createElement('button');
+  btn.id = 'crSaveCompleteBtn';
+  btn.type = 'button';
+  btn.textContent = '✅ Guardar y marcar como completo';
+  Object.assign(btn.style, {
+    marginLeft: '10px', padding: '9px 16px',
+    background: '#0d1e1d', color: '#34d399',
+    border: '1px solid #34d39940', borderRadius: '8px',
+    cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+    verticalAlign: 'middle'
+  });
+
+  btn.onclick = () => {
+    const nombre = getClientData().name;
+    if (!nombre) { showToast('⚠️ No se detectó nombre del cliente', '#f87171', 3000); return; }
+    const result = saveAndComplete(nombre);
+    const msgs = {
+      added:            `✅ "${nombre}" guardado y marcado como completo`,
+      updated:          `✅ "${nombre}" marcado como completo`,
+      already_complete: `✓ "${nombre}" ya estaba completo`
+    };
+    const colors = { added: '#34d399', updated: '#34d399', already_complete: '#fbbf24' };
+    showToast(msgs[result] || '⚠️ Error', colors[result] || '#f87171', 3500);
+  };
+
+  addDiv.appendChild(btn);
+}
+
 function initClasificador() {
   injectStyles();
   checkVersionUpdate();
@@ -245,6 +277,7 @@ function initClasificador() {
     showHistoryPanel
   );
   injectPersonalCopyButton();
+  injectSaveCompleteButton();
 }
 
 const IS_CREDITFLOW = window.location.hostname.includes('github.io');

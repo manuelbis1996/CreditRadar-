@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.25
+// @version      20.26
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.25";
+  const SCRIPT_VERSION = "20.26";
 
   const VERSION_NOTES = {
+    "20.26": "✅ Botón 'Guardar y marcar como completo' al lado de Save Changes en Pulse",
     "20.25": "⚡ CreditFlow: sync instantáneo con GM_addValueChangeListener — sin polling",
     "20.24": "🔗 CreditFlow: guarda link de Pulse automáticamente al agregar cliente",
     "20.23": "🔧 fix: exponer GM storage a creditflow.html vía unsafeWindow",
@@ -342,6 +343,43 @@ upgrade = upgrade bank, upgrade lending
     log.push({ id: Date.now() + 'l', type: 'add', desc: 'Guardado desde CreditRadar: ' + nombre, ts: new Date().toISOString() });
     saveCFData(CF_LOG_KEY, log);
     return true;
+  }
+
+  /**
+   * Saves a client and marks carta as complete (carta: true).
+   * If the client already exists, just marks carta = true.
+   * Returns 'added' | 'updated' | 'already_complete'
+   */
+  function saveAndComplete(nombre, nombreResp) {
+    if (!nombre) return 'error';
+    const records = loadCFData(CF_RECORDS_KEY, []);
+    const idx = records.findIndex(r => r.nombre.toLowerCase() === nombre.toLowerCase());
+    if (idx > -1) {
+      if (records[idx].carta) return 'already_complete';
+      records[idx].carta = true;
+      records[idx].cartaFecha = todayStr();
+      saveCFData(CF_RECORDS_KEY, records);
+      const log = loadCFData(CF_LOG_KEY, []);
+      log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Carta completada: ' + nombre, ts: new Date().toISOString() });
+      saveCFData(CF_LOG_KEY, log);
+      return 'updated';
+    }
+    records.push({
+      id: Date.now().toString(),
+      nombre,
+      nombreResp: 'Manuelbis',
+      estatus: 'carta',
+      carta: true, cfbp: false,
+      cartaFecha: todayStr(), cfbpFecha: '',
+      comentario: '',
+      link: window.location.href,
+      createdAt: new Date().toISOString(),
+    });
+    saveCFData(CF_RECORDS_KEY, records);
+    const log = loadCFData(CF_LOG_KEY, []);
+    log.push({ id: Date.now() + 'l', type: 'add', desc: 'Guardado y completado: ' + nombre, ts: new Date().toISOString() });
+    saveCFData(CF_LOG_KEY, log);
+    return 'added';
   }
 
   /**
@@ -2624,6 +2662,38 @@ upgrade = upgrade bank, upgrade lending
     else container.prepend(btn);
   }
 
+  async function injectSaveCompleteButton() {
+    const addDiv = await waitForElement('#addBtn');
+    if (!addDiv || document.getElementById('crSaveCompleteBtn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'crSaveCompleteBtn';
+    btn.type = 'button';
+    btn.textContent = '✅ Guardar y marcar como completo';
+    Object.assign(btn.style, {
+      marginLeft: '10px', padding: '9px 16px',
+      background: '#0d1e1d', color: '#34d399',
+      border: '1px solid #34d39940', borderRadius: '8px',
+      cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+      verticalAlign: 'middle'
+    });
+
+    btn.onclick = () => {
+      const nombre = getClientData().name;
+      if (!nombre) { showToast('⚠️ No se detectó nombre del cliente', '#f87171', 3000); return; }
+      const result = saveAndComplete(nombre);
+      const msgs = {
+        added:            `✅ "${nombre}" guardado y marcado como completo`,
+        updated:          `✅ "${nombre}" marcado como completo`,
+        already_complete: `✓ "${nombre}" ya estaba completo`
+      };
+      const colors = { added: '#34d399', updated: '#34d399', already_complete: '#fbbf24' };
+      showToast(msgs[result] || '⚠️ Error', colors[result] || '#f87171', 3500);
+    };
+
+    addDiv.appendChild(btn);
+  }
+
   function initClasificador() {
     injectStyles();
     checkVersionUpdate();
@@ -2635,6 +2705,7 @@ upgrade = upgrade bank, upgrade lending
       showHistoryPanel
     );
     injectPersonalCopyButton();
+    injectSaveCompleteButton();
   }
 
   const IS_CREDITFLOW = window.location.hostname.includes('github.io');
