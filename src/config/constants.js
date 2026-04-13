@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.26";
+export const SCRIPT_VERSION = "20.27";
 
 export const VERSION_NOTES = {
+  "20.27": "✅ Guardar y marcar completo: ejecuta Save Changes + marca carta y CFBP en CreditFlow",
   "20.26": "✅ Botón 'Guardar y marcar como completo' al lado de Save Changes en Pulse",
   "20.25": "⚡ CreditFlow: sync instantáneo con GM_addValueChangeListener — sin polling",
   "20.24": "🔗 CreditFlow: guarda link de Pulse automáticamente al agregar cliente",

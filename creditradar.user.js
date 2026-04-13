@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.26
+// @version      20.27
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.26";
+  const SCRIPT_VERSION = "20.27";
 
   const VERSION_NOTES = {
+    "20.27": "✅ Guardar y marcar completo: ejecuta Save Changes + marca carta y CFBP en CreditFlow",
     "20.26": "✅ Botón 'Guardar y marcar como completo' al lado de Save Changes en Pulse",
     "20.25": "⚡ CreditFlow: sync instantáneo con GM_addValueChangeListener — sin polling",
     "20.24": "🔗 CreditFlow: guarda link de Pulse automáticamente al agregar cliente",
@@ -355,12 +356,14 @@ upgrade = upgrade bank, upgrade lending
     const records = loadCFData(CF_RECORDS_KEY, []);
     const idx = records.findIndex(r => r.nombre.toLowerCase() === nombre.toLowerCase());
     if (idx > -1) {
-      if (records[idx].carta) return 'already_complete';
+      if (records[idx].carta && records[idx].cfbp) return 'already_complete';
       records[idx].carta = true;
-      records[idx].cartaFecha = todayStr();
+      records[idx].cfbp  = true;
+      records[idx].cartaFecha = records[idx].cartaFecha || todayStr();
+      records[idx].cfbpFecha  = todayStr();
       saveCFData(CF_RECORDS_KEY, records);
       const log = loadCFData(CF_LOG_KEY, []);
-      log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Carta completada: ' + nombre, ts: new Date().toISOString() });
+      log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Completado (carta + CFBP): ' + nombre, ts: new Date().toISOString() });
       saveCFData(CF_LOG_KEY, log);
       return 'updated';
     }
@@ -369,8 +372,8 @@ upgrade = upgrade bank, upgrade lending
       nombre,
       nombreResp: 'Manuelbis',
       estatus: 'carta',
-      carta: true, cfbp: false,
-      cartaFecha: todayStr(), cfbpFecha: '',
+      carta: true, cfbp: true,
+      cartaFecha: todayStr(), cfbpFecha: todayStr(),
       comentario: '',
       link: window.location.href,
       createdAt: new Date().toISOString(),
@@ -2683,12 +2686,13 @@ upgrade = upgrade bank, upgrade lending
       if (!nombre) { showToast('⚠️ No se detectó nombre del cliente', '#f87171', 3000); return; }
       const result = saveAndComplete(nombre);
       const msgs = {
-        added:            `✅ "${nombre}" guardado y marcado como completo`,
-        updated:          `✅ "${nombre}" marcado como completo`,
+        added:            `✅ "${nombre}" guardado — carta + CFBP marcados`,
+        updated:          `✅ "${nombre}" — carta + CFBP marcados`,
         already_complete: `✓ "${nombre}" ya estaba completo`
       };
       const colors = { added: '#34d399', updated: '#34d399', already_complete: '#fbbf24' };
       showToast(msgs[result] || '⚠️ Error', colors[result] || '#f87171', 3500);
+      document.getElementById('addClientBTN')?.click();
     };
 
     addDiv.appendChild(btn);

@@ -255,12 +255,13 @@ async function injectSaveCompleteButton() {
     if (!nombre) { showToast('⚠️ No se detectó nombre del cliente', '#f87171', 3000); return; }
     const result = saveAndComplete(nombre);
     const msgs = {
-      added:            `✅ "${nombre}" guardado y marcado como completo`,
-      updated:          `✅ "${nombre}" marcado como completo`,
+      added:            `✅ "${nombre}" guardado — carta + CFBP marcados`,
+      updated:          `✅ "${nombre}" — carta + CFBP marcados`,
       already_complete: `✓ "${nombre}" ya estaba completo`
     };
     const colors = { added: '#34d399', updated: '#34d399', already_complete: '#fbbf24' };
     showToast(msgs[result] || '⚠️ Error', colors[result] || '#f87171', 3500);
+    document.getElementById('addClientBTN')?.click();
   };
 
   addDiv.appendChild(btn);

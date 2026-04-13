@@ -39,12 +39,14 @@ export function saveAndComplete(nombre, nombreResp) {
   const records = loadCFData(CF_RECORDS_KEY, []);
   const idx = records.findIndex(r => r.nombre.toLowerCase() === nombre.toLowerCase());
   if (idx > -1) {
-    if (records[idx].carta) return 'already_complete';
+    if (records[idx].carta && records[idx].cfbp) return 'already_complete';
     records[idx].carta = true;
-    records[idx].cartaFecha = todayStr();
+    records[idx].cfbp  = true;
+    records[idx].cartaFecha = records[idx].cartaFecha || todayStr();
+    records[idx].cfbpFecha  = todayStr();
     saveCFData(CF_RECORDS_KEY, records);
     const log = loadCFData(CF_LOG_KEY, []);
-    log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Carta completada: ' + nombre, ts: new Date().toISOString() });
+    log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Completado (carta + CFBP): ' + nombre, ts: new Date().toISOString() });
     saveCFData(CF_LOG_KEY, log);
     return 'updated';
   }
@@ -53,8 +55,8 @@ export function saveAndComplete(nombre, nombreResp) {
     nombre,
     nombreResp: nombreResp || 'Manuelbis',
     estatus: 'carta',
-    carta: true, cfbp: false,
-    cartaFecha: todayStr(), cfbpFecha: '',
+    carta: true, cfbp: true,
+    cartaFecha: todayStr(), cfbpFecha: todayStr(),
     comentario: '',
     link: window.location.href,
     createdAt: new Date().toISOString(),
