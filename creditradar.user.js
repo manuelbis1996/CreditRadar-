@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.28
+// @version      20.29
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.28";
+  const SCRIPT_VERSION = "20.29";
 
   const VERSION_NOTES = {
+    "20.29": "🔗 Botón CreditFlow prominente en toolbar — siempre visible como el botón principal",
     "20.28": "🔧 fix: CreditFlow carga datos al abrir sin necesidad de cambiar de ventana",
     "20.27": "✅ Guardar y marcar completo: ejecuta Save Changes + marca carta y CFBP en CreditFlow",
     "20.26": "✅ Botón 'Guardar y marcar como completo' al lado de Save Changes en Pulse",
@@ -584,6 +585,8 @@ upgrade = upgrade bank, upgrade lending
 
   /* History Panel */
   #crHistoryPanel { position:fixed; top:70px; right:130px; z-index:999999; background:#161616; color:#fff; border-radius:12px; width:440px; max-height:88vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.45); animation:crSlideIn 0.25s ease; overflow:hidden; }
+  #crCFBtn { width:48px; height:48px; background:#0d1e1d; color:#fff; border:1px solid #34d39940; border-radius:8px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
+  #crCFBtn:hover { background:#112420; border-color:#34d399; }
   #crHistoryBtn { width:36px; height:36px; background:#111; color:#555; border:1px solid #222; border-radius:8px; cursor:pointer; font-size:15px; display:flex; align-items:center; justify-content:center; transition:all 0.25s ease; }
   #crHistoryBtn:hover { color:#fff; border-color:#444; background:#1a1a1a; }
   .cr-hist-filter { display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid #1e1e1e; flex-shrink:0; }
@@ -790,9 +793,11 @@ upgrade = upgrade bank, upgrade lending
     <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
       📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
     </button>
+    <button id="crCFBtn" aria-label="CreditFlow CRM" title="Abrir CreditFlow">
+      🔗<span class="cr-ver" style="color:#34d399">CreditFlow</span>
+    </button>
     <div class="cr-tb-extras">
       <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
-      <button id="crCFBtn" aria-label="CreditFlow CRM" title="Abrir CreditFlow">🔗</button>
       <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
     </div>
   `;

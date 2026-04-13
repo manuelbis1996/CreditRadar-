@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.28";
+export const SCRIPT_VERSION = "20.29";
 
 export const VERSION_NOTES = {
+  "20.29": "🔗 Botón CreditFlow prominente en toolbar — siempre visible como el botón principal",
   "20.28": "🔧 fix: CreditFlow carga datos al abrir sin necesidad de cambiar de ventana",
   "20.27": "✅ Guardar y marcar completo: ejecuta Save Changes + marca carta y CFBP en CreditFlow",
   "20.26": "✅ Botón 'Guardar y marcar como completo' al lado de Save Changes en Pulse",

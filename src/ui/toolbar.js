@@ -41,9 +41,11 @@ export async function addButton(config, runFn, openConfigFn, showHistoryFn) {
     <button id="clasificadorBTN" aria-label="Ejecutar clasificador (v${SCRIPT_VERSION})">
       📋<span class="cr-ver">v${SCRIPT_VERSION}</span>
     </button>
+    <button id="crCFBtn" aria-label="CreditFlow CRM" title="Abrir CreditFlow">
+      🔗<span class="cr-ver" style="color:#34d399">CreditFlow</span>
+    </button>
     <div class="cr-tb-extras">
       <button id="crHistoryBtn" aria-label="Historial" title="Historial">🕐</button>
-      <button id="crCFBtn" aria-label="CreditFlow CRM" title="Abrir CreditFlow">🔗</button>
       <button id="crSettingsBtn" aria-label="Configuración" title="Configuración">⚙️</button>
     </div>
   `;
