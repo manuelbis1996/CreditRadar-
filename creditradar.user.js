@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.31
+// @version      20.32
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.31";
+  const SCRIPT_VERSION = "20.32";
 
   const VERSION_NOTES = {
+    "20.32": "📲 Teléfono se captura en todos los puntos de guardado — copiar, historial y completo",
     "20.31": "📲 WhatsApp: teléfono del cliente se guarda automáticamente desde Pulse",
     "20.30": "🔗 Botón CreditFlow sin texto — solo ícono",
     "20.29": "🔗 Botón CreditFlow prominente en toolbar — siempre visible como el botón principal",
@@ -336,7 +337,7 @@ upgrade = upgrade bank, upgrade lending
       id: Date.now().toString(),
       nombre,
       nombreResp: 'Manuelbis',
-      phone: ('').replace(/\D/g,''),
+      phone: (phone || '').replace(/\D/g,''),
       estatus: 'carta',
       carta: false, cfbp: false,
       cartaFecha: todayStr(), cfbpFecha: '',
@@ -2073,7 +2074,8 @@ upgrade = upgrade bank, upgrade lending
       const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
       const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
       if (nombre) {
-        const saved = saveToCreditFlow(nombre);
+        const phone = getClientData().cell || '';
+        const saved = saveToCreditFlow(nombre, undefined, phone);
         showToast(
           saved ? `🔗 "${nombre}" guardado en CreditFlow` : `🔗 "${nombre}" ya estaba en CreditFlow`,
           saved ? '#34D399' : '#fbbf24', 4000
@@ -2342,7 +2344,8 @@ upgrade = upgrade bank, upgrade lending
         };
 
         el.querySelector('.cr-hist-btn-cf').onclick = () => {
-          const saved = saveToCreditFlow(entry.clientName);
+          const phone = getClientData().cell || '';
+          const saved = saveToCreditFlow(entry.clientName, undefined, phone);
           showToast(
             saved ? `🔗 "${entry.clientName}" guardado en CreditFlow` : `🔗 "${entry.clientName}" ya está en CreditFlow`,
             saved ? '#34D399' : '#fbbf24', 3500

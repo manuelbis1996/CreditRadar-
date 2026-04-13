@@ -1,7 +1,7 @@
 import { escapeHtml } from '../utils/string.js';
 import { bindClose } from '../utils/dom.js';
 import { addHistoryEntry } from '../core/storage.js';
-import { formatAccount } from '../core/parser.js';
+import { formatAccount, getClientData } from '../core/parser.js';
 import { showToast } from './toolbar.js';
 import { addInquiryAlias } from '../utils/aliases.js';
 import { saveToCreditFlow } from './creditflow-panel.js';
@@ -348,7 +348,8 @@ export function showOutputEditor(data, stats, config) {
     const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
     const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
     if (nombre) {
-      const saved = saveToCreditFlow(nombre);
+      const phone = getClientData().cell || '';
+      const saved = saveToCreditFlow(nombre, undefined, phone);
       showToast(
         saved ? `🔗 "${nombre}" guardado en CreditFlow` : `🔗 "${nombre}" ya estaba en CreditFlow`,
         saved ? '#34D399' : '#fbbf24', 4000

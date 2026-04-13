@@ -4,6 +4,7 @@ import { loadConfig, loadHistory, saveHistory } from '../core/storage.js';
 import { createOverlay, createModal } from './modals.js';
 import { showToast } from './toolbar.js';
 import { saveToCreditFlow } from './creditflow-panel.js';
+import { getClientData } from '../core/parser.js';
 
 /* ── Daily Report ── */
 
@@ -253,7 +254,8 @@ export function showHistoryPanel() {
       };
 
       el.querySelector('.cr-hist-btn-cf').onclick = () => {
-        const saved = saveToCreditFlow(entry.clientName);
+        const phone = getClientData().cell || '';
+        const saved = saveToCreditFlow(entry.clientName, undefined, phone);
         showToast(
           saved ? `🔗 "${entry.clientName}" guardado en CreditFlow` : `🔗 "${entry.clientName}" ya está en CreditFlow`,
           saved ? '#34D399' : '#fbbf24', 3500
