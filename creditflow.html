@@ -846,21 +846,21 @@ function render() {
 
 render();
 
-// Reload data from GM whenever the tab becomes visible again
-// (so clients saved from CreditRadar appear without manual refresh)
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    const fresh = store.get('cf_records', []);
-    if (JSON.stringify(fresh) !== JSON.stringify(S.records)) {
-      S.records   = fresh;
-      S.log       = store.get('cf_log', []);
-      S.statuses  = store.get('cf_statuses',  JSON.parse(JSON.stringify(DEFAULT_STATUSES)));
-      S.templates = store.get('cf_templates', JSON.parse(JSON.stringify(DEFAULT_TEMPLATES)));
-      S.records.forEach(r => { if (!r.estatus) r.estatus = ''; });
-      render();
-    }
+// Poll GM storage every 4 seconds to detect clients added from CreditRadar
+// without requiring a tab switch
+function syncFromGM() {
+  const fresh = store.get('cf_records', []);
+  if (JSON.stringify(fresh) !== JSON.stringify(S.records)) {
+    S.records   = fresh;
+    S.log       = store.get('cf_log', []);
+    S.statuses  = store.get('cf_statuses',  JSON.parse(JSON.stringify(DEFAULT_STATUSES)));
+    S.templates = store.get('cf_templates', JSON.parse(JSON.stringify(DEFAULT_TEMPLATES)));
+    S.records.forEach(r => { if (!r.estatus) r.estatus = ''; });
+    render();
   }
-});
+}
+setInterval(syncFromGM, 4000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncFromGM(); });
 </script>
 </body>
 </html>
