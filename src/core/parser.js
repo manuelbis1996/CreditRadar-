@@ -41,11 +41,13 @@ export function parseAccountBlocks(blocks, activeCols, config) {
   const result = {
     name: "", number: "", balance: "", dateOpened: "",
     isOpen: false, isClosedPositive: false, isCollection: false,
+    isDerogClosed: false, paymentStatusNegative: false,
     addresses: []
   };
   let hasNegative = false;
   let accountStatusMatch = false;
   let paymentStatusMatch = false;
+  let hasDerog = false;
   const addrParts = [{}, {}, {}];
 
   const closedStatuses = config.closedStatuses;
@@ -75,11 +77,17 @@ export function parseAccountBlocks(blocks, activeCols, config) {
       case "account status":
         result.isOpen = vals.some(v => v === "open");
         accountStatusMatch = matchesAny(vals, closedStatuses);
-        if (matchesAny(vals, negativeStatuses)) hasNegative = true;
+        if (matchesAny(vals, negativeStatuses)) {
+          hasNegative = true;
+          if (matchesAny(vals, ["derog"])) hasDerog = true;
+        }
         break;
       case "payment status":
         paymentStatusMatch = matchesAny(vals, paymentStatuses);
-        if (matchesAny(vals, negativeStatuses)) hasNegative = true;
+        if (matchesAny(vals, negativeStatuses)) {
+          hasNegative = true;
+          result.paymentStatusNegative = true;
+        }
         break;
       case "account type":
       case "account type detail":
@@ -99,6 +107,9 @@ export function parseAccountBlocks(blocks, activeCols, config) {
   }
 
   if (!hasNegative && (accountStatusMatch || paymentStatusMatch)) result.isClosedPositive = true;
+
+  // Track accounts that are derog but also closed/paid (positive)
+  if (hasDerog && (accountStatusMatch || paymentStatusMatch)) result.isDerogClosed = true;
 
   result.addresses = [...new Set(
     activeCols.map((active, i) => {

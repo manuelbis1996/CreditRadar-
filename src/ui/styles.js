@@ -150,6 +150,8 @@ export const buttonAnimationStyles = `
   .cr-editor-card-head { display:flex; align-items:center; gap:7px; padding:8px 10px; cursor:grab; user-select:none; }
   .cr-editor-card-head:active { cursor:grabbing; }
   .cr-editor-grip { color:#444; font-size:10px; flex-shrink:0; }
+  .cr-editor-toggle { color:#34d399; font-size:14px; cursor:pointer; flex-shrink:0; user-select:none; }
+  .cr-editor-toggle:hover { color:#5eead4; }
   .cr-editor-card:hover .cr-editor-grip { color:#666; }
   .cr-editor-name { flex:1; font-size:12px; color:#ccc; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   .cr-editor-meta { font-size:10px; color:#444; font-family:monospace; white-space:nowrap; flex-shrink:0; }

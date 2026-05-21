@@ -106,14 +106,16 @@ async function run() {
       const parsed = parseAccountBlocks(blocks, activeCols, CONFIG);
       const finalName = parsed.name || compactName;
 
-      if (parsed.isOpen) {
+      // Skip open accounts UNLESS they have negative payment status (collection/charge)
+      const hasNegativePayment = parsed.isCollection || (parsed.paymentStatusNegative === true);
+      if (parsed.isOpen && !hasNegativePayment) {
         console.log(`⏭️ Skipped (Open): ${finalName}`);
         highlight(item, CONFIG.colors.open);
         SKIPPED_OPEN++;
         continue;
       }
 
-      if (parsed.isClosedPositive) {
+      if (parsed.isClosedPositive && !(CONFIG.includeDerogPositive && parsed.isDerogClosed)) {
         console.log(`⏭️ Skipped (Closed Positive): ${finalName}`);
         highlight(item, CONFIG.colors.closedPositive);
         SKIPPED_CLOSED++;

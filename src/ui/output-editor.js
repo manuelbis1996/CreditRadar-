@@ -10,11 +10,13 @@ function buildAccountEditorCard(acc, onRemove) {
   const card = document.createElement('div');
   card.className = 'cr-editor-card';
   card.dataset.addresses = JSON.stringify(acc.addresses || []);
+  card.dataset.include = 'true';
 
   const meta = [acc.number ? `#${acc.number}` : '', acc.balance || ''].filter(Boolean).join(' · ');
 
   card.innerHTML = `
     <div class="cr-editor-card-head">
+      <span class="cr-editor-toggle" title="Incluir/Excluir">●</span>
       <span class="cr-editor-grip">⠿</span>
       <span class="cr-editor-name">${escapeHtml(acc.name || '')}</span>
       <span class="cr-editor-meta">${escapeHtml(meta)}</span>
@@ -55,6 +57,13 @@ function buildAccountEditorCard(acc, onRemove) {
       card.querySelector('.cr-editor-meta').textContent =
         [number ? `#${number}` : '', balance || ''].filter(Boolean).join(' · ');
     }
+  };
+
+  card.querySelector('.cr-editor-toggle').onclick = () => {
+    const isIncluded = card.dataset.include === 'true';
+    card.dataset.include = isIncluded ? 'false' : 'true';
+    card.querySelector('.cr-editor-toggle').textContent = isIncluded ? '○' : '●';
+    card.style.opacity = isIncluded ? '0.4' : '1';
   };
 
   card.querySelector('.cr-editor-del-btn').onclick = () => {
@@ -108,13 +117,13 @@ function buildCompactStats(stats) {
   return `<div class="cr-out-stats">${chips.join('')}</div>`;
 }
 
-// F8: Get set of account names from the last history entry for this client
+// Get set of account names from the last history entry for this client
 function getPrevAccountNames(clientName) {
   if (!clientName) return new Set();
   try {
     const history = loadHistory();
     const prev = history.filter(e => e.clientName?.toLowerCase() === clientName.toLowerCase())
-                        .sort((a, b) => b.id - a.id)[1]; // second-to-last = previous report
+                        .sort((a, b) => b.id - a.id)[1];
     if (!prev?.output) return new Set();
     return new Set(prev.output.split('\n').map(l => l.trim().toLowerCase()).filter(Boolean));
   } catch(e) { return new Set(); }
@@ -213,10 +222,11 @@ export function showOutputEditor(data, stats, config) {
     form.querySelector('.cr-link-search').focus();
   }
 
-  // F8: prev account names for highlighting new accounts
+  // Get previous account names for marking new accounts
   const clientFirstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
   const clientName = clientFirstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
   const prevNames = getPrevAccountNames(clientName);
+  const showNewBadge = config.showNewBadge !== false;
 
   function buildAccountSection(title, accounts) {
     const section = document.createElement('div');
@@ -242,8 +252,8 @@ export function showOutputEditor(data, stats, config) {
     accounts.forEach(acc => {
       const card = buildAccountEditorCard(acc, updateBadge);
       card.setAttribute('draggable', 'true');
-      // F8: mark as new if not found in any line of previous report
-      if (prevNames.size > 0 && acc.name) {
+      // Mark as new if not found in previous report
+      if (showNewBadge && prevNames.size > 0 && acc.name) {
         const isNew = ![...prevNames].some(line => line.includes(acc.name.toLowerCase()));
         if (isNew) {
           card.classList.add('cr-editor-card--new');
@@ -340,10 +350,11 @@ export function showOutputEditor(data, stats, config) {
       const title = section.dataset.sectionTitle;
 
       if (type === 'accounts') {
-        const cards = [...section.querySelectorAll('.cr-editor-card')];
-        if (!cards.length) continue;
-        output += `${title} (${cards.length})${NL}${NL}`;
-        for (const card of cards) {
+        const allCards = [...section.querySelectorAll('.cr-editor-card')];
+        const includedCards = allCards.filter(c => c.dataset.include !== 'false');
+        if (!includedCards.length) continue;
+        output += `${title} (${includedCards.length})${NL}${NL}`;
+        for (const card of includedCards) {
           done++;
           btn.textContent = `📋 ${done} de ${total} copiado`;
           const acc = {

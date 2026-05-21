@@ -251,8 +251,6 @@ export function openConfigPanel(config, onConfigSaved) {
         <textarea class="cr-ta" id="cfg_paymentStatuses" rows="2">${config.paymentStatuses.join('\n')}</textarea>
         <div class="cr-lbl">Estados Negativos</div>
         <textarea class="cr-ta" id="cfg_negativeStatuses" rows="4">${config.negativeStatuses.join('\n')}</textarea>
-      </div>
-      <div class="cr-pane" id="cr-pane-colors">
         <div class="cr-lbl">Colores de Resaltado</div>
         <div class="cr-colors">
           <div class="cr-clr"><input type="color" id="cfg_colorOpen" value="${config.colors.open}"><span>Open</span></div>

@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.33";
+export const SCRIPT_VERSION = "20.34";
 
 export const VERSION_NOTES = {
+  "20.34": "🔘 Toggle por cuenta — incluye/excluye cuentas individuales antes de copiar | ✅ Open + Collection/Charge ahora se procesan correctamente",
   "20.33": "🚀 8 nuevas funciones: días, notas, export/import, badge estatus, hover, 3 formatos copia, cuentas nuevas",
   "20.32": "📲 Teléfono se captura en todos los puntos de guardado — copiar, historial y completo",
   "20.31": "📲 WhatsApp: teléfono del cliente se guarda automáticamente desde Pulse",
@@ -157,6 +158,8 @@ export const DEFAULT_CONFIG = {
     closedPositive: "#60a5fa",
     inquiryLinked: "#fbbf24"
   },
+  includeDerogPositive: false,
+  showNewBadge: true,
   fieldOrder: [
     { key: "name", showLabel: true },
     { key: "number", showLabel: true },

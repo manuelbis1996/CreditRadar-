@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.33
+// @version      20.34
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,10 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.33";
+  const SCRIPT_VERSION = "20.34";
 
   const VERSION_NOTES = {
+    "20.34": "🔘 Toggle por cuenta — incluye/excluye cuentas individuales antes de copiar | ✅ Open + Collection/Charge ahora se procesan correctamente",
     "20.33": "🚀 8 nuevas funciones: días, notas, export/import, badge estatus, hover, 3 formatos copia, cuentas nuevas",
     "20.32": "📲 Teléfono se captura en todos los puntos de guardado — copiar, historial y completo",
     "20.31": "📲 WhatsApp: teléfono del cliente se guarda automáticamente desde Pulse",
@@ -179,6 +180,8 @@ upgrade = upgrade bank, upgrade lending
       closedPositive: "#60a5fa",
       inquiryLinked: "#fbbf24"
     },
+    includeDerogPositive: false,
+    showNewBadge: true,
     fieldOrder: [
       { key: "name", showLabel: true },
       { key: "number", showLabel: true },
@@ -566,6 +569,8 @@ upgrade = upgrade bank, upgrade lending
   .cr-editor-card-head { display:flex; align-items:center; gap:7px; padding:8px 10px; cursor:grab; user-select:none; }
   .cr-editor-card-head:active { cursor:grabbing; }
   .cr-editor-grip { color:#444; font-size:10px; flex-shrink:0; }
+  .cr-editor-toggle { color:#34d399; font-size:14px; cursor:pointer; flex-shrink:0; user-select:none; }
+  .cr-editor-toggle:hover { color:#5eead4; }
   .cr-editor-card:hover .cr-editor-grip { color:#666; }
   .cr-editor-name { flex:1; font-size:12px; color:#ccc; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   .cr-editor-meta { font-size:10px; color:#444; font-family:monospace; white-space:nowrap; flex-shrink:0; }
@@ -1310,8 +1315,6 @@ upgrade = upgrade bank, upgrade lending
         <textarea class="cr-ta" id="cfg_paymentStatuses" rows="2">${config.paymentStatuses.join('\n')}</textarea>
         <div class="cr-lbl">Estados Negativos</div>
         <textarea class="cr-ta" id="cfg_negativeStatuses" rows="4">${config.negativeStatuses.join('\n')}</textarea>
-      </div>
-      <div class="cr-pane" id="cr-pane-colors">
         <div class="cr-lbl">Colores de Resaltado</div>
         <div class="cr-colors">
           <div class="cr-clr"><input type="color" id="cfg_colorOpen" value="${config.colors.open}"><span>Open</span></div>
@@ -1565,11 +1568,13 @@ upgrade = upgrade bank, upgrade lending
     const result = {
       name: "", number: "", balance: "", dateOpened: "",
       isOpen: false, isClosedPositive: false, isCollection: false,
+      isDerogClosed: false, paymentStatusNegative: false,
       addresses: []
     };
     let hasNegative = false;
     let accountStatusMatch = false;
     let paymentStatusMatch = false;
+    let hasDerog = false;
     const addrParts = [{}, {}, {}];
 
     const closedStatuses = config.closedStatuses;
@@ -1599,11 +1604,17 @@ upgrade = upgrade bank, upgrade lending
         case "account status":
           result.isOpen = vals.some(v => v === "open");
           accountStatusMatch = matchesAny(vals, closedStatuses);
-          if (matchesAny(vals, negativeStatuses)) hasNegative = true;
+          if (matchesAny(vals, negativeStatuses)) {
+            hasNegative = true;
+            if (matchesAny(vals, ["derog"])) hasDerog = true;
+          }
           break;
         case "payment status":
           paymentStatusMatch = matchesAny(vals, paymentStatuses);
-          if (matchesAny(vals, negativeStatuses)) hasNegative = true;
+          if (matchesAny(vals, negativeStatuses)) {
+            hasNegative = true;
+            result.paymentStatusNegative = true;
+          }
           break;
         case "account type":
         case "account type detail":
@@ -1623,6 +1634,9 @@ upgrade = upgrade bank, upgrade lending
     }
 
     if (!hasNegative && (accountStatusMatch || paymentStatusMatch)) result.isClosedPositive = true;
+
+    // Track accounts that are derog but also closed/paid (positive)
+    if (hasDerog && (accountStatusMatch || paymentStatusMatch)) result.isDerogClosed = true;
 
     result.addresses = [...new Set(
       activeCols.map((active, i) => {
@@ -1739,11 +1753,13 @@ upgrade = upgrade bank, upgrade lending
     const card = document.createElement('div');
     card.className = 'cr-editor-card';
     card.dataset.addresses = JSON.stringify(acc.addresses || []);
+    card.dataset.include = 'true';
 
     const meta = [acc.number ? `#${acc.number}` : '', acc.balance || ''].filter(Boolean).join(' · ');
 
     card.innerHTML = `
     <div class="cr-editor-card-head">
+      <span class="cr-editor-toggle" title="Incluir/Excluir">●</span>
       <span class="cr-editor-grip">⠿</span>
       <span class="cr-editor-name">${escapeHtml(acc.name || '')}</span>
       <span class="cr-editor-meta">${escapeHtml(meta)}</span>
@@ -1784,6 +1800,13 @@ upgrade = upgrade bank, upgrade lending
         card.querySelector('.cr-editor-meta').textContent =
           [number ? `#${number}` : '', balance || ''].filter(Boolean).join(' · ');
       }
+    };
+
+    card.querySelector('.cr-editor-toggle').onclick = () => {
+      const isIncluded = card.dataset.include === 'true';
+      card.dataset.include = isIncluded ? 'false' : 'true';
+      card.querySelector('.cr-editor-toggle').textContent = isIncluded ? '○' : '●';
+      card.style.opacity = isIncluded ? '0.4' : '1';
     };
 
     card.querySelector('.cr-editor-del-btn').onclick = () => {
@@ -1837,13 +1860,13 @@ upgrade = upgrade bank, upgrade lending
     return `<div class="cr-out-stats">${chips.join('')}</div>`;
   }
 
-  // F8: Get set of account names from the last history entry for this client
+  // Get set of account names from the last history entry for this client
   function getPrevAccountNames(clientName) {
     if (!clientName) return new Set();
     try {
       const history = loadHistory();
       const prev = history.filter(e => e.clientName?.toLowerCase() === clientName.toLowerCase())
-                          .sort((a, b) => b.id - a.id)[1]; // second-to-last = previous report
+                          .sort((a, b) => b.id - a.id)[1];
       if (!prev?.output) return new Set();
       return new Set(prev.output.split('\n').map(l => l.trim().toLowerCase()).filter(Boolean));
     } catch(e) { return new Set(); }
@@ -1942,10 +1965,11 @@ upgrade = upgrade bank, upgrade lending
       form.querySelector('.cr-link-search').focus();
     }
 
-    // F8: prev account names for highlighting new accounts
+    // Get previous account names for marking new accounts
     const clientFirstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
     const clientName = clientFirstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
     const prevNames = getPrevAccountNames(clientName);
+    const showNewBadge = config.showNewBadge !== false;
 
     function buildAccountSection(title, accounts) {
       const section = document.createElement('div');
@@ -1971,8 +1995,8 @@ upgrade = upgrade bank, upgrade lending
       accounts.forEach(acc => {
         const card = buildAccountEditorCard(acc, updateBadge);
         card.setAttribute('draggable', 'true');
-        // F8: mark as new if not found in any line of previous report
-        if (prevNames.size > 0 && acc.name) {
+        // Mark as new if not found in previous report
+        if (showNewBadge && prevNames.size > 0 && acc.name) {
           const isNew = ![...prevNames].some(line => line.includes(acc.name.toLowerCase()));
           if (isNew) {
             card.classList.add('cr-editor-card--new');
@@ -2069,10 +2093,11 @@ upgrade = upgrade bank, upgrade lending
         const title = section.dataset.sectionTitle;
 
         if (type === 'accounts') {
-          const cards = [...section.querySelectorAll('.cr-editor-card')];
-          if (!cards.length) continue;
-          output += `${title} (${cards.length})${NL}${NL}`;
-          for (const card of cards) {
+          const allCards = [...section.querySelectorAll('.cr-editor-card')];
+          const includedCards = allCards.filter(c => c.dataset.include !== 'false');
+          if (!includedCards.length) continue;
+          output += `${title} (${includedCards.length})${NL}${NL}`;
+          for (const card of includedCards) {
             done++;
             btn.textContent = `📋 ${done} de ${total} copiado`;
             const acc = {
@@ -2581,14 +2606,16 @@ upgrade = upgrade bank, upgrade lending
         const parsed = parseAccountBlocks(blocks, activeCols, CONFIG);
         const finalName = parsed.name || compactName;
 
-        if (parsed.isOpen) {
+        // Skip open accounts UNLESS they have negative payment status (collection/charge)
+        const hasNegativePayment = parsed.isCollection || (parsed.paymentStatusNegative === true);
+        if (parsed.isOpen && !hasNegativePayment) {
           console.log(`⏭️ Skipped (Open): ${finalName}`);
           highlight(item, CONFIG.colors.open);
           SKIPPED_OPEN++;
           continue;
         }
 
-        if (parsed.isClosedPositive) {
+        if (parsed.isClosedPositive && !(CONFIG.includeDerogPositive && parsed.isDerogClosed)) {
           console.log(`⏭️ Skipped (Closed Positive): ${finalName}`);
           highlight(item, CONFIG.colors.closedPositive);
           SKIPPED_CLOSED++;
