@@ -63,7 +63,7 @@ export function showToast(message, color = "#5eead4", duration = 5000) {
   Object.assign(toast.style, {
     position: "fixed", bottom: "30px", right: "30px",
     background: "#1a1a1a", color: "#fff", padding: "14px 20px",
-    borderRadius: "8px", zIndex: "999999", fontSize: "14px",
+    borderRadius: "8px", zIndex: "1000000", fontSize: "14px",
     boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
     border: `1px solid ${color}`,
     transition: "opacity 0.5s ease",
@@ -76,6 +76,134 @@ export function showToast(message, color = "#5eead4", duration = 5000) {
     toast.style.opacity = "0";
     setTimeout(() => toast.remove(), 500);
   }, duration);
+}
+
+export function showDetectionNotice(detections, summary) {
+  document.getElementById("crDetectionNotice")?.remove();
+
+  const backdrop = document.createElement("div");
+  backdrop.id = "crDetectionNotice";
+  Object.assign(backdrop.style, {
+    position: "fixed", inset: "0", display: "grid", placeItems: "center",
+    padding: "16px", boxSizing: "border-box", zIndex: "1000001",
+    background: "rgba(0, 0, 0, 0.82)", backdropFilter: "blur(4px)"
+  });
+
+  const notice = document.createElement("section");
+  notice.setAttribute("role", "dialog");
+  notice.setAttribute("aria-modal", "true");
+  notice.setAttribute("aria-labelledby", "crDetectionHeading");
+  Object.assign(notice.style, {
+    width: "480px", maxWidth: "100%", maxHeight: "100%", overflowY: "auto",
+    background: "#161616", color: "#fff", padding: "24px",
+    borderRadius: "14px", border: "2px solid #60a5fa",
+    boxShadow: "0 16px 56px rgba(0,0,0,0.8)",
+    fontSize: "14px", lineHeight: "1.6", boxSizing: "border-box"
+  });
+
+  const heading = document.createElement("strong");
+  heading.id = "crDetectionHeading";
+  heading.textContent = "🔔 Aviso del análisis";
+  heading.style.display = "block";
+  heading.style.marginBottom = "6px";
+
+  const summaryText = document.createElement("div");
+  summaryText.textContent = summary;
+  summaryText.style.color = "#cbd5e1";
+
+  const detectionText = document.createElement("div");
+  detectionText.style.marginTop = "8px";
+  detectionText.style.color = "#93c5fd";
+  detectionText.setAttribute("aria-live", "polite");
+
+  const controls = document.createElement("div");
+  Object.assign(controls.style, {
+    display: "flex", alignItems: "center", gap: "6px", marginTop: "12px",
+    flexWrap: "wrap"
+  });
+
+  const makeButton = (label, title) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.title = title;
+    Object.assign(button.style, {
+      padding: "6px 9px", border: "1px solid #3a3a3a", borderRadius: "6px",
+      background: "#222", color: "#fff", cursor: "pointer", fontSize: "12px"
+    });
+    return button;
+  };
+
+  const previousButton = makeButton("‹ Anterior", "Detección anterior");
+  const verifyButton = makeButton("Verificar", "Ir a la detección seleccionada");
+  verifyButton.style.background = "#1d4ed8";
+  verifyButton.style.borderColor = "#3b82f6";
+  const nextButton = makeButton("Siguiente ›", "Siguiente detección");
+  const closeButton = makeButton("Entendido y continuar", "Cerrar aviso y continuar");
+  closeButton.style.marginLeft = "auto";
+
+  let currentIndex = 0;
+  let editorHidden = false;
+  const updateDetection = () => {
+    const hasDetections = detections.length > 0;
+    previousButton.disabled = !hasDetections;
+    nextButton.disabled = !hasDetections;
+    verifyButton.disabled = !hasDetections;
+    [previousButton, nextButton, verifyButton].forEach(button => {
+      button.style.opacity = hasDetections ? "1" : "0.45";
+      button.style.cursor = hasDetections ? "pointer" : "not-allowed";
+    });
+    detectionText.textContent = hasDetections
+      ? `${currentIndex + 1}/${detections.length} · ${detections[currentIndex].label}: ${detections[currentIndex].name}`
+      : "No hay elementos que se puedan abrir para verificar.";
+  };
+
+  previousButton.onclick = () => {
+    currentIndex = (currentIndex - 1 + detections.length) % detections.length;
+    updateDetection();
+  };
+  nextButton.onclick = () => {
+    currentIndex = (currentIndex + 1) % detections.length;
+    updateDetection();
+  };
+  verifyButton.onclick = () => {
+    if (editorHidden) {
+      const panel = document.getElementById("crOutputPanel");
+      const overlay = document.getElementById("crOverlay");
+      if (panel && overlay) {
+        panel.style.visibility = "";
+        overlay.style.display = "";
+        editorHidden = false;
+        backdrop.style.display = "grid";
+        verifyButton.textContent = "Verificar";
+      }
+      return;
+    }
+
+    const target = detections[currentIndex]?.target;
+    if (!target?.isConnected) {
+      detectionText.textContent = "Ese elemento ya no está disponible en la página.";
+      return;
+    }
+    const panel = document.getElementById("crOutputPanel");
+    const overlay = document.getElementById("crOverlay");
+    if (panel && overlay) {
+      panel.style.visibility = "hidden";
+      overlay.style.display = "none";
+      editorHidden = true;
+      backdrop.style.display = "none";
+      verifyButton.textContent = "Volver a resultados";
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  closeButton.onclick = () => backdrop.remove();
+
+  controls.append(previousButton, verifyButton, nextButton, closeButton);
+  notice.append(heading, summaryText, detectionText, controls);
+  backdrop.appendChild(notice);
+  document.body.appendChild(backdrop);
+  updateDetection();
+  closeButton.focus();
 }
 
 export function createProgressPanel() {

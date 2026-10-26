@@ -1,6 +1,6 @@
 import { SELECTORS, IGNORE_VALUES, BUROS, DEFAULT_CONFIG } from '../config/constants.js';
 import { queryOne, queryAll, waitForElement } from '../utils/dom.js';
-import { quickDetectStatus } from './matcher.js';
+import { quickDetectStatus, getBuroStatus } from './matcher.js';
 
 export function getDisputeType(item) {
   const input = queryOne(SELECTORS.disputeType, item);
@@ -122,6 +122,13 @@ export function parseAccountBlocks(blocks, activeCols, config) {
   return result;
 }
 
+export function isInactivePositiveItem(item) {
+  if (!item) return true;
+  if (item.classList.contains(SELECTORS.compact.deletedHeader)) return true;
+
+  return !BUROS.some(buro => getBuroStatus(item, buro).positive);
+}
+
 export function buildPositiveAccountsMap() {
   const map = new Map();
   const section = queryOne(SELECTORS.sections.positive);
@@ -129,9 +136,13 @@ export function buildPositiveAccountsMap() {
 
   const items = queryAll(SELECTORS.compact.container, section);
   for (const item of items) {
+    if (isInactivePositiveItem(item)) continue;
+
     const fullName = queryOne(SELECTORS.compact.name, item)?.innerText.trim().toLowerCase() || "";
     const creditor = fullName.split(" - ")[0].trim();
-    if (creditor) map.set(creditor, item);
+    if (!creditor) continue;
+
+    if (!map.has(creditor)) map.set(creditor, item);
   }
   return map;
 }

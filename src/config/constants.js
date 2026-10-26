@@ -1,6 +1,17 @@
-export const SCRIPT_VERSION = "20.34";
+export const SCRIPT_VERSION = "20.45";
 
 export const VERSION_NOTES = {
+  "20.45": "🛡️ Confirmación de responsabilidad obligatoria antes de instalar una actualización",
+  "20.44": "⏱️ Aviso de responsabilidad con cuenta regresiva animada de un minuto",
+  "20.43": "⚠️ Aviso de responsabilidad al actualizar, con aceptación tras cuenta regresiva animada",
+  "20.42": "🔔 Aviso modal bloqueante que cubre toda la pantalla y prioriza las detecciones",
+  "20.41": "🔔 Aviso interactivo centrado y destacado en pantalla",
+  "20.40": "🔎 Aviso interactivo para recorrer detecciones y verificarlas en la página",
+  "20.39": "🔔 Aviso de análisis aparece antes del panel de resultados",
+  "20.38": "🔔 Aviso resumen con detecciones positivas, inquiries protegidas y cuentas omitidas",
+  "20.37": "🔵 Detecta y marca cuentas positivas seleccionadas en This Round",
+  "20.36": "🔵 Fix: el color azul también marca la cuenta correspondiente en Positive Items",
+  "20.35": "🔧 Fix: Positive Items conserva cuentas con estado positivo en al menos un buró",
   "20.34": "🔘 Toggle por cuenta — incluye/excluye cuentas individuales antes de copiar | ✅ Open + Collection/Charge ahora se procesan correctamente",
   "20.33": "🚀 8 nuevas funciones: días, notas, export/import, badge estatus, hover, 3 formatos copia, cuentas nuevas",
   "20.32": "📲 Teléfono se captura en todos los puntos de guardado — copiar, historial y completo",
@@ -88,56 +99,58 @@ export const ACCOUNT_FIELDS = [
 ];
 
 export const DEFAULT_ALIASES = `
-capital one = cap one, cap1, capone, cof, capital one bank, capital one na
-chase = jpmcb, jpmcb card, jp morgan, jpmorgan chase, chase bank
-synchrony = syncb, syncb jcp, syncb amazon, syncb paypal, syncb lowes, syncb walmart, syncb carecredit, syncb tjx, syncb gap, syncb amazon plcc, syncb ppc, syncb ppmc, syncb wgdc, syncb ntwk, syncb ondc, syncb brdc, gecrb, gemb, ge capital retail
-wells fargo = wf, wf bank, wfds, wells fargo bank, wells fargo financial
-bank of america = boa, bac, bofa, bank of amer, bk of america
-citibank = citi, citibank na, citicards, cbna, citifinancial
-american express = amex, american express bank, american express centurion
-discover = discover bank, discover financial, dfs, dfs webbank
-td bank = td, td bank na, td auto, td bank target
-us bank = usbank, us bank na, us bancorp
-ally financial = ally, ally bank, ally auto
-navy federal = navy fcu, navy federal credit union, nfcu
-usaa = usaa bank, usaa federal savings
-pnc bank = pnc, pnc bank na
-regions bank = regions, regions financial
-suntrust = suntrust bank, truist, truist bank
-bb&t = bbt, branch banking, truist
-fifth third = fifth third bank, 53 bank
-huntington = huntington bank, huntington national
-citizens bank = citizens, citizens financial, rbs citizens
-santander = santander bank, santander consumer, santander auto
-barclays = barclays bank, barclays bank delaware, barclay
-comenity = comenity bank, comenity capital, comen, wfnnb, world financial
-kohls = kohls capone, kohls charge, kohls department
-home depot = thd, thd cbna, home depot credit
-target = td bank target, target red card, target national
-walmart = walmart stores, walmart credit, syncb walmart
-amazon = amazon store card, syncb amazon, amazon visa
-paypal = syncb ppc, syncb paypal, paypal credit
-carecredit = syncb carecredit, syncb carecr, ge carecredit
-lowes = syncb lowes, lowes companies, lowes credit
-tjx = syncb tjx, tjx rewards, tjmaxx, marshalls, homegoods
-gap = syncb gap, gap inc, gap visa, syncb gapdc
-apple = apple bank, apple card, goldman sachs apple
-best buy = best buy credit, bestbuy, bby, cbna best buy
-macys = macys credit, macys retail, macys department
-nordstrom = nordstrom credit, nordstrom bank
-sears = sears credit, sears holdings, citibank sears
-jcpenney = jcp, jcpenney credit, syncb jcp, gecrb jcp
-victoria secret = vctr scrt, victoria secret credit, comenity victoria
-westlake = westlake financial, westlake fin, westlake service, wlake
-onemain = onemain financial, onemain fin, springleaf, springleaf financial
-first premier = first premier bank, first premier credit
-credit one = credit one bank, credit one financial
-affirm = affirm inc, affirm loan
-klarna = klarna bank, klarna financial
-afterpay = afterpay us, afterpay financial
-sofi = sofi bank, sofi lending, social finance
-marcus = marcus goldman, marcus by goldman sachs
-upgrade = upgrade bank, upgrade lending
+capital one = cap one, cap1, capone, capitalone, capital one bank, capital one na, capitalone bank, cof, cap1 auto, cap1 bank
+chase = chase, chase bank, chase card, jpmcb, jpmcb card, jp morgan, jpmorgan chase, chase auto, chase slate
+synchrony = synchrony, synchrony bank, synchrony financial, syncb, syncb jcp, syncb amazon, syncb paypal, syncb lowes, syncb walmart, syncb carecredit, syncb tjx, syncb gap, syncb amazon plcc, syncb ppc, syncb ppmc, syncb wgdc, syncb ntwk, syncb ondc, syncb brdc, gecrb, gemb, ge capital retail, carecredit, carecr
+wells fargo = wells fargo, wf, wf bank, wfds, wfs, wellsfargo, wells fargo bank, wells fargo financial, wellsfargo bank
+bank of america = bank of america, boa, bac, bofa, bank of amer, bk of america, bofa bank
+citibank = citi, citibank, citibank na, citicards, cbna, citifinancial, citi cards
+american express = american express, amex, american express bank, american express centurion, ae, american express company
+discover = discover, discover bank, discover financial, discover financial services, dfs, dfs webbank
+td bank = td bank, td, td bank na, td auto, td bank target, target red card
+us bank = us bank, usbank, us bank na, us bancorp, usb, us bank national association
+ally financial = ally, ally bank, ally financial, ally auto
+navy federal = navy federal, navy fcu, navy federal credit union, nfcu, navyfed
+usaa = usaa, usaa bank, usaa federal savings
+pnc bank = pnc, pnc bank, pnc bank na
+regions bank = regions, regions bank, regions financial
+suntrust = suntrust, suntrust bank, truist, truist bank
+bb&t = bbt, bb and t, bb&t, branch banking, truist
+fifth third = fifth third, fifth third bank, 53 bank, fifth third financial
+huntington = huntington, huntington bank, huntington national
+citizens bank = citizens, citizens bank, citizens financial, rbs citizens
+santander = santander, santander bank, santander consumer, santander auto
+barclays = barclays, barclays bank, barclays bank delaware, barclay
+comenity = comenity, comenity bank, comenity capital, comen, wfnnb, world financial
+kohls = kohls, kohls capone, kohls charge, kohls department, kohls credit
+home depot = home depot, home depot credit, thd, thd cbna
+target = target, target red card, target national, td bank target
+walmart = walmart, walmart stores, walmart credit, syncb walmart
+amazon = amazon, amazon store card, syncb amazon, amazon visa, amazon card
+paypal = paypal, syncb ppc, syncb paypal, paypal credit
+carecredit = carecredit, syncb carecredit, syncb carecr, ge carecredit
+lowes = lowes, syncb lowes, lowes companies, lowes credit
+ tjx = tjx, syncb tjx, tjx rewards, tjmaxx, marshalls, homegoods
+gap = gap, syncb gap, gap inc, gap visa, syncb gapdc
+apple = apple, apple bank, apple card, goldman sachs apple
+best buy = best buy, best buy credit, bestbuy, bby, cbna best buy
+macys = macys, macys credit, macys retail, macys department
+nordstrom = nordstrom, nordstrom credit, nordstrom bank
+sears = sears, sears credit, sears holdings, citibank sears
+jcpenney = jcpenney, jcp, jcpenney credit, syncb jcp, gecrb jcp
+victoria secret = victoria secret, vctr scrt, victoria secret credit, comenity victoria
+westlake = westlake, westlake financial, westlake fin, westlake service, wlake
+onemain = onemain, onemain financial, onemain fin, springleaf, springleaf financial
+first premier = first premier, first premier bank, first premier credit
+credit one = credit one, credit one bank, credit one financial, creditone
+affirm = affirm, affirm inc, affirm loan, affirm loans
+klarna = klarna, klarna bank, klarna financial
+afterpay = afterpay, afterpay us, afterpay financial
+sofi = sofi, sofi bank, sofi lending, social finance
+marcus = marcus, marcus goldman, marcus by goldman sachs
+upgrade = upgrade, upgrade bank, upgrade lending
+hdfc = hdfc bank, hdfc, hdfc credit card
+synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 `.trim();
 
 export const DEFAULT_CONFIG = {

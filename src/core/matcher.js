@@ -45,6 +45,11 @@ export function getLinkedAccount(name, map, aliasMap) {
 
     if (normalizedInquiry === normalizedCreditor) return item;
 
+    const isVeryShort = resolvedInquiry.length < 6 || resolvedCreditor.length < 6;
+    if (isVeryShort && !normalizedInquiry.includes(normalizedCreditor) && !normalizedCreditor.includes(normalizedInquiry)) {
+      continue;
+    }
+
     const wordsC = getWords(resolvedCreditor);
     const wordsSetC = new Set(wordsC);
 
@@ -65,6 +70,18 @@ export function getLinkedAccount(name, map, aliasMap) {
     // Jaccard sobre palabras significativas (sin stop words)
     const sim = jaccardSimilarity(wordsI.join(" "), wordsC.join(" "));
     if (sim >= 0.7) return item;
+  }
+  return null;
+}
+
+export function getExactLinkedAccount(name, map, aliasMap) {
+  if (!name || !map.size) return null;
+  const creditor = name.split(" - ")[0].trim();
+  const normalizedName = normalizeForMatch(resolveAlias(creditor, aliasMap));
+
+  for (const [positiveCreditor, item] of map) {
+    const normalizedCreditor = normalizeForMatch(resolveAlias(positiveCreditor, aliasMap));
+    if (normalizedName === normalizedCreditor) return item;
   }
   return null;
 }

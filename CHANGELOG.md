@@ -1,5 +1,60 @@
 # CreditRadar Changelog
 
+## v20.45 (2026-10-26)
+🛡️ **Confirmación previa a la actualización** — Al elegir instalar desde el aviso de nueva versión, se presenta el descargo y la cuenta regresiva de 60 segundos antes de continuar. Se puede cancelar la instalación sin aceptar.
+
+---
+
+## v20.44 (2026-10-26)
+⏱️ **Cuenta regresiva de un minuto** — La aceptación del aviso de responsabilidad se habilita después de 60 segundos.
+
+---
+
+## v20.43 (2026-10-26)
+⚠️ **Aviso al actualizar** — Al iniciar una nueva versión, muestra primero un descargo de responsabilidad con una cuenta regresiva animada. La aceptación habilita las notas de versión.
+
+---
+
+## v20.42 (2026-10-26)
+🔔 **Aviso modal prioritario** — El aviso cubre toda la pantalla con fondo oscurecido, bloquea el panel de resultados y requiere que el usuario lo cierre o verifique una detección para continuar.
+
+---
+
+## v20.41 (2026-10-26)
+🔔 **Aviso prioritario centrado** — El aviso interactivo aparece en el centro de la pantalla, por encima del panel de resultados.
+
+---
+
+## v20.40 (2026-10-26)
+🔎 **Aviso interactivo** — Permite recorrer detecciones con anterior/siguiente y verificar cada elemento en la página, conservando el panel de resultados para volver a él.
+
+---
+
+## v20.39 (2026-10-26)
+🔔 **Orden del aviso** — El resumen se muestra antes de abrir el panel de resultados y permanece visible por encima del menú.
+
+---
+
+## v20.38 (2026-10-26)
+🔔 **Avisos de detección** — Al terminar el análisis, muestra un resumen de cuentas positivas detectadas, inquiries protegidas, cuentas omitidas y elementos que requieren revisión manual.
+
+---
+
+## v20.37 (2026-10-26)
+🔵 **Cuentas positivas en This Round** — Si una cuenta positiva aparece seleccionada para esta ronda, se detecta y se marca en azul tanto en la lista seleccionada como en Positive Items; no se agrega al output de disputa.
+
+---
+
+## v20.36 (2026-10-26)
+🔵 **Fix color en Positive Items** — Al detectar una cuenta cerrada positiva, el borde azul también se aplica a la cuenta correspondiente en la sección Positive Items.
+
+---
+
+## v20.35 (2026-10-26)
+🔧 **Fix Positive Items** — Las cuentas positivas se conservan aunque otro buró indique “deleted” o “none”.
+
+---
+
 ## v20.34 (2026-05-21)
 🔘 **Toggle por cuenta** — Incluye/excluye cuentas individuales antes de copiar | ✅ Open + Collection/Charge ahora se procesan correctamente
 

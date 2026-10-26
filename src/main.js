@@ -2,12 +2,12 @@ import { SCRIPT_VERSION, SELECTORS, DEFAULT_CONFIG } from './config/constants.js
 import { initCreditFlow, saveAndComplete } from './ui/creditflow-panel.js';
 import { loadConfig } from './core/storage.js';
 import { injectStyles } from './ui/styles.js';
-import { addButton, setButtonAnimation, showToast, createProgressPanel, updateProgress, removeProgressPanel } from './ui/toolbar.js';
+import { addButton, setButtonAnimation, showToast, showDetectionNotice, createProgressPanel, updateProgress, removeProgressPanel } from './ui/toolbar.js';
 import { checkVersionUpdate, checkForUpdates } from './ui/modals.js';
 import { openConfigPanel } from './ui/config-panel.js';
 import { showOutputEditor } from './ui/output-editor.js';
 import { showHistoryPanel } from './ui/history-panel.js';
-import { buildAliasMap, getLinkedAccount } from './core/matcher.js';
+import { buildAliasMap, getExactLinkedAccount, getLinkedAccount, resolveAlias } from './core/matcher.js';
 import { getDisputeType, getClientData, parseAccountBlocks, buildPositiveAccountsMap, isAgency, loadRoundDisputes } from './core/parser.js';
 import { getActiveColumns, hasInDispute } from './core/matcher.js';
 import { clearAllHighlights, highlight, queryOne, queryAll, waitForElement } from './utils/dom.js';
@@ -32,6 +32,15 @@ async function run() {
     const positiveAccounts = [...positiveAccountsMap.keys()];
     console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
+    const disputedNames = new Set();
+    const disputedSection = queryOne(SELECTORS.sections.disputed);
+    if (disputedSection) {
+      for (const item of queryAll(SELECTORS.compact.container, disputedSection)) {
+        const name = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
+        if (name) disputedNames.add(name);
+      }
+    }
+
     updateProgress(0, "?", "Cargando disputes...");
     const { links, timedOut } = await loadRoundDisputes((cur, total, name) => {
       updateProgress(cur, total, name, "Expandiendo");
@@ -42,9 +51,14 @@ async function run() {
     const ORIGINAL_ACCOUNTS = [];
     const INQUIRIES = [];
     const PERSONAL = [];
+    const DETECTIONS = [];
+    let POSITIVE_THIS_ROUND = 0;
+    let POSITIVE_CONFLICTS = 0;
     const TIMEOUT_SKIPPED = timedOut.map(l => {
       const item = l.closest(SELECTORS.compact.container);
-      return queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "Cuenta desconocida";
+      const name = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "Cuenta desconocida";
+      DETECTIONS.push({ name, label: "Cuenta que no cargó", target: item });
+      return name;
     });
     let SKIPPED_OPEN = 0;
     let SKIPPED_CLOSED = 0;
@@ -55,9 +69,21 @@ async function run() {
       if (link.classList.contains(SELECTORS.compact.deletedHeader)) continue;
 
       const item = link.closest(SELECTORS.compact.container);
-      if (!item || !hasInDispute(item)) continue;
+      if (!item) continue;
 
       const compactName = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
+      if (!hasInDispute(item)) {
+        const positiveItem = getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+        if (positiveItem) {
+          console.log(`🔵 Positive account selected for this round: ${compactName}`);
+          highlight(item, CONFIG.colors.closedPositive);
+          highlight(positiveItem, CONFIG.colors.closedPositive);
+          POSITIVE_THIS_ROUND++;
+          DETECTIONS.push({ name: compactName, label: "Positiva seleccionada en This Round", target: positiveItem });
+        }
+        continue;
+      }
+
       updateProgress(idx + 1, total, compactName, "Procesando");
 
       const realType = getDisputeType(item);
@@ -72,11 +98,26 @@ async function run() {
 
         const linkedItem = getLinkedAccount(compactName, positiveAccountsMap, aliasMap);
         if (linkedItem) {
+          const currentResolved = resolveAlias(compactName, aliasMap).toLowerCase();
+          const hasConflict = [...disputedNames].some(name => {
+            const other = resolveAlias(name, aliasMap).toLowerCase();
+            return other === currentResolved;
+          });
+
+          if (hasConflict) {
+            console.warn(`[Clasificador] Conflicto detectado: ${compactName} coincide con una cuenta positiva y con un item en disputa.`);
+            POSITIVE_CONFLICTS++;
+            DETECTIONS.push({ name: compactName, label: "Conflicto con una cuenta positiva", target: item });
+            INQUIRIES.push(compactName);
+            continue;
+          }
+
           console.log(`🛡️ Escudo Protector: Inquiry omitido por estar ligado a cuenta positiva: ${compactName}`);
           const color = "#f87171";
           highlight(item, color);
           highlight(linkedItem, color);
           LINKED_INQUIRIES++;
+          DETECTIONS.push({ name: compactName, label: "Inquiry vinculada a cuenta positiva", target: linkedItem });
         } else {
           INQUIRIES.push(compactName);
         }
@@ -112,13 +153,17 @@ async function run() {
         console.log(`⏭️ Skipped (Open): ${finalName}`);
         highlight(item, CONFIG.colors.open);
         SKIPPED_OPEN++;
+        DETECTIONS.push({ name: finalName, label: "Cuenta abierta omitida", target: item });
         continue;
       }
 
       if (parsed.isClosedPositive && !(CONFIG.includeDerogPositive && parsed.isDerogClosed)) {
         console.log(`⏭️ Skipped (Closed Positive): ${finalName}`);
         highlight(item, CONFIG.colors.closedPositive);
+        const positiveItem = getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+        if (positiveItem) highlight(positiveItem, CONFIG.colors.closedPositive);
         SKIPPED_CLOSED++;
+        DETECTIONS.push({ name: finalName, label: "Cuenta cerrada positiva", target: positiveItem || item });
         continue;
       }
 
@@ -152,8 +197,23 @@ async function run() {
     });
     personalHeader += NL;
 
-    if (TIMEOUT_SKIPPED.length) {
-      showToast(`⚠️ ${TIMEOUT_SKIPPED.length} cuenta(s) no cargaron y se omitieron. Revísalas manualmente.`, "#fbbf24", 10000);
+    const notices = [];
+    if (POSITIVE_THIS_ROUND) {
+      notices.push(`${POSITIVE_THIS_ROUND} cuenta(s) positiva(s) seleccionada(s) en This Round marcada(s) en azul`);
+    }
+    if (SKIPPED_CLOSED) {
+      notices.push(`${SKIPPED_CLOSED} cuenta(s) cerrada(s) positiva(s) omitida(s) y marcada(s) en azul`);
+    }
+    if (LINKED_INQUIRIES) {
+      notices.push(`${LINKED_INQUIRIES} inquiry(s) vinculada(s) a cuentas positivas y protegida(s)`);
+    }
+    if (POSITIVE_CONFLICTS) {
+      notices.push(`${POSITIVE_CONFLICTS} conflicto(s) entre cuenta(s) positiva(s) e inquiry(s); requiere(n) revisión manual`);
+    }
+    if (SKIPPED_OPEN) notices.push(`${SKIPPED_OPEN} cuenta(s) abierta(s) omitida(s)`);
+    if (TIMEOUT_SKIPPED.length) notices.push(`${TIMEOUT_SKIPPED.length} cuenta(s) no cargaron; revisa manualmente`);
+    if (notices.length) {
+      showDetectionNotice(DETECTIONS, `Análisis terminado: ${notices.join(". ")}.`);
     }
 
     showOutputEditor({

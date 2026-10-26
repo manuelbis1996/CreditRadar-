@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.34
+// @version      20.45
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,20 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.34";
+  const SCRIPT_VERSION = "20.45";
 
   const VERSION_NOTES = {
+    "20.45": "🛡️ Confirmación de responsabilidad obligatoria antes de instalar una actualización",
+    "20.44": "⏱️ Aviso de responsabilidad con cuenta regresiva animada de un minuto",
+    "20.43": "⚠️ Aviso de responsabilidad al actualizar, con aceptación tras cuenta regresiva animada",
+    "20.42": "🔔 Aviso modal bloqueante que cubre toda la pantalla y prioriza las detecciones",
+    "20.41": "🔔 Aviso interactivo centrado y destacado en pantalla",
+    "20.40": "🔎 Aviso interactivo para recorrer detecciones y verificarlas en la página",
+    "20.39": "🔔 Aviso de análisis aparece antes del panel de resultados",
+    "20.38": "🔔 Aviso resumen con detecciones positivas, inquiries protegidas y cuentas omitidas",
+    "20.37": "🔵 Detecta y marca cuentas positivas seleccionadas en This Round",
+    "20.36": "🔵 Fix: el color azul también marca la cuenta correspondiente en Positive Items",
+    "20.35": "🔧 Fix: Positive Items conserva cuentas con estado positivo en al menos un buró",
     "20.34": "🔘 Toggle por cuenta — incluye/excluye cuentas individuales antes de copiar | ✅ Open + Collection/Charge ahora se procesan correctamente",
     "20.33": "🚀 8 nuevas funciones: días, notas, export/import, badge estatus, hover, 3 formatos copia, cuentas nuevas",
     "20.32": "📲 Teléfono se captura en todos los puntos de guardado — copiar, historial y completo",
@@ -110,56 +121,58 @@
   ];
 
   const DEFAULT_ALIASES = `
-capital one = cap one, cap1, capone, cof, capital one bank, capital one na
-chase = jpmcb, jpmcb card, jp morgan, jpmorgan chase, chase bank
-synchrony = syncb, syncb jcp, syncb amazon, syncb paypal, syncb lowes, syncb walmart, syncb carecredit, syncb tjx, syncb gap, syncb amazon plcc, syncb ppc, syncb ppmc, syncb wgdc, syncb ntwk, syncb ondc, syncb brdc, gecrb, gemb, ge capital retail
-wells fargo = wf, wf bank, wfds, wells fargo bank, wells fargo financial
-bank of america = boa, bac, bofa, bank of amer, bk of america
-citibank = citi, citibank na, citicards, cbna, citifinancial
-american express = amex, american express bank, american express centurion
-discover = discover bank, discover financial, dfs, dfs webbank
-td bank = td, td bank na, td auto, td bank target
-us bank = usbank, us bank na, us bancorp
-ally financial = ally, ally bank, ally auto
-navy federal = navy fcu, navy federal credit union, nfcu
-usaa = usaa bank, usaa federal savings
-pnc bank = pnc, pnc bank na
-regions bank = regions, regions financial
-suntrust = suntrust bank, truist, truist bank
-bb&t = bbt, branch banking, truist
-fifth third = fifth third bank, 53 bank
-huntington = huntington bank, huntington national
-citizens bank = citizens, citizens financial, rbs citizens
-santander = santander bank, santander consumer, santander auto
-barclays = barclays bank, barclays bank delaware, barclay
-comenity = comenity bank, comenity capital, comen, wfnnb, world financial
-kohls = kohls capone, kohls charge, kohls department
-home depot = thd, thd cbna, home depot credit
-target = td bank target, target red card, target national
-walmart = walmart stores, walmart credit, syncb walmart
-amazon = amazon store card, syncb amazon, amazon visa
-paypal = syncb ppc, syncb paypal, paypal credit
-carecredit = syncb carecredit, syncb carecr, ge carecredit
-lowes = syncb lowes, lowes companies, lowes credit
-tjx = syncb tjx, tjx rewards, tjmaxx, marshalls, homegoods
-gap = syncb gap, gap inc, gap visa, syncb gapdc
-apple = apple bank, apple card, goldman sachs apple
-best buy = best buy credit, bestbuy, bby, cbna best buy
-macys = macys credit, macys retail, macys department
-nordstrom = nordstrom credit, nordstrom bank
-sears = sears credit, sears holdings, citibank sears
-jcpenney = jcp, jcpenney credit, syncb jcp, gecrb jcp
-victoria secret = vctr scrt, victoria secret credit, comenity victoria
-westlake = westlake financial, westlake fin, westlake service, wlake
-onemain = onemain financial, onemain fin, springleaf, springleaf financial
-first premier = first premier bank, first premier credit
-credit one = credit one bank, credit one financial
-affirm = affirm inc, affirm loan
-klarna = klarna bank, klarna financial
-afterpay = afterpay us, afterpay financial
-sofi = sofi bank, sofi lending, social finance
-marcus = marcus goldman, marcus by goldman sachs
-upgrade = upgrade bank, upgrade lending
+capital one = cap one, cap1, capone, capitalone, capital one bank, capital one na, capitalone bank, cof, cap1 auto, cap1 bank
+chase = chase, chase bank, chase card, jpmcb, jpmcb card, jp morgan, jpmorgan chase, chase auto, chase slate
+synchrony = synchrony, synchrony bank, synchrony financial, syncb, syncb jcp, syncb amazon, syncb paypal, syncb lowes, syncb walmart, syncb carecredit, syncb tjx, syncb gap, syncb amazon plcc, syncb ppc, syncb ppmc, syncb wgdc, syncb ntwk, syncb ondc, syncb brdc, gecrb, gemb, ge capital retail, carecredit, carecr
+wells fargo = wells fargo, wf, wf bank, wfds, wfs, wellsfargo, wells fargo bank, wells fargo financial, wellsfargo bank
+bank of america = bank of america, boa, bac, bofa, bank of amer, bk of america, bofa bank
+citibank = citi, citibank, citibank na, citicards, cbna, citifinancial, citi cards
+american express = american express, amex, american express bank, american express centurion, ae, american express company
+discover = discover, discover bank, discover financial, discover financial services, dfs, dfs webbank
+td bank = td bank, td, td bank na, td auto, td bank target, target red card
+us bank = us bank, usbank, us bank na, us bancorp, usb, us bank national association
+ally financial = ally, ally bank, ally financial, ally auto
+navy federal = navy federal, navy fcu, navy federal credit union, nfcu, navyfed
+usaa = usaa, usaa bank, usaa federal savings
+pnc bank = pnc, pnc bank, pnc bank na
+regions bank = regions, regions bank, regions financial
+suntrust = suntrust, suntrust bank, truist, truist bank
+bb&t = bbt, bb and t, bb&t, branch banking, truist
+fifth third = fifth third, fifth third bank, 53 bank, fifth third financial
+huntington = huntington, huntington bank, huntington national
+citizens bank = citizens, citizens bank, citizens financial, rbs citizens
+santander = santander, santander bank, santander consumer, santander auto
+barclays = barclays, barclays bank, barclays bank delaware, barclay
+comenity = comenity, comenity bank, comenity capital, comen, wfnnb, world financial
+kohls = kohls, kohls capone, kohls charge, kohls department, kohls credit
+home depot = home depot, home depot credit, thd, thd cbna
+target = target, target red card, target national, td bank target
+walmart = walmart, walmart stores, walmart credit, syncb walmart
+amazon = amazon, amazon store card, syncb amazon, amazon visa, amazon card
+paypal = paypal, syncb ppc, syncb paypal, paypal credit
+carecredit = carecredit, syncb carecredit, syncb carecr, ge carecredit
+lowes = lowes, syncb lowes, lowes companies, lowes credit
+ tjx = tjx, syncb tjx, tjx rewards, tjmaxx, marshalls, homegoods
+gap = gap, syncb gap, gap inc, gap visa, syncb gapdc
+apple = apple, apple bank, apple card, goldman sachs apple
+best buy = best buy, best buy credit, bestbuy, bby, cbna best buy
+macys = macys, macys credit, macys retail, macys department
+nordstrom = nordstrom, nordstrom credit, nordstrom bank
+sears = sears, sears credit, sears holdings, citibank sears
+jcpenney = jcpenney, jcp, jcpenney credit, syncb jcp, gecrb jcp
+victoria secret = victoria secret, vctr scrt, victoria secret credit, comenity victoria
+westlake = westlake, westlake financial, westlake fin, westlake service, wlake
+onemain = onemain, onemain financial, onemain fin, springleaf, springleaf financial
+first premier = first premier, first premier bank, first premier credit
+credit one = credit one, credit one bank, credit one financial, creditone
+affirm = affirm, affirm inc, affirm loan, affirm loans
+klarna = klarna, klarna bank, klarna financial
+afterpay = afterpay, afterpay us, afterpay financial
+sofi = sofi, sofi bank, sofi lending, social finance
+marcus = marcus, marcus goldman, marcus by goldman sachs
+upgrade = upgrade, upgrade bank, upgrade lending
+hdfc = hdfc bank, hdfc, hdfc credit card
+synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 `.trim();
 
   const DEFAULT_CONFIG = {
@@ -829,7 +842,7 @@ upgrade = upgrade bank, upgrade lending
     Object.assign(toast.style, {
       position: "fixed", bottom: "30px", right: "30px",
       background: "#1a1a1a", color: "#fff", padding: "14px 20px",
-      borderRadius: "8px", zIndex: "999999", fontSize: "14px",
+      borderRadius: "8px", zIndex: "1000000", fontSize: "14px",
       boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
       border: `1px solid ${color}`,
       transition: "opacity 0.5s ease",
@@ -842,6 +855,134 @@ upgrade = upgrade bank, upgrade lending
       toast.style.opacity = "0";
       setTimeout(() => toast.remove(), 500);
     }, duration);
+  }
+
+  function showDetectionNotice(detections, summary) {
+    document.getElementById("crDetectionNotice")?.remove();
+
+    const backdrop = document.createElement("div");
+    backdrop.id = "crDetectionNotice";
+    Object.assign(backdrop.style, {
+      position: "fixed", inset: "0", display: "grid", placeItems: "center",
+      padding: "16px", boxSizing: "border-box", zIndex: "1000001",
+      background: "rgba(0, 0, 0, 0.82)", backdropFilter: "blur(4px)"
+    });
+
+    const notice = document.createElement("section");
+    notice.setAttribute("role", "dialog");
+    notice.setAttribute("aria-modal", "true");
+    notice.setAttribute("aria-labelledby", "crDetectionHeading");
+    Object.assign(notice.style, {
+      width: "480px", maxWidth: "100%", maxHeight: "100%", overflowY: "auto",
+      background: "#161616", color: "#fff", padding: "24px",
+      borderRadius: "14px", border: "2px solid #60a5fa",
+      boxShadow: "0 16px 56px rgba(0,0,0,0.8)",
+      fontSize: "14px", lineHeight: "1.6", boxSizing: "border-box"
+    });
+
+    const heading = document.createElement("strong");
+    heading.id = "crDetectionHeading";
+    heading.textContent = "🔔 Aviso del análisis";
+    heading.style.display = "block";
+    heading.style.marginBottom = "6px";
+
+    const summaryText = document.createElement("div");
+    summaryText.textContent = summary;
+    summaryText.style.color = "#cbd5e1";
+
+    const detectionText = document.createElement("div");
+    detectionText.style.marginTop = "8px";
+    detectionText.style.color = "#93c5fd";
+    detectionText.setAttribute("aria-live", "polite");
+
+    const controls = document.createElement("div");
+    Object.assign(controls.style, {
+      display: "flex", alignItems: "center", gap: "6px", marginTop: "12px",
+      flexWrap: "wrap"
+    });
+
+    const makeButton = (label, title) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.title = title;
+      Object.assign(button.style, {
+        padding: "6px 9px", border: "1px solid #3a3a3a", borderRadius: "6px",
+        background: "#222", color: "#fff", cursor: "pointer", fontSize: "12px"
+      });
+      return button;
+    };
+
+    const previousButton = makeButton("‹ Anterior", "Detección anterior");
+    const verifyButton = makeButton("Verificar", "Ir a la detección seleccionada");
+    verifyButton.style.background = "#1d4ed8";
+    verifyButton.style.borderColor = "#3b82f6";
+    const nextButton = makeButton("Siguiente ›", "Siguiente detección");
+    const closeButton = makeButton("Entendido y continuar", "Cerrar aviso y continuar");
+    closeButton.style.marginLeft = "auto";
+
+    let currentIndex = 0;
+    let editorHidden = false;
+    const updateDetection = () => {
+      const hasDetections = detections.length > 0;
+      previousButton.disabled = !hasDetections;
+      nextButton.disabled = !hasDetections;
+      verifyButton.disabled = !hasDetections;
+      [previousButton, nextButton, verifyButton].forEach(button => {
+        button.style.opacity = hasDetections ? "1" : "0.45";
+        button.style.cursor = hasDetections ? "pointer" : "not-allowed";
+      });
+      detectionText.textContent = hasDetections
+        ? `${currentIndex + 1}/${detections.length} · ${detections[currentIndex].label}: ${detections[currentIndex].name}`
+        : "No hay elementos que se puedan abrir para verificar.";
+    };
+
+    previousButton.onclick = () => {
+      currentIndex = (currentIndex - 1 + detections.length) % detections.length;
+      updateDetection();
+    };
+    nextButton.onclick = () => {
+      currentIndex = (currentIndex + 1) % detections.length;
+      updateDetection();
+    };
+    verifyButton.onclick = () => {
+      if (editorHidden) {
+        const panel = document.getElementById("crOutputPanel");
+        const overlay = document.getElementById("crOverlay");
+        if (panel && overlay) {
+          panel.style.visibility = "";
+          overlay.style.display = "";
+          editorHidden = false;
+          backdrop.style.display = "grid";
+          verifyButton.textContent = "Verificar";
+        }
+        return;
+      }
+
+      const target = detections[currentIndex]?.target;
+      if (!target?.isConnected) {
+        detectionText.textContent = "Ese elemento ya no está disponible en la página.";
+        return;
+      }
+      const panel = document.getElementById("crOutputPanel");
+      const overlay = document.getElementById("crOverlay");
+      if (panel && overlay) {
+        panel.style.visibility = "hidden";
+        overlay.style.display = "none";
+        editorHidden = true;
+        backdrop.style.display = "none";
+        verifyButton.textContent = "Volver a resultados";
+      }
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+    closeButton.onclick = () => backdrop.remove();
+
+    controls.append(previousButton, verifyButton, nextButton, closeButton);
+    notice.append(heading, summaryText, detectionText, controls);
+    backdrop.appendChild(notice);
+    document.body.appendChild(backdrop);
+    updateDetection();
+    closeButton.focus();
   }
 
   function createProgressPanel() {
@@ -921,6 +1062,83 @@ upgrade = upgrade bank, upgrade lending
     bindClose(close, overlay, document.getElementById('crVmClose'), document.getElementById('crVmOk'));
   }
 
+  function showDisclaimerModal(onAccept) {
+    const overlay = createOverlay('crDisclaimerOverlay');
+    overlay.style.zIndex = '10000000';
+    overlay.style.background = 'rgba(0,0,0,0.88)';
+
+    const modal = createModal(
+      'crDisclaimerModal',
+      'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:14px;z-index:10000001;width:520px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow:auto;border:1px solid #fbbf24;box-shadow:0 18px 56px rgba(0,0,0,0.7);animation:crScaleIn 0.3s cubic-bezier(.16,1,.3,1);'
+    );
+
+    modal.innerHTML = `
+    <div style="padding:24px 24px 18px;background:#111;border-top:3px solid #fbbf24;">
+      <div style="display:inline-block;padding:5px 9px;border:1px solid #fbbf2440;border-radius:20px;background:#fbbf2412;color:#fbbf24;font-size:11px;font-weight:700;letter-spacing:.06em;">AVISO IMPORTANTE</div>
+      <div style="margin-top:12px;font-size:21px;font-weight:700;">Antes de continuar</div>
+      <div style="margin-top:5px;color:#9ca3af;font-size:12px;">CreditRadar v${SCRIPT_VERSION}</div>
+    </div>
+    <div style="padding:22px 24px 16px;color:#d1d5db;font-size:14px;line-height:1.7;">
+      <p style="margin:0 0 12px;">CreditRadar es una herramienta de apoyo y se proporciona “tal cual”. No garantiza que la información detectada sea completa o exacta, ni que su uso produzca un resultado específico.</p>
+      <p style="margin:0 0 12px;">El usuario es responsable de revisar y confirmar los datos, y de decidir qué acciones tomar antes de usar, enviar o compartir cualquier resultado.</p>
+      <p style="margin:0;">En la medida permitida por la ley, el creador no asume responsabilidad por consecuencias derivadas del uso de la herramienta, errores u omisiones en los datos, o decisiones tomadas con base en sus resultados. CreditRadar no sustituye asesoría profesional, legal ni financiera.</p>
+    </div>
+    <div style="padding:4px 24px 24px;">
+      <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;color:#9ca3af;font-size:12px;">
+        <span id="crDisclaimerCountdown">Lee el aviso para continuar</span>
+        <span id="crDisclaimerSeconds">60 s</span>
+      </div>
+      <div style="height:5px;overflow:hidden;border-radius:5px;background:#2a2a2a;">
+        <div id="crDisclaimerProgress" style="width:0;height:100%;background:#fbbf24;transition:width 60s linear;"></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px;">
+        <button id="crDisclaimerCancel" type="button" style="flex:1;padding:12px;border:1px solid #3a3a3a;border-radius:8px;background:#222;color:#bbb;font-size:14px;font-weight:600;cursor:pointer;">Cancelar</button>
+        <button id="crDisclaimerAccept" type="button" disabled style="flex:2;padding:12px;border:0;border-radius:8px;background:#3a3525;color:#9ca3af;font-size:14px;font-weight:700;cursor:not-allowed;transition:background .2s,color .2s,transform .2s;">Acepto y continuar (60)</button>
+      </div>
+    </div>
+  `;
+
+    const acceptButton = modal.querySelector('#crDisclaimerAccept');
+    const cancelButton = modal.querySelector('#crDisclaimerCancel');
+    const countdown = modal.querySelector('#crDisclaimerCountdown');
+    const secondsText = modal.querySelector('#crDisclaimerSeconds');
+    const progress = modal.querySelector('#crDisclaimerProgress');
+    const startedAt = Date.now();
+    const duration = 60000;
+    requestAnimationFrame(() => { progress.style.width = '100%'; });
+
+    const countdownTimer = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((duration - (Date.now() - startedAt)) / 1000));
+      secondsText.textContent = `${remaining} s`;
+      acceptButton.textContent = remaining
+        ? `Acepto y continuar (${remaining})`
+        : 'Acepto y continuar';
+
+      if (!remaining) {
+        clearInterval(countdownTimer);
+        countdown.textContent = 'Ya puedes aceptar y continuar';
+        acceptButton.disabled = false;
+        acceptButton.style.background = '#fbbf24';
+        acceptButton.style.color = '#111';
+        acceptButton.style.cursor = 'pointer';
+      }
+    }, 200);
+
+    cancelButton.onclick = () => {
+      clearInterval(countdownTimer);
+      overlay.remove();
+      modal.remove();
+    };
+
+    acceptButton.onclick = () => {
+      if (acceptButton.disabled) return;
+      clearInterval(countdownTimer);
+      overlay.remove();
+      modal.remove();
+      onAccept();
+    };
+  }
+
   function checkVersionUpdate() {
     const versionKey = "clasificador_lastVersion";
     const lastVersion = GM_getValue(versionKey, null);
@@ -967,8 +1185,10 @@ upgrade = upgrade bank, upgrade lending
     const close = () => { overlay.remove(); modal.remove(); };
     bindClose(close, overlay, document.getElementById('crUpClose'), document.getElementById('crUpLater'));
     document.getElementById('crUpInstall').onclick = () => {
-      window.location.href = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
-      close();
+      showDisclaimerModal(() => {
+        close();
+        window.location.href = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
+      });
     };
   }
 
@@ -1473,6 +1693,11 @@ upgrade = upgrade bank, upgrade lending
 
       if (normalizedInquiry === normalizedCreditor) return item;
 
+      const isVeryShort = resolvedInquiry.length < 6 || resolvedCreditor.length < 6;
+      if (isVeryShort && !normalizedInquiry.includes(normalizedCreditor) && !normalizedCreditor.includes(normalizedInquiry)) {
+        continue;
+      }
+
       const wordsC = getWords(resolvedCreditor);
       const wordsSetC = new Set(wordsC);
 
@@ -1493,6 +1718,18 @@ upgrade = upgrade bank, upgrade lending
       // Jaccard sobre palabras significativas (sin stop words)
       const sim = jaccardSimilarity(wordsI.join(" "), wordsC.join(" "));
       if (sim >= 0.7) return item;
+    }
+    return null;
+  }
+
+  function getExactLinkedAccount(name, map, aliasMap) {
+    if (!name || !map.size) return null;
+    const creditor = name.split(" - ")[0].trim();
+    const normalizedName = normalizeForMatch(resolveAlias(creditor, aliasMap));
+
+    for (const [positiveCreditor, item] of map) {
+      const normalizedCreditor = normalizeForMatch(resolveAlias(positiveCreditor, aliasMap));
+      if (normalizedName === normalizedCreditor) return item;
     }
     return null;
   }
@@ -1649,6 +1886,13 @@ upgrade = upgrade bank, upgrade lending
     return result;
   }
 
+  function isInactivePositiveItem(item) {
+    if (!item) return true;
+    if (item.classList.contains(SELECTORS.compact.deletedHeader)) return true;
+
+    return !BUROS.some(buro => getBuroStatus(item, buro).positive);
+  }
+
   function buildPositiveAccountsMap() {
     const map = new Map();
     const section = queryOne(SELECTORS.sections.positive);
@@ -1656,9 +1900,13 @@ upgrade = upgrade bank, upgrade lending
 
     const items = queryAll(SELECTORS.compact.container, section);
     for (const item of items) {
+      if (isInactivePositiveItem(item)) continue;
+
       const fullName = queryOne(SELECTORS.compact.name, item)?.innerText.trim().toLowerCase() || "";
       const creditor = fullName.split(" - ")[0].trim();
-      if (creditor) map.set(creditor, item);
+      if (!creditor) continue;
+
+      if (!map.has(creditor)) map.set(creditor, item);
     }
     return map;
   }
@@ -2532,6 +2780,15 @@ upgrade = upgrade bank, upgrade lending
       const positiveAccounts = [...positiveAccountsMap.keys()];
       console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
+      const disputedNames = new Set();
+      const disputedSection = queryOne(SELECTORS.sections.disputed);
+      if (disputedSection) {
+        for (const item of queryAll(SELECTORS.compact.container, disputedSection)) {
+          const name = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
+          if (name) disputedNames.add(name);
+        }
+      }
+
       updateProgress(0, "?", "Cargando disputes...");
       const { links, timedOut } = await loadRoundDisputes((cur, total, name) => {
         updateProgress(cur, total, name, "Expandiendo");
@@ -2542,9 +2799,14 @@ upgrade = upgrade bank, upgrade lending
       const ORIGINAL_ACCOUNTS = [];
       const INQUIRIES = [];
       const PERSONAL = [];
+      const DETECTIONS = [];
+      let POSITIVE_THIS_ROUND = 0;
+      let POSITIVE_CONFLICTS = 0;
       const TIMEOUT_SKIPPED = timedOut.map(l => {
         const item = l.closest(SELECTORS.compact.container);
-        return queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "Cuenta desconocida";
+        const name = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "Cuenta desconocida";
+        DETECTIONS.push({ name, label: "Cuenta que no cargó", target: item });
+        return name;
       });
       let SKIPPED_OPEN = 0;
       let SKIPPED_CLOSED = 0;
@@ -2555,9 +2817,21 @@ upgrade = upgrade bank, upgrade lending
         if (link.classList.contains(SELECTORS.compact.deletedHeader)) continue;
 
         const item = link.closest(SELECTORS.compact.container);
-        if (!item || !hasInDispute(item)) continue;
+        if (!item) continue;
 
         const compactName = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
+        if (!hasInDispute(item)) {
+          const positiveItem = getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+          if (positiveItem) {
+            console.log(`🔵 Positive account selected for this round: ${compactName}`);
+            highlight(item, CONFIG.colors.closedPositive);
+            highlight(positiveItem, CONFIG.colors.closedPositive);
+            POSITIVE_THIS_ROUND++;
+            DETECTIONS.push({ name: compactName, label: "Positiva seleccionada en This Round", target: positiveItem });
+          }
+          continue;
+        }
+
         updateProgress(idx + 1, total, compactName, "Procesando");
 
         const realType = getDisputeType(item);
@@ -2572,11 +2846,26 @@ upgrade = upgrade bank, upgrade lending
 
           const linkedItem = getLinkedAccount(compactName, positiveAccountsMap, aliasMap);
           if (linkedItem) {
+            const currentResolved = resolveAlias(compactName, aliasMap).toLowerCase();
+            const hasConflict = [...disputedNames].some(name => {
+              const other = resolveAlias(name, aliasMap).toLowerCase();
+              return other === currentResolved;
+            });
+
+            if (hasConflict) {
+              console.warn(`[Clasificador] Conflicto detectado: ${compactName} coincide con una cuenta positiva y con un item en disputa.`);
+              POSITIVE_CONFLICTS++;
+              DETECTIONS.push({ name: compactName, label: "Conflicto con una cuenta positiva", target: item });
+              INQUIRIES.push(compactName);
+              continue;
+            }
+
             console.log(`🛡️ Escudo Protector: Inquiry omitido por estar ligado a cuenta positiva: ${compactName}`);
             const color = "#f87171";
             highlight(item, color);
             highlight(linkedItem, color);
             LINKED_INQUIRIES++;
+            DETECTIONS.push({ name: compactName, label: "Inquiry vinculada a cuenta positiva", target: linkedItem });
           } else {
             INQUIRIES.push(compactName);
           }
@@ -2612,13 +2901,17 @@ upgrade = upgrade bank, upgrade lending
           console.log(`⏭️ Skipped (Open): ${finalName}`);
           highlight(item, CONFIG.colors.open);
           SKIPPED_OPEN++;
+          DETECTIONS.push({ name: finalName, label: "Cuenta abierta omitida", target: item });
           continue;
         }
 
         if (parsed.isClosedPositive && !(CONFIG.includeDerogPositive && parsed.isDerogClosed)) {
           console.log(`⏭️ Skipped (Closed Positive): ${finalName}`);
           highlight(item, CONFIG.colors.closedPositive);
+          const positiveItem = getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+          if (positiveItem) highlight(positiveItem, CONFIG.colors.closedPositive);
           SKIPPED_CLOSED++;
+          DETECTIONS.push({ name: finalName, label: "Cuenta cerrada positiva", target: positiveItem || item });
           continue;
         }
 
@@ -2652,8 +2945,23 @@ upgrade = upgrade bank, upgrade lending
       });
       personalHeader += NL;
 
-      if (TIMEOUT_SKIPPED.length) {
-        showToast(`⚠️ ${TIMEOUT_SKIPPED.length} cuenta(s) no cargaron y se omitieron. Revísalas manualmente.`, "#fbbf24", 10000);
+      const notices = [];
+      if (POSITIVE_THIS_ROUND) {
+        notices.push(`${POSITIVE_THIS_ROUND} cuenta(s) positiva(s) seleccionada(s) en This Round marcada(s) en azul`);
+      }
+      if (SKIPPED_CLOSED) {
+        notices.push(`${SKIPPED_CLOSED} cuenta(s) cerrada(s) positiva(s) omitida(s) y marcada(s) en azul`);
+      }
+      if (LINKED_INQUIRIES) {
+        notices.push(`${LINKED_INQUIRIES} inquiry(s) vinculada(s) a cuentas positivas y protegida(s)`);
+      }
+      if (POSITIVE_CONFLICTS) {
+        notices.push(`${POSITIVE_CONFLICTS} conflicto(s) entre cuenta(s) positiva(s) e inquiry(s); requiere(n) revisión manual`);
+      }
+      if (SKIPPED_OPEN) notices.push(`${SKIPPED_OPEN} cuenta(s) abierta(s) omitida(s)`);
+      if (TIMEOUT_SKIPPED.length) notices.push(`${TIMEOUT_SKIPPED.length} cuenta(s) no cargaron; revisa manualmente`);
+      if (notices.length) {
+        showDetectionNotice(DETECTIONS, `Análisis terminado: ${notices.join(". ")}.`);
       }
 
       showOutputEditor({
