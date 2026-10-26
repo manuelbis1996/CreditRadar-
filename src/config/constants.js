@@ -1,6 +1,7 @@
-export const SCRIPT_VERSION = "20.45";
+export const SCRIPT_VERSION = "20.46";
 
 export const VERSION_NOTES = {
+  "20.46": "🔔 Fix: aviso de responsabilidad también se muestra tras actualizaciones directas de Tampermonkey",
   "20.45": "🛡️ Confirmación de responsabilidad obligatoria antes de instalar una actualización",
   "20.44": "⏱️ Aviso de responsabilidad con cuenta regresiva animada de un minuto",
   "20.43": "⚠️ Aviso de responsabilidad al actualizar, con aceptación tras cuenta regresiva animada",

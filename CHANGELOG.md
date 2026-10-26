@@ -1,5 +1,10 @@
 # CreditRadar Changelog
 
+## v20.46 (2026-10-26)
+🔔 **Aviso de actualización garantizado** — La instalación desde CreditRadar conserva la aceptación antes de navegar; si Tampermonkey actualiza directamente, el aviso se muestra al primer inicio de la nueva versión, antes de las notas.
+
+---
+
 ## v20.45 (2026-10-26)
 🛡️ **Confirmación previa a la actualización** — Al elegir instalar desde el aviso de nueva versión, se presenta el descargo y la cuenta regresiva de 60 segundos antes de continuar. Se puede cancelar la instalación sin aceptar.
 

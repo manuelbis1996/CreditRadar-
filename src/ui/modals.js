@@ -46,7 +46,7 @@ export function showVersionModal() {
   bindClose(close, overlay, document.getElementById('crVmClose'), document.getElementById('crVmOk'));
 }
 
-function showDisclaimerModal(onAccept) {
+function showDisclaimerModal(onAccept, version = SCRIPT_VERSION) {
   const overlay = createOverlay('crDisclaimerOverlay');
   overlay.style.zIndex = '10000000';
   overlay.style.background = 'rgba(0,0,0,0.88)';
@@ -60,7 +60,7 @@ function showDisclaimerModal(onAccept) {
     <div style="padding:24px 24px 18px;background:#111;border-top:3px solid #fbbf24;">
       <div style="display:inline-block;padding:5px 9px;border:1px solid #fbbf2440;border-radius:20px;background:#fbbf2412;color:#fbbf24;font-size:11px;font-weight:700;letter-spacing:.06em;">AVISO IMPORTANTE</div>
       <div style="margin-top:12px;font-size:21px;font-weight:700;">Antes de continuar</div>
-      <div style="margin-top:5px;color:#9ca3af;font-size:12px;">CreditRadar v${SCRIPT_VERSION}</div>
+      <div style="margin-top:5px;color:#9ca3af;font-size:12px;">CreditRadar v${version}</div>
     </div>
     <div style="padding:22px 24px 16px;color:#d1d5db;font-size:14px;line-height:1.7;">
       <p style="margin:0 0 12px;">CreditRadar es una herramienta de apoyo y se proporciona “tal cual”. No garantiza que la información detectada sea completa o exacta, ni que su uso produzca un resultado específico.</p>
@@ -125,11 +125,21 @@ function showDisclaimerModal(onAccept) {
 
 export function checkVersionUpdate() {
   const versionKey = "clasificador_lastVersion";
+  const acceptedVersionKey = "clasificador_disclaimerAcceptedVersion";
   const lastVersion = GM_getValue(versionKey, null);
 
   if (lastVersion !== SCRIPT_VERSION) {
-    GM_setValue(versionKey, SCRIPT_VERSION);
-    setTimeout(showVersionModal, 1200);
+    if (GM_getValue(acceptedVersionKey, null) === SCRIPT_VERSION) {
+      GM_deleteValue(acceptedVersionKey);
+      GM_setValue(versionKey, SCRIPT_VERSION);
+      setTimeout(showVersionModal, 1200);
+      return;
+    }
+
+    setTimeout(() => showDisclaimerModal(() => {
+      GM_setValue(versionKey, SCRIPT_VERSION);
+      showVersionModal();
+    }), 1200);
   }
 }
 
@@ -170,9 +180,10 @@ export function showUpdateAvailableModal(latestVer) {
   bindClose(close, overlay, document.getElementById('crUpClose'), document.getElementById('crUpLater'));
   document.getElementById('crUpInstall').onclick = () => {
     showDisclaimerModal(() => {
+      GM_setValue("clasificador_disclaimerAcceptedVersion", latestVer);
       close();
       window.location.href = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
-    });
+    }, latestVer);
   };
 }
 
