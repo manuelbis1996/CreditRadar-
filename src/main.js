@@ -32,12 +32,13 @@ async function run() {
     const positiveAccounts = [...positiveAccountsMap.keys()];
     console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
-    const disputedNames = new Set();
+    const disputedAccountNames = new Set();
     const disputedSection = queryOne(SELECTORS.sections.disputed);
     if (disputedSection) {
       for (const item of queryAll(SELECTORS.compact.container, disputedSection)) {
+        if (getDisputeType(item) === "inquiry") continue;
         const name = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
-        if (name) disputedNames.add(name);
+        if (name) disputedAccountNames.add(name);
       }
     }
 
@@ -99,15 +100,18 @@ async function run() {
         const linkedItem = getLinkedAccount(compactName, positiveAccountsMap, aliasMap);
         if (linkedItem) {
           const currentResolved = resolveAlias(compactName, aliasMap).toLowerCase();
-          const hasConflict = [...disputedNames].some(name => {
+          const hasConflict = [...disputedAccountNames].some(name => {
             const other = resolveAlias(name, aliasMap).toLowerCase();
             return other === currentResolved;
           });
 
           if (hasConflict) {
             console.warn(`[Clasificador] Conflicto detectado: ${compactName} coincide con una cuenta positiva y con un item en disputa.`);
+            showToast(`⚠️ "${compactName}" coincide con una cuenta positiva y otra cuenta en disputa. Revisa ambas manualmente.`, "#fbbf24", 8000);
+            highlight(item, "#fbbf24");
+            highlight(linkedItem, "#fbbf24");
             POSITIVE_CONFLICTS++;
-            DETECTIONS.push({ name: compactName, label: "Conflicto con una cuenta positiva", target: item });
+            DETECTIONS.push({ name: compactName, label: "Conflicto: inquiry y cuenta positiva", target: linkedItem });
             INQUIRIES.push(compactName);
             continue;
           }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.46
+// @version      20.49
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,12 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.46";
+  const SCRIPT_VERSION = "20.49";
 
   const VERSION_NOTES = {
+    "20.49": "🔧 Fix: se puede volver al panel de resultados después de verificar una detección",
+    "20.48": "🔕 Se elimina el aviso de responsabilidad y su espera antes de actualizar",
+    "20.47": "🔧 Fix: restaura el resaltado de inquiries vinculadas y distingue conflictos reales",
     "20.46": "🔔 Fix: aviso de responsabilidad también se muestra tras actualizaciones directas de Tampermonkey",
     "20.45": "🛡️ Confirmación de responsabilidad obligatoria antes de instalar una actualización",
     "20.44": "⏱️ Aviso de responsabilidad con cuenta regresiva animada de un minuto",
@@ -860,6 +863,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
   function showDetectionNotice(detections, summary) {
     document.getElementById("crDetectionNotice")?.remove();
+    document.getElementById("crDetectionReturn")?.remove();
 
     const backdrop = document.createElement("div");
     backdrop.id = "crDetectionNotice";
@@ -922,8 +926,34 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     const closeButton = makeButton("Entendido y continuar", "Cerrar aviso y continuar");
     closeButton.style.marginLeft = "auto";
 
+    const returnButton = makeButton("↩ Volver al panel de resultados", "Volver al panel sin perder los cambios");
+    returnButton.id = "crDetectionReturn";
+    Object.assign(returnButton.style, {
+      display: "none", position: "fixed", top: "16px", right: "16px",
+      zIndex: "1000002", padding: "10px 14px", background: "#1d4ed8",
+      borderColor: "#3b82f6", fontSize: "13px", boxShadow: "0 4px 16px rgba(0,0,0,0.5)"
+    });
+
     let currentIndex = 0;
     let editorHidden = false;
+    const restoreResults = () => {
+      const panel = document.getElementById("crOutputPanel");
+      const overlay = document.getElementById("crOverlay");
+      if (!panel || !overlay) {
+        detectionText.textContent = "El panel de resultados ya no está disponible.";
+        return;
+      }
+      panel.style.visibility = "";
+      overlay.style.display = "";
+      backdrop.style.display = "grid";
+      returnButton.style.display = "none";
+      editorHidden = false;
+      verifyButton.textContent = "Verificar";
+      verifyButton.focus();
+    };
+
+    returnButton.onclick = restoreResults;
+
     const updateDetection = () => {
       const hasDetections = detections.length > 0;
       previousButton.disabled = !hasDetections;
@@ -948,15 +978,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     };
     verifyButton.onclick = () => {
       if (editorHidden) {
-        const panel = document.getElementById("crOutputPanel");
-        const overlay = document.getElementById("crOverlay");
-        if (panel && overlay) {
-          panel.style.visibility = "";
-          overlay.style.display = "";
-          editorHidden = false;
-          backdrop.style.display = "grid";
-          verifyButton.textContent = "Verificar";
-        }
+        restoreResults();
         return;
       }
 
@@ -967,21 +989,27 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       }
       const panel = document.getElementById("crOutputPanel");
       const overlay = document.getElementById("crOverlay");
-      if (panel && overlay) {
-        panel.style.visibility = "hidden";
-        overlay.style.display = "none";
-        editorHidden = true;
-        backdrop.style.display = "none";
-        verifyButton.textContent = "Volver a resultados";
+      if (!panel || !overlay) {
+        detectionText.textContent = "El panel de resultados ya no está disponible para verificar esta cuenta.";
+        return;
       }
+      panel.style.visibility = "hidden";
+      overlay.style.display = "none";
+      editorHidden = true;
+      backdrop.style.display = "none";
+      returnButton.style.display = "block";
       target.scrollIntoView({ behavior: "smooth", block: "center" });
     };
-    closeButton.onclick = () => backdrop.remove();
+    closeButton.onclick = () => {
+      backdrop.remove();
+      returnButton.remove();
+    };
 
     controls.append(previousButton, verifyButton, nextButton, closeButton);
     notice.append(heading, summaryText, detectionText, controls);
     backdrop.appendChild(notice);
     document.body.appendChild(backdrop);
+    document.body.appendChild(returnButton);
     updateDetection();
     closeButton.focus();
   }
@@ -1063,100 +1091,13 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     bindClose(close, overlay, document.getElementById('crVmClose'), document.getElementById('crVmOk'));
   }
 
-  function showDisclaimerModal(onAccept, version = SCRIPT_VERSION) {
-    const overlay = createOverlay('crDisclaimerOverlay');
-    overlay.style.zIndex = '10000000';
-    overlay.style.background = 'rgba(0,0,0,0.88)';
-
-    const modal = createModal(
-      'crDisclaimerModal',
-      'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:14px;z-index:10000001;width:520px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow:auto;border:1px solid #fbbf24;box-shadow:0 18px 56px rgba(0,0,0,0.7);animation:crScaleIn 0.3s cubic-bezier(.16,1,.3,1);'
-    );
-
-    modal.innerHTML = `
-    <div style="padding:24px 24px 18px;background:#111;border-top:3px solid #fbbf24;">
-      <div style="display:inline-block;padding:5px 9px;border:1px solid #fbbf2440;border-radius:20px;background:#fbbf2412;color:#fbbf24;font-size:11px;font-weight:700;letter-spacing:.06em;">AVISO IMPORTANTE</div>
-      <div style="margin-top:12px;font-size:21px;font-weight:700;">Antes de continuar</div>
-      <div style="margin-top:5px;color:#9ca3af;font-size:12px;">CreditRadar v${version}</div>
-    </div>
-    <div style="padding:22px 24px 16px;color:#d1d5db;font-size:14px;line-height:1.7;">
-      <p style="margin:0 0 12px;">CreditRadar es una herramienta de apoyo y se proporciona “tal cual”. No garantiza que la información detectada sea completa o exacta, ni que su uso produzca un resultado específico.</p>
-      <p style="margin:0 0 12px;">El usuario es responsable de revisar y confirmar los datos, y de decidir qué acciones tomar antes de usar, enviar o compartir cualquier resultado.</p>
-      <p style="margin:0;">En la medida permitida por la ley, el creador no asume responsabilidad por consecuencias derivadas del uso de la herramienta, errores u omisiones en los datos, o decisiones tomadas con base en sus resultados. CreditRadar no sustituye asesoría profesional, legal ni financiera.</p>
-    </div>
-    <div style="padding:4px 24px 24px;">
-      <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;color:#9ca3af;font-size:12px;">
-        <span id="crDisclaimerCountdown">Lee el aviso para continuar</span>
-        <span id="crDisclaimerSeconds">60 s</span>
-      </div>
-      <div style="height:5px;overflow:hidden;border-radius:5px;background:#2a2a2a;">
-        <div id="crDisclaimerProgress" style="width:0;height:100%;background:#fbbf24;transition:width 60s linear;"></div>
-      </div>
-      <div style="display:flex;gap:10px;margin-top:18px;">
-        <button id="crDisclaimerCancel" type="button" style="flex:1;padding:12px;border:1px solid #3a3a3a;border-radius:8px;background:#222;color:#bbb;font-size:14px;font-weight:600;cursor:pointer;">Cancelar</button>
-        <button id="crDisclaimerAccept" type="button" disabled style="flex:2;padding:12px;border:0;border-radius:8px;background:#3a3525;color:#9ca3af;font-size:14px;font-weight:700;cursor:not-allowed;transition:background .2s,color .2s,transform .2s;">Acepto y continuar (60)</button>
-      </div>
-    </div>
-  `;
-
-    const acceptButton = modal.querySelector('#crDisclaimerAccept');
-    const cancelButton = modal.querySelector('#crDisclaimerCancel');
-    const countdown = modal.querySelector('#crDisclaimerCountdown');
-    const secondsText = modal.querySelector('#crDisclaimerSeconds');
-    const progress = modal.querySelector('#crDisclaimerProgress');
-    const startedAt = Date.now();
-    const duration = 60000;
-    requestAnimationFrame(() => { progress.style.width = '100%'; });
-
-    const countdownTimer = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((duration - (Date.now() - startedAt)) / 1000));
-      secondsText.textContent = `${remaining} s`;
-      acceptButton.textContent = remaining
-        ? `Acepto y continuar (${remaining})`
-        : 'Acepto y continuar';
-
-      if (!remaining) {
-        clearInterval(countdownTimer);
-        countdown.textContent = 'Ya puedes aceptar y continuar';
-        acceptButton.disabled = false;
-        acceptButton.style.background = '#fbbf24';
-        acceptButton.style.color = '#111';
-        acceptButton.style.cursor = 'pointer';
-      }
-    }, 200);
-
-    cancelButton.onclick = () => {
-      clearInterval(countdownTimer);
-      overlay.remove();
-      modal.remove();
-    };
-
-    acceptButton.onclick = () => {
-      if (acceptButton.disabled) return;
-      clearInterval(countdownTimer);
-      overlay.remove();
-      modal.remove();
-      onAccept();
-    };
-  }
-
   function checkVersionUpdate() {
     const versionKey = "clasificador_lastVersion";
-    const acceptedVersionKey = "clasificador_disclaimerAcceptedVersion";
     const lastVersion = GM_getValue(versionKey, null);
 
     if (lastVersion !== SCRIPT_VERSION) {
-      if (GM_getValue(acceptedVersionKey, null) === SCRIPT_VERSION) {
-        GM_deleteValue(acceptedVersionKey);
-        GM_setValue(versionKey, SCRIPT_VERSION);
-        setTimeout(showVersionModal, 1200);
-        return;
-      }
-
-      setTimeout(() => showDisclaimerModal(() => {
-        GM_setValue(versionKey, SCRIPT_VERSION);
-        showVersionModal();
-      }), 1200);
+      GM_setValue(versionKey, SCRIPT_VERSION);
+      setTimeout(showVersionModal, 1200);
     }
   }
 
@@ -1196,11 +1137,8 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     const close = () => { overlay.remove(); modal.remove(); };
     bindClose(close, overlay, document.getElementById('crUpClose'), document.getElementById('crUpLater'));
     document.getElementById('crUpInstall').onclick = () => {
-      showDisclaimerModal(() => {
-        GM_setValue("clasificador_disclaimerAcceptedVersion", latestVer);
-        close();
-        window.location.href = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
-      }, latestVer);
+      window.location.href = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
+      close();
     };
   }
 
@@ -2792,12 +2730,13 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       const positiveAccounts = [...positiveAccountsMap.keys()];
       console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
-      const disputedNames = new Set();
+      const disputedAccountNames = new Set();
       const disputedSection = queryOne(SELECTORS.sections.disputed);
       if (disputedSection) {
         for (const item of queryAll(SELECTORS.compact.container, disputedSection)) {
+          if (getDisputeType(item) === "inquiry") continue;
           const name = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
-          if (name) disputedNames.add(name);
+          if (name) disputedAccountNames.add(name);
         }
       }
 
@@ -2859,15 +2798,18 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
           const linkedItem = getLinkedAccount(compactName, positiveAccountsMap, aliasMap);
           if (linkedItem) {
             const currentResolved = resolveAlias(compactName, aliasMap).toLowerCase();
-            const hasConflict = [...disputedNames].some(name => {
+            const hasConflict = [...disputedAccountNames].some(name => {
               const other = resolveAlias(name, aliasMap).toLowerCase();
               return other === currentResolved;
             });
 
             if (hasConflict) {
               console.warn(`[Clasificador] Conflicto detectado: ${compactName} coincide con una cuenta positiva y con un item en disputa.`);
+              showToast(`⚠️ "${compactName}" coincide con una cuenta positiva y otra cuenta en disputa. Revisa ambas manualmente.`, "#fbbf24", 8000);
+              highlight(item, "#fbbf24");
+              highlight(linkedItem, "#fbbf24");
               POSITIVE_CONFLICTS++;
-              DETECTIONS.push({ name: compactName, label: "Conflicto con una cuenta positiva", target: item });
+              DETECTIONS.push({ name: compactName, label: "Conflicto: inquiry y cuenta positiva", target: linkedItem });
               INQUIRIES.push(compactName);
               continue;
             }

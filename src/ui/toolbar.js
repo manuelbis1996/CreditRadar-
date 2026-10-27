@@ -80,6 +80,7 @@ export function showToast(message, color = "#5eead4", duration = 5000) {
 
 export function showDetectionNotice(detections, summary) {
   document.getElementById("crDetectionNotice")?.remove();
+  document.getElementById("crDetectionReturn")?.remove();
 
   const backdrop = document.createElement("div");
   backdrop.id = "crDetectionNotice";
@@ -142,8 +143,34 @@ export function showDetectionNotice(detections, summary) {
   const closeButton = makeButton("Entendido y continuar", "Cerrar aviso y continuar");
   closeButton.style.marginLeft = "auto";
 
+  const returnButton = makeButton("↩ Volver al panel de resultados", "Volver al panel sin perder los cambios");
+  returnButton.id = "crDetectionReturn";
+  Object.assign(returnButton.style, {
+    display: "none", position: "fixed", top: "16px", right: "16px",
+    zIndex: "1000002", padding: "10px 14px", background: "#1d4ed8",
+    borderColor: "#3b82f6", fontSize: "13px", boxShadow: "0 4px 16px rgba(0,0,0,0.5)"
+  });
+
   let currentIndex = 0;
   let editorHidden = false;
+  const restoreResults = () => {
+    const panel = document.getElementById("crOutputPanel");
+    const overlay = document.getElementById("crOverlay");
+    if (!panel || !overlay) {
+      detectionText.textContent = "El panel de resultados ya no está disponible.";
+      return;
+    }
+    panel.style.visibility = "";
+    overlay.style.display = "";
+    backdrop.style.display = "grid";
+    returnButton.style.display = "none";
+    editorHidden = false;
+    verifyButton.textContent = "Verificar";
+    verifyButton.focus();
+  };
+
+  returnButton.onclick = restoreResults;
+
   const updateDetection = () => {
     const hasDetections = detections.length > 0;
     previousButton.disabled = !hasDetections;
@@ -168,15 +195,7 @@ export function showDetectionNotice(detections, summary) {
   };
   verifyButton.onclick = () => {
     if (editorHidden) {
-      const panel = document.getElementById("crOutputPanel");
-      const overlay = document.getElementById("crOverlay");
-      if (panel && overlay) {
-        panel.style.visibility = "";
-        overlay.style.display = "";
-        editorHidden = false;
-        backdrop.style.display = "grid";
-        verifyButton.textContent = "Verificar";
-      }
+      restoreResults();
       return;
     }
 
@@ -187,21 +206,27 @@ export function showDetectionNotice(detections, summary) {
     }
     const panel = document.getElementById("crOutputPanel");
     const overlay = document.getElementById("crOverlay");
-    if (panel && overlay) {
-      panel.style.visibility = "hidden";
-      overlay.style.display = "none";
-      editorHidden = true;
-      backdrop.style.display = "none";
-      verifyButton.textContent = "Volver a resultados";
+    if (!panel || !overlay) {
+      detectionText.textContent = "El panel de resultados ya no está disponible para verificar esta cuenta.";
+      return;
     }
+    panel.style.visibility = "hidden";
+    overlay.style.display = "none";
+    editorHidden = true;
+    backdrop.style.display = "none";
+    returnButton.style.display = "block";
     target.scrollIntoView({ behavior: "smooth", block: "center" });
   };
-  closeButton.onclick = () => backdrop.remove();
+  closeButton.onclick = () => {
+    backdrop.remove();
+    returnButton.remove();
+  };
 
   controls.append(previousButton, verifyButton, nextButton, closeButton);
   notice.append(heading, summaryText, detectionText, controls);
   backdrop.appendChild(notice);
   document.body.appendChild(backdrop);
+  document.body.appendChild(returnButton);
   updateDetection();
   closeButton.focus();
 }

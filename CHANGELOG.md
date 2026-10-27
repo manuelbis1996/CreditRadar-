@@ -1,5 +1,20 @@
 # CreditRadar Changelog
 
+## v20.49 (2026-10-27)
+🔧 **Regreso desde Verificar** — Al verificar una detección, aparece un botón flotante para volver al panel de resultados; se conserva la edición en curso.
+
+---
+
+## v20.48 (2026-10-27)
+🔕 **Aviso de responsabilidad eliminado** — Se quitan el descargo y la cuenta regresiva de un minuto tanto al actualizar como al iniciar una versión nueva.
+
+---
+
+## v20.47 (2026-10-27)
+🔧 **Fix inquiries vinculadas** — La comprobación de conflictos ya no confunde otras inquiries con cuentas disputadas; las coincidencias se marcan de nuevo y los conflictos reales resaltan ambas cuentas y avisan para revisión manual.
+
+---
+
 ## v20.46 (2026-10-26)
 🔔 **Aviso de actualización garantizado** — La instalación desde CreditRadar conserva la aceptación antes de navegar; si Tampermonkey actualiza directamente, el aviso se muestra al primer inicio de la nueva versión, antes de las notas.
 
