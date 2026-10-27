@@ -1,6 +1,9 @@
-export const SCRIPT_VERSION = "20.49";
+export const SCRIPT_VERSION = "20.52";
 
 export const VERSION_NOTES = {
+  "20.52": "🔧 Fix: distingue cuentas diferentes del mismo acreedor en Positive Items",
+  "20.51": "🔗 Detecta cuentas negativas en This Round que coinciden con cuentas de Positive Items",
+  "20.50": "🔧 Fix: detecta cuentas positivas aunque un buró muestre Unspecified",
   "20.49": "🔧 Fix: se puede volver al panel de resultados después de verificar una detección",
   "20.48": "🔕 Se elimina el aviso de responsabilidad y su espera antes de actualizar",
   "20.47": "🔧 Fix: restaura el resaltado de inquiries vinculadas y distingue conflictos reales",

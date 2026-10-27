@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.49
+// @version      20.52
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,12 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.49";
+  const SCRIPT_VERSION = "20.52";
 
   const VERSION_NOTES = {
+    "20.52": "🔧 Fix: distingue cuentas diferentes del mismo acreedor en Positive Items",
+    "20.51": "🔗 Detecta cuentas negativas en This Round que coinciden con cuentas de Positive Items",
+    "20.50": "🔧 Fix: detecta cuentas positivas aunque un buró muestre Unspecified",
     "20.49": "🔧 Fix: se puede volver al panel de resultados después de verificar una detección",
     "20.48": "🔕 Se elimina el aviso de responsabilidad y su espera antes de actualizar",
     "20.47": "🔧 Fix: restaura el resaltado de inquiries vinculadas y distingue conflictos reales",
@@ -1637,7 +1640,8 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     const prefixesI = getPrefixes(resolvedInquiry);
     const prefixSetI = new Set(prefixesI);
 
-    for (const [creditor, item] of map) {
+    for (const [positiveName, item] of map) {
+      const creditor = positiveName.split(" - ")[0].trim();
       const resolvedCreditor = resolveAlias(creditor, aliasMap);
       const normalizedCreditor = normalizeForMatch(resolvedCreditor);
 
@@ -1674,14 +1678,29 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
   function getExactLinkedAccount(name, map, aliasMap) {
     if (!name || !map.size) return null;
-    const creditor = name.split(" - ")[0].trim();
-    const normalizedName = normalizeForMatch(resolveAlias(creditor, aliasMap));
+    const getNameParts = value => {
+      const separatorIndex = value.indexOf(" - ");
+      return separatorIndex === -1
+        ? [value.trim(), ""]
+        : [value.slice(0, separatorIndex).trim(), value.slice(separatorIndex + 3).trim()];
+    };
+    const getNormalizedFullName = value => {
+      const [creditor, details] = getNameParts(value);
+      return `${normalizeForMatch(resolveAlias(creditor, aliasMap))}|${normalizeForMatch(details)}`;
+    };
+    const normalizedName = getNormalizedFullName(name);
+    const matchingNames = [...map].filter(([positiveName]) =>
+      getNormalizedFullName(positiveName) === normalizedName
+    );
+    if (matchingNames.length === 1) return matchingNames[0][1];
 
-    for (const [positiveCreditor, item] of map) {
-      const normalizedCreditor = normalizeForMatch(resolveAlias(positiveCreditor, aliasMap));
-      if (normalizedName === normalizedCreditor) return item;
-    }
-    return null;
+    const [creditor] = getNameParts(name);
+    const normalizedCreditor = normalizeForMatch(resolveAlias(creditor, aliasMap));
+    const matchingCreditors = [...map].filter(([positiveName]) => {
+      const [positiveCreditor] = getNameParts(positiveName);
+      return normalizeForMatch(resolveAlias(positiveCreditor, aliasMap)) === normalizedCreditor;
+    });
+    return matchingCreditors.length === 1 ? matchingCreditors[0][1] : null;
   }
 
   function getBuroStatus(item, buro) {
@@ -1840,7 +1859,10 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     if (!item) return true;
     if (item.classList.contains(SELECTORS.compact.deletedHeader)) return true;
 
-    return !BUROS.some(buro => getBuroStatus(item, buro).positive);
+    return !BUROS.some(buro => {
+      const status = getBuroStatus(item, buro);
+      return status.positive || status.none;
+    });
   }
 
   function buildPositiveAccountsMap() {
@@ -1853,10 +1875,9 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       if (isInactivePositiveItem(item)) continue;
 
       const fullName = queryOne(SELECTORS.compact.name, item)?.innerText.trim().toLowerCase() || "";
-      const creditor = fullName.split(" - ")[0].trim();
-      if (!creditor) continue;
+      if (!fullName) continue;
 
-      if (!map.has(creditor)) map.set(creditor, item);
+      if (!map.has(fullName)) map.set(fullName, item);
     }
     return map;
   }
@@ -2727,7 +2748,9 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
       const aliasMap = buildAliasMap(CONFIG);
       const positiveAccountsMap = buildPositiveAccountsMap();
-      const positiveAccounts = [...positiveAccountsMap.keys()];
+      const positiveAccounts = [...new Set(
+        [...positiveAccountsMap.keys()].map(name => name.split(" - ")[0].trim())
+      )];
       console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
       const disputedAccountNames = new Set();
@@ -2771,21 +2794,29 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
         if (!item) continue;
 
         const compactName = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
-        if (!hasInDispute(item)) {
-          const positiveItem = getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+        const realType = getDisputeType(item);
+        const inDispute = hasInDispute(item);
+        const positiveItem = realType === "inquiry"
+          ? null
+          : getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+
+        if (positiveItem) {
+          console.log(`🔵 Account in This Round matches Positive Items: ${compactName}`);
+          highlight(item, CONFIG.colors.closedPositive);
+          highlight(positiveItem, CONFIG.colors.closedPositive);
+          POSITIVE_THIS_ROUND++;
+          DETECTIONS.push({ name: compactName, label: "Coincidencia de cuenta en Positive Items", target: positiveItem });
+        }
+
+        if (!inDispute) {
           if (positiveItem) {
-            console.log(`🔵 Positive account selected for this round: ${compactName}`);
-            highlight(item, CONFIG.colors.closedPositive);
-            highlight(positiveItem, CONFIG.colors.closedPositive);
-            POSITIVE_THIS_ROUND++;
-            DETECTIONS.push({ name: compactName, label: "Positiva seleccionada en This Round", target: positiveItem });
+            console.log(`⏭️ Positive account not in dispute: ${compactName}`);
           }
           continue;
         }
 
         updateProgress(idx + 1, total, compactName, "Procesando");
 
-        const realType = getDisputeType(item);
         const activeCols = getActiveColumns(item);
         const hasActive = activeCols.some(Boolean);
 
@@ -2901,7 +2932,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
       const notices = [];
       if (POSITIVE_THIS_ROUND) {
-        notices.push(`${POSITIVE_THIS_ROUND} cuenta(s) positiva(s) seleccionada(s) en This Round marcada(s) en azul`);
+        notices.push(`${POSITIVE_THIS_ROUND} cuenta(s) de This Round vinculada(s) con Positive Items y marcada(s) en azul`);
       }
       if (SKIPPED_CLOSED) {
         notices.push(`${SKIPPED_CLOSED} cuenta(s) cerrada(s) positiva(s) omitida(s) y marcada(s) en azul`);

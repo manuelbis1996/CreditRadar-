@@ -1,5 +1,20 @@
 # CreditRadar Changelog
 
+## v20.52 (2026-10-27)
+🔧 **Cuentas múltiples del mismo acreedor** — Positive Items conserva cada cuenta. El vínculo prefiere el nombre completo y evita escoger una cuenta arbitraria si hay varias del mismo acreedor.
+
+---
+
+## v20.51 (2026-10-27)
+🔗 **Vinculación de cuenta negativa con Positive Items** — La comparación se realiza también cuando la cuenta de This Round está en disputa/negativa; el match se resalta y se reporta sin impedir el procesamiento normal de la cuenta.
+
+---
+
+## v20.50 (2026-10-27)
+🔧 **Cuentas positivas con estado Unspecified** — Las cuentas de Positive Items ahora se reconocen aunque un buró muestre “Unspecified”.
+
+---
+
 ## v20.49 (2026-10-27)
 🔧 **Regreso desde Verificar** — Al verificar una detección, aparece un botón flotante para volver al panel de resultados; se conserva la edición en curso.
 

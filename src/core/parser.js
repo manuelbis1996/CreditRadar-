@@ -126,7 +126,10 @@ export function isInactivePositiveItem(item) {
   if (!item) return true;
   if (item.classList.contains(SELECTORS.compact.deletedHeader)) return true;
 
-  return !BUROS.some(buro => getBuroStatus(item, buro).positive);
+  return !BUROS.some(buro => {
+    const status = getBuroStatus(item, buro);
+    return status.positive || status.none;
+  });
 }
 
 export function buildPositiveAccountsMap() {
@@ -139,10 +142,9 @@ export function buildPositiveAccountsMap() {
     if (isInactivePositiveItem(item)) continue;
 
     const fullName = queryOne(SELECTORS.compact.name, item)?.innerText.trim().toLowerCase() || "";
-    const creditor = fullName.split(" - ")[0].trim();
-    if (!creditor) continue;
+    if (!fullName) continue;
 
-    if (!map.has(creditor)) map.set(creditor, item);
+    if (!map.has(fullName)) map.set(fullName, item);
   }
   return map;
 }

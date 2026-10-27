@@ -29,7 +29,9 @@ async function run() {
 
     const aliasMap = buildAliasMap(CONFIG);
     const positiveAccountsMap = buildPositiveAccountsMap();
-    const positiveAccounts = [...positiveAccountsMap.keys()];
+    const positiveAccounts = [...new Set(
+      [...positiveAccountsMap.keys()].map(name => name.split(" - ")[0].trim())
+    )];
     console.log(`✅ Aliases: ${aliasMap.size} | Positive accounts: ${positiveAccountsMap.size}`);
 
     const disputedAccountNames = new Set();
@@ -73,21 +75,29 @@ async function run() {
       if (!item) continue;
 
       const compactName = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
-      if (!hasInDispute(item)) {
-        const positiveItem = getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+      const realType = getDisputeType(item);
+      const inDispute = hasInDispute(item);
+      const positiveItem = realType === "inquiry"
+        ? null
+        : getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+
+      if (positiveItem) {
+        console.log(`🔵 Account in This Round matches Positive Items: ${compactName}`);
+        highlight(item, CONFIG.colors.closedPositive);
+        highlight(positiveItem, CONFIG.colors.closedPositive);
+        POSITIVE_THIS_ROUND++;
+        DETECTIONS.push({ name: compactName, label: "Coincidencia de cuenta en Positive Items", target: positiveItem });
+      }
+
+      if (!inDispute) {
         if (positiveItem) {
-          console.log(`🔵 Positive account selected for this round: ${compactName}`);
-          highlight(item, CONFIG.colors.closedPositive);
-          highlight(positiveItem, CONFIG.colors.closedPositive);
-          POSITIVE_THIS_ROUND++;
-          DETECTIONS.push({ name: compactName, label: "Positiva seleccionada en This Round", target: positiveItem });
+          console.log(`⏭️ Positive account not in dispute: ${compactName}`);
         }
         continue;
       }
 
       updateProgress(idx + 1, total, compactName, "Procesando");
 
-      const realType = getDisputeType(item);
       const activeCols = getActiveColumns(item);
       const hasActive = activeCols.some(Boolean);
 
@@ -203,7 +213,7 @@ async function run() {
 
     const notices = [];
     if (POSITIVE_THIS_ROUND) {
-      notices.push(`${POSITIVE_THIS_ROUND} cuenta(s) positiva(s) seleccionada(s) en This Round marcada(s) en azul`);
+      notices.push(`${POSITIVE_THIS_ROUND} cuenta(s) de This Round vinculada(s) con Positive Items y marcada(s) en azul`);
     }
     if (SKIPPED_CLOSED) {
       notices.push(`${SKIPPED_CLOSED} cuenta(s) cerrada(s) positiva(s) omitida(s) y marcada(s) en azul`);

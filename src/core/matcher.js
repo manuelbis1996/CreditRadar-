@@ -39,7 +39,8 @@ export function getLinkedAccount(name, map, aliasMap) {
   const prefixesI = getPrefixes(resolvedInquiry);
   const prefixSetI = new Set(prefixesI);
 
-  for (const [creditor, item] of map) {
+  for (const [positiveName, item] of map) {
+    const creditor = positiveName.split(" - ")[0].trim();
     const resolvedCreditor = resolveAlias(creditor, aliasMap);
     const normalizedCreditor = normalizeForMatch(resolvedCreditor);
 
@@ -76,14 +77,29 @@ export function getLinkedAccount(name, map, aliasMap) {
 
 export function getExactLinkedAccount(name, map, aliasMap) {
   if (!name || !map.size) return null;
-  const creditor = name.split(" - ")[0].trim();
-  const normalizedName = normalizeForMatch(resolveAlias(creditor, aliasMap));
+  const getNameParts = value => {
+    const separatorIndex = value.indexOf(" - ");
+    return separatorIndex === -1
+      ? [value.trim(), ""]
+      : [value.slice(0, separatorIndex).trim(), value.slice(separatorIndex + 3).trim()];
+  };
+  const getNormalizedFullName = value => {
+    const [creditor, details] = getNameParts(value);
+    return `${normalizeForMatch(resolveAlias(creditor, aliasMap))}|${normalizeForMatch(details)}`;
+  };
+  const normalizedName = getNormalizedFullName(name);
+  const matchingNames = [...map].filter(([positiveName]) =>
+    getNormalizedFullName(positiveName) === normalizedName
+  );
+  if (matchingNames.length === 1) return matchingNames[0][1];
 
-  for (const [positiveCreditor, item] of map) {
-    const normalizedCreditor = normalizeForMatch(resolveAlias(positiveCreditor, aliasMap));
-    if (normalizedName === normalizedCreditor) return item;
-  }
-  return null;
+  const [creditor] = getNameParts(name);
+  const normalizedCreditor = normalizeForMatch(resolveAlias(creditor, aliasMap));
+  const matchingCreditors = [...map].filter(([positiveName]) => {
+    const [positiveCreditor] = getNameParts(positiveName);
+    return normalizeForMatch(resolveAlias(positiveCreditor, aliasMap)) === normalizedCreditor;
+  });
+  return matchingCreditors.length === 1 ? matchingCreditors[0][1] : null;
 }
 
 export function getBuroStatus(item, buro) {
