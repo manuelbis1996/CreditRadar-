@@ -5,10 +5,12 @@ import { saveConfig } from '../core/storage.js';
 import { showToast } from './toolbar.js';
 import { parseAliasGroups, serializeAliasGroups } from '../utils/aliases.js';
 
+/** Lee los valores de alias representados por chips en un contenedor. */
 export function getTagValues(container) {
   return [...container.querySelectorAll('.cr-chip-del')].map(b => b.dataset.val);
 }
 
+/** Construye un chip de alias escapado que el usuario puede eliminar. */
 export function createChip(val) {
   const chip = document.createElement('span');
   chip.className = 'cr-chip';
@@ -18,6 +20,7 @@ export function createChip(val) {
   return chip;
 }
 
+/** Administra la entrada, creación y eliminación de chips de texto. */
 export function setupTagInput(container, initialValues) {
   const input = container.querySelector('.cr-tags-in');
   initialValues.forEach(val => {
@@ -39,6 +42,7 @@ export function setupTagInput(container, initialValues) {
   container.addEventListener('click', () => input.focus());
 }
 
+/** Habilita el reordenamiento por arrastre de los campos de configuración. */
 export function setupFieldDrag(list) {
   let dragged = null;
   list.querySelectorAll('.cr-fitem').forEach(item => {
@@ -70,7 +74,7 @@ export function setupFieldDrag(list) {
   });
 }
 
-
+/** Construye una tarjeta editable para el nombre canónico y sus alias. */
 function buildAliasCard(group) {
   const card = document.createElement('div');
   card.className = 'cr-alias-card';
@@ -132,6 +136,7 @@ function buildAliasCard(group) {
   return card;
 }
 
+/** Inicializa el buscador y las acciones para gestionar tarjetas de alias. */
 function setupAliasPane(pane, initialText) {
   const list = pane.querySelector('#crAliasList');
   const search = pane.querySelector('#crAliasSearch');
@@ -167,6 +172,7 @@ function setupAliasPane(pane, initialText) {
   };
 }
 
+/** Lee las tarjetas visibles y reconstruye el texto de grupos de alias. */
 function getAliasesText(pane) {
   return serializeAliasGroups(
     [...pane.querySelectorAll('.cr-alias-card')].map(card => ({
@@ -176,6 +182,7 @@ function getAliasesText(pane) {
   );
 }
 
+/** Construye un control para editar el nombre y color de un estado de cliente. */
 function buildClientStatusItem(st) {
   const item = document.createElement('div');
   item.className = 'cr-cstatus-item';
@@ -188,6 +195,7 @@ function buildClientStatusItem(st) {
   return item;
 }
 
+/** Renderiza el panel y guarda o restaura las preferencias configurables. */
 export function openConfigPanel(config, onConfigSaved) {
   document.getElementById('clasificadorConfigPanel')?.remove();
   const panel = document.createElement('div');

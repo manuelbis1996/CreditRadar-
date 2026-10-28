@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.52
+// @version      20.54
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,9 +20,12 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.52";
+  const SCRIPT_VERSION = "20.54";
 
+  // Notas mostradas en el modal de novedades; deben mantenerse sincronizadas con la versión.
   const VERSION_NOTES = {
+    "20.54": "🔗 Vincula cuentas por acreedor y marca todas las candidatas cuando el número difiere",
+    "20.53": "🔧 Fix: detecta inquiries vinculadas aunque su estado sea Unspecified",
     "20.52": "🔧 Fix: distingue cuentas diferentes del mismo acreedor en Positive Items",
     "20.51": "🔗 Detecta cuentas negativas en This Round que coinciden con cuentas de Positive Items",
     "20.50": "🔧 Fix: detecta cuentas positivas aunque un buró muestre Unspecified",
@@ -95,6 +98,7 @@
     "18.1": "📋 Versión visible en botón"
   };
 
+  // Configuración del clasificador y reglas comunes de limpieza de nombres.
   const STORAGE_KEY = "pulse_clasificador_config";
   const BUROS = ["equifax", "experian", "transunion"];
   const STOP_WORDS = new Set(["the", "of", "and", "for", "inc", "llc", "na", "bank", "usa", "corp", "co", "ltd"]);
@@ -127,6 +131,7 @@
     { key: "dateOpened", label: "Date Opened" }
   ];
 
+  // Acreedores canónicos y nombres alternativos usados por el emparejamiento.
   const DEFAULT_ALIASES = `
 capital one = cap one, cap1, capone, capitalone, capital one bank, capital one na, capitalone bank, cof, cap1 auto, cap1 bank
 chase = chase, chase bank, chase card, jpmcb, jpmcb card, jp morgan, jpmorgan chase, chase auto, chase slate
@@ -182,6 +187,7 @@ hdfc = hdfc bank, hdfc, hdfc credit card
 synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 `.trim();
 
+  // Valores iniciales editables desde el panel de configuración.
   const DEFAULT_CONFIG = {
     agencies: [
       "lvnv", "midland", "portfolio", "cavalry", "jefferson",
@@ -233,10 +239,11 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   const HISTORY_KEY = "cr_history";
   const HISTORY_MAX = 50;
 
-  // CreditFlow CRM storage keys
+  // Claves de almacenamiento y catálogos predeterminados del CRM CreditFlow.
   const CF_RECORDS_KEY = "cf_records";
   const CF_LOG_KEY = "cf_log";
 
+  // Selectores del DOM de Pulse utilizados por el parser y el flujo principal.
   const SELECTORS = {
     compact: {
       container: ".dispute-outer-sample-container",
@@ -278,6 +285,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     disputeType: 'input[id^="dispute-item-dispute-type-for-move"]'
   };
 
+  /** Carga la configuración guardada y agrega valores predeterminados recientes. */
   function loadConfig() {
     try {
       const saved = GM_getValue(STORAGE_KEY, null);
@@ -300,6 +308,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   }
 
+  /** Guarda la configuración del usuario en el almacenamiento de Tampermonkey. */
   function saveConfig(config) {
     try {
       GM_setValue(STORAGE_KEY, JSON.stringify(config));
@@ -308,6 +317,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }
   }
 
+  /** Recupera el historial y lo reinicia si los datos guardados están dañados. */
   function loadHistory() {
     try {
       const raw = GM_getValue(HISTORY_KEY, '[]');
@@ -319,6 +329,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }
   }
 
+  /** Guarda todas las entradas del historial de reportes. */
   function saveHistory(entries) {
     try {
       GM_setValue(HISTORY_KEY, JSON.stringify(entries));
@@ -327,6 +338,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }
   }
 
+  /** Lee un valor de CreditFlow y convierte JSON cuando hace falta. */
   function loadCFData(key, def) {
     try {
       const v = GM_getValue(key, null);
@@ -334,10 +346,12 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     } catch(e) { return def; }
   }
 
+  /** Convierte a JSON y guarda un valor de CreditFlow. */
   function saveCFData(key, val) {
     try { GM_setValue(key, JSON.stringify(val)); } catch(e) {}
   }
 
+  /** Agrega el reporte reciente al inicio del historial, respetando su límite. */
   function addHistoryEntry(output, stats, personalHeader) {
     const firstLine = (personalHeader || '').split('\n').map(l => l.trim()).find(l => l) || 'Cliente';
     const clientName = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim() || 'Cliente';
@@ -347,11 +361,12 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     saveHistory(entries);
   }
 
+  /** Devuelve la fecha actual en formato ISO YYYY-MM-DD. */
   function todayStr() { return new Date().toISOString().split('T')[0]; }
 
   /**
-   * Saves a client from CreditRadar output directly into CreditFlow GM storage.
-   * Returns true if added, false if already existed.
+   * Guarda en CreditFlow un cliente encontrado en el output de CreditRadar.
+   * Devuelve true si lo agregó o false si ya existía.
    */
   function saveToCreditFlow(nombre, nombreResp, phone) {
     if (!nombre) return false;
@@ -377,9 +392,8 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   }
 
   /**
-   * Saves a client and marks carta as complete (carta: true).
-   * If the client already exists, just marks carta = true.
-   * Returns 'added' | 'updated' | 'already_complete'
+   * Guarda un cliente y marca la carta y CFPB como completos.
+   * Devuelve `added`, `updated` o `already_complete` según el resultado.
    */
   function saveAndComplete(nombre, nombreResp, phone) {
     if (!nombre) return 'error';
@@ -418,9 +432,8 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   }
 
   /**
-   * Entry point when userscript detects it's on the CreditFlow GitHub Pages.
-   * Exposes GM_getValue/GM_setValue to the page context via unsafeWindow so
-   * creditflow.html's storage bridge can use GM storage instead of localStorage.
+   * Inicializa el puente de almacenamiento cuando el userscript está en CreditFlow.
+   * Expone las funciones GM al contexto de la página para evitar localStorage.
    */
   function initCreditFlow() {
     try {
@@ -437,12 +450,14 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     if (label) label.textContent = 'Datos en Tampermonkey (GM)';
   }
 
+  // Hoja de estilos centralizada para los paneles y controles inyectados por el userscript.
   const buttonAnimationStyles = `
+  /* Animaciones reutilizadas por paneles y modales. */
   @keyframes crSlideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
   @keyframes crFadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
   @keyframes crScaleIn { from{opacity:0;transform:translate(-50%,-50%) scale(0.93)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
 
-  /* Toolbar */
+  /* Barra de herramientas */
   #crToolbar { display:flex; flex-direction:column; align-items:center; gap:0; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 16px rgba(0,0,0,0.4); transition:padding 0.2s ease, opacity 0.2s ease; margin:4px auto; }
   #crToolbar:hover { padding:10px 8px; }
   #clasificadorBTN { width:48px; height:48px; background:#111; color:#fff; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
@@ -457,7 +472,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   .clasificador-pulse { opacity:0.7; }
   .clasificador-success { border-color:#5eead4 !important; }
 
-  /* Config Panel */
+  /* Panel de configuración */
   #clasificadorConfigPanel { position:fixed; top:70px; right:70px; z-index:999999; background:#161616; color:#fff; border-radius:12px; width:440px; max-height:88vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.45); animation:crSlideIn 0.25s ease; overflow:hidden; }
   .cr-ph { padding:15px 16px 0; display:flex; justify-content:space-between; align-items:center; cursor:grab; flex-shrink:0; }
   .cr-ph:active { cursor:grabbing; }
@@ -511,7 +526,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   .cr-btn-rst { background:transparent; color:#555; border:1px solid #2a2a2a; flex:0 0 auto; padding:10px 18px; }
   .cr-btn-rst:hover { background:#1e1e1e; color:#ccc; }
 
-  /* Version Modal */
+  /* Modal de versión */
   #crVersionModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:12px; z-index:9999999; width:420px; max-width:94vw; max-height:85vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 16px 48px rgba(0,0,0,0.55); animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1); overflow:hidden; }
   .cr-vm-header { padding:28px 26px 20px; background:#111; border-top:2px solid #5eead4; border-bottom:1px solid #1e1e1e; position:relative; }
   .cr-vm-badge { display:inline-flex; align-items:center; gap:6px; background:#5eead418; border:1px solid #5eead440; color:#5eead4; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; margin-bottom:10px; }
@@ -532,7 +547,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   .cr-vm-btn { width:100%; padding:12px; background:#5eead4; color:#0f172a; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:14px; transition:all 0.2s; letter-spacing:0.2px; }
   .cr-vm-btn:hover { background:#2dd4bf; }
 
-  /* Output Preview */
+  /* Vista previa del output */
   #crOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999997; animation:crFadeIn 0.2s ease; }
   #crOutputPanel { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:12px; z-index:999999; width:540px; max-width:92vw; max-height:90vh; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.5); display:flex; flex-direction:column; animation:crScaleIn 0.22s ease; }
   .cr-out-head { padding:15px 18px; border-bottom:1px solid #1e1e1e; display:flex; justify-content:space-between; align-items:center; }
@@ -549,7 +564,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   .cr-dismiss-btn { padding:11px 16px; background:#1e1e1e; color:#666; border:1px solid #2a2a2a; border-radius:9px; cursor:pointer; font-size:13px; transition:all 0.2s; }
   .cr-dismiss-btn:hover { background:#252525; color:#ccc; }
 
-  /* Alias Cards */
+  /* Tarjetas de alias */
   .cr-alias-card { background:#1a1a1a; border:1px solid #222; border-radius:9px; margin-bottom:7px; overflow:hidden; transition:border-color 0.2s; }
   .cr-alias-card.expanded { border-color:#2e2e2e; }
   .cr-alias-head { display:flex; align-items:center; gap:8px; padding:9px 12px; }
@@ -577,7 +592,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   .cr-alias-add-btn:hover { background:#2dd4bf; }
   .cr-alias-empty { text-align:center; color:#444; font-size:12px; padding:20px 0; }
 
-  /* Output Editor */
+  /* Editor del output */
   .cr-editor-section { margin-bottom:16px; }
   .cr-editor-section-head { display:flex; align-items:center; gap:8px; margin-bottom:7px; padding-bottom:6px; border-bottom:1px solid #1e1e1e; }
   .cr-editor-section-title { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:0.5px; flex:1; }
@@ -617,7 +632,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   .cr-editor-dragging { opacity:0.35; }
   .cr-editor-dragover { border-color:#5eead4 !important; background:#0d1e1d; }
 
-  /* History Panel */
+  /* Panel de historial */
   #crHistoryPanel { position:fixed; top:70px; right:130px; z-index:999999; background:#161616; color:#fff; border-radius:12px; width:440px; max-height:88vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.45); animation:crSlideIn 0.25s ease; overflow:hidden; }
   #crCFBtn { width:48px; height:48px; background:#0d1e1d; color:#fff; border:1px solid #34d39940; border-radius:8px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
   #crCFBtn:hover { background:#112420; border-color:#34d399; }
@@ -652,7 +667,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   .cr-hist-clear-btn { width:100%; padding:9px; background:transparent; color:#555; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; }
   .cr-hist-clear-btn:hover { background:#f8717122; color:#f87171; border-color:#f8717144; }
 
-  /* Daily Report */
+  /* Reporte diario */
   .cr-report-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:9999998; animation:crFadeIn 0.15s ease; }
   .cr-report-modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:14px; z-index:9999999; width:520px; max-width:92vw; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,0.8); animation:crScaleIn 0.22s ease; overflow:hidden; }
   .cr-report-head { padding:18px 20px 14px; border-bottom:1px solid #1e1e1e; display:flex; justify-content:space-between; align-items:center; }
@@ -680,7 +695,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   .cr-hist-report-btn { width:100%; padding:9px; background:#0d1e1d; color:#5eead4; border:1px solid #5eead430; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; margin-bottom:8px; }
   .cr-hist-report-btn:hover { background:#5eead4; color:#0f172a; }
 
-  /* Client Status */
+  /* Estado del cliente */
   .cr-hist-status-row { position:relative; margin-bottom:6px; }
   .cr-hist-status-btn { padding:3px 10px; border-radius:20px; border:1px solid #2a2a2a; background:#1a1a1a; color:#555; font-size:11px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:5px; }
   .cr-hist-status-btn:hover { border-color:#444; color:#888; }
@@ -696,6 +711,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
   .cr-cstatus-del:hover { background:#f87171; color:#fff; }
 `;
 
+  /** Inserta una sola vez los estilos de los componentes del userscript. */
   function injectStyles() {
     if (document.getElementById('cr-styles')) return;
     const styleEl = document.createElement('style');
@@ -704,6 +720,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     document.head.appendChild(styleEl);
   }
 
+  /** Espera un elemento coincidente y devuelve null si vence el tiempo límite. */
   function waitForElement(selector, parent = document, timeout = 8000) {
     return new Promise(resolve => {
       try {
@@ -726,6 +743,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     });
   }
 
+  /** Consulta de forma segura todos los descendientes coincidentes y devuelve un arreglo. */
   function queryAll(selector, parent = document) {
     try {
       return [...parent.querySelectorAll(selector)];
@@ -735,6 +753,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }
   }
 
+  /** Consulta de forma segura el primer descendiente coincidente. */
   function queryOne(selector, parent = document) {
     try {
       return parent.querySelector(selector);
@@ -744,22 +763,26 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }
   }
 
+  /** Aplica el borde y brillo que identifican visualmente un elemento coincidente. */
   function highlight(item, color) {
     item.style.border = `3px solid ${color}`;
     item.style.borderRadius = "8px";
     item.style.boxShadow = `0 0 10px ${color}66`;
   }
 
+  /** Quita los estilos visuales aplicados a un elemento resaltado. */
   function clearHighlight(item) {
     item.style.border = "";
     item.style.borderRadius = "";
     item.style.boxShadow = "";
   }
 
+  /** Quita los resaltados de todas las filas compactas de disputas. */
   function clearAllHighlights() {
     document.querySelectorAll(".dispute-outer-sample-container").forEach(clearHighlight);
   }
 
+  /** Permite arrastrar un panel y notifica su posición final. */
   function makeDraggable(panel, handle, onDragEnd) {
     let ox = 0, oy = 0, mx = 0, my = 0;
     handle.addEventListener('mousedown', e => {
@@ -783,10 +806,12 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     });
   }
 
+  /** Asigna la misma acción de cierre a cada control recibido. */
   function bindClose(closeFn, ...elements) {
     elements.forEach(el => { if (el) el.onclick = closeFn; });
   }
 
+  /** Cambia el estado visual y la disponibilidad del botón principal. */
   function setButtonAnimation(status) {
     const btn = document.getElementById('clasificadorBTN');
     if (!btn) return;
@@ -812,6 +837,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }
   }
 
+  /** Inserta la barra de herramientas y conecta sus acciones a los controles. */
   async function addButton(config, runFn, openConfigFn, showHistoryFn) {
     if (document.getElementById('crToolbar')) return;
 
@@ -842,6 +868,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     setButtonAnimation('idle');
   }
 
+  /** Presenta un aviso temporal en la esquina de la página. */
   function showToast(message, color = "#5eead4", duration = 5000) {
     document.getElementById("clasificadorToast")?.remove();
     const toast = document.createElement("div");
@@ -864,6 +891,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }, duration);
   }
 
+  /** Permite recorrer detecciones, abrir sus filas en Pulse y volver al editor. */
   function showDetectionNotice(detections, summary) {
     document.getElementById("crDetectionNotice")?.remove();
     document.getElementById("crDetectionReturn")?.remove();
@@ -1017,6 +1045,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     closeButton.focus();
   }
 
+  /** Crea el indicador flotante que muestra el avance del análisis. */
   function createProgressPanel() {
     const panel = document.createElement("div");
     panel.id = "clasificadorProgress";
@@ -1035,6 +1064,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     document.body.appendChild(panel);
   }
 
+  /** Actualiza el texto y contador del indicador de avance. */
   function updateProgress(current, total, name, label = "Procesando") {
     const escapeHtml = str => (str||"").replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const lEl = document.getElementById("progressLabel");
@@ -1045,10 +1075,12 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     if (nEl) nEl.innerHTML = escapeHtml(name);
   }
 
+  /** Quita del documento el indicador de avance. */
   function removeProgressPanel() {
     document.getElementById("clasificadorProgress")?.remove();
   }
 
+  /** Crea o reemplaza un fondo modal que cubre la página. */
   function createOverlay(id) {
     document.getElementById(id)?.remove();
     const overlay = document.createElement('div');
@@ -1058,6 +1090,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return overlay;
   }
 
+  /** Crea o reemplaza un contenedor modal con estilos opcionales. */
   function createModal(id, cssText) {
     document.getElementById(id)?.remove();
     const modal = document.createElement('div');
@@ -1067,6 +1100,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return modal;
   }
 
+  /** Muestra las notas de versión y resalta la versión instalada. */
   function showVersionModal() {
     const overlay = createOverlay('crVersionOverlay');
     const modal = createModal('crVersionModal');
@@ -1094,6 +1128,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     bindClose(close, overlay, document.getElementById('crVmClose'), document.getElementById('crVmOk'));
   }
 
+  /** Muestra las notas de versión cuando cambia la versión guardada. */
   function checkVersionUpdate() {
     const versionKey = "clasificador_lastVersion";
     const lastVersion = GM_getValue(versionKey, null);
@@ -1104,6 +1139,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }
   }
 
+  /** Compara versiones numéricas por segmento, sin convertirlas a decimales. */
   function compareVersions(a, b) {
     const pa = a.split(".").map(Number);
     const pb = b.split(".").map(Number);
@@ -1116,6 +1152,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return 0;
   }
 
+  /** Presenta las opciones para instalar o posponer una actualización disponible. */
   function showUpdateAvailableModal(latestVer) {
     const overlay = createOverlay('crUpdateOverlay');
     const modal = createModal('crUpdateModal', 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:12px;z-index:9999999;width:400px;max-width:94vw;border:1px solid #2a2a2a;box-shadow:0 16px 48px rgba(0,0,0,0.55);animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1);overflow:hidden;');
@@ -1145,6 +1182,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     };
   }
 
+  /** Consulta la versión publicada y avisa si supera la versión instalada. */
   function checkForUpdates() {
     const GITHUB_URL = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
 
@@ -1177,6 +1215,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }
   }
 
+  /** Limpia nombres de acreedores, expande abreviaturas y quita términos irrelevantes. */
   function cleanName(name) {
     if (!name) return "";
     let n = name.toLowerCase().trim();
@@ -1189,23 +1228,28 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return parts.join(" ").replace(/'/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
   }
 
+  /** Genera una clave sin puntuación para comparaciones exactas. */
   function normalizeForMatch(name) {
     return cleanName(name).replace(/[^a-z0-9]/g, "");
   }
 
+  /** Escapa texto antes de insertarlo en HTML. */
   function escapeHtml(str) {
     if (!str) return "";
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  /** Devuelve palabras relevantes, excluyendo términos cortos y palabras vacías. */
   function getWords(s) {
     return s.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
   }
 
+  /** Devuelve prefijos de palabras para la búsqueda aproximada de nombres. */
   function getPrefixes(s, len = 4) {
     return s.split(/\s+/).map(w => w.slice(0, len)).filter(p => p.length >= 3);
   }
 
+  /** Calcula cuánto se superponen dos conjuntos de palabras. */
   function jaccardSimilarity(a, b) {
     const setA = new Set(a.split(/\s+/));
     const setB = new Set(b.split(/\s+/));
@@ -1214,6 +1258,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return union === 0 ? 0 : intersection / union;
   }
 
+  /** Interpreta grupos de alias con el formato `principal = alias, alias`. */
   function parseAliasGroups(text) {
     if (!text) return [];
     return text.split('\n').map(l => l.trim()).filter(l => l && l.includes('=')).map(l => {
@@ -1224,10 +1269,12 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     });
   }
 
+  /** Convierte los grupos de alias al formato guardado en la configuración. */
   function serializeAliasGroups(groups) {
     return groups.map(g => `${g.main} = ${g.aliases.join(', ')}`).join('\n');
   }
 
+  /** Agrega el nombre de un inquiry como alias de una cuenta y guarda la configuración. */
   function addInquiryAlias(config, inquiryName, accountName) {
     const groups = parseAliasGroups(config.aliases || '');
     const accLower = accountName.trim().toLowerCase();
@@ -1242,10 +1289,12 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     saveConfig(config);
   }
 
+  /** Lee los valores de alias representados por chips en un contenedor. */
   function getTagValues(container) {
     return [...container.querySelectorAll('.cr-chip-del')].map(b => b.dataset.val);
   }
 
+  /** Construye un chip de alias escapado que el usuario puede eliminar. */
   function createChip(val) {
     const chip = document.createElement('span');
     chip.className = 'cr-chip';
@@ -1255,6 +1304,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return chip;
   }
 
+  /** Administra la entrada, creación y eliminación de chips de texto. */
   function setupTagInput(container, initialValues) {
     const input = container.querySelector('.cr-tags-in');
     initialValues.forEach(val => {
@@ -1276,6 +1326,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     container.addEventListener('click', () => input.focus());
   }
 
+  /** Habilita el reordenamiento por arrastre de los campos de configuración. */
   function setupFieldDrag(list) {
     let dragged = null;
     list.querySelectorAll('.cr-fitem').forEach(item => {
@@ -1307,7 +1358,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     });
   }
 
-
+  /** Construye una tarjeta editable para el nombre canónico y sus alias. */
   function buildAliasCard(group) {
     const card = document.createElement('div');
     card.className = 'cr-alias-card';
@@ -1369,6 +1420,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return card;
   }
 
+  /** Inicializa el buscador y las acciones para gestionar tarjetas de alias. */
   function setupAliasPane(pane, initialText) {
     const list = pane.querySelector('#crAliasList');
     const search = pane.querySelector('#crAliasSearch');
@@ -1404,6 +1456,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     };
   }
 
+  /** Lee las tarjetas visibles y reconstruye el texto de grupos de alias. */
   function getAliasesText(pane) {
     return serializeAliasGroups(
       [...pane.querySelectorAll('.cr-alias-card')].map(card => ({
@@ -1413,6 +1466,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     );
   }
 
+  /** Construye un control para editar el nombre y color de un estado de cliente. */
   function buildClientStatusItem(st) {
     const item = document.createElement('div');
     item.className = 'cr-cstatus-item';
@@ -1425,6 +1479,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return item;
   }
 
+  /** Renderiza el panel y guarda o restaura las preferencias configurables. */
   function openConfigPanel(config, onConfigSaved) {
     document.getElementById('clasificadorConfigPanel')?.remove();
     const panel = document.createElement('div');
@@ -1603,6 +1658,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     };
   }
 
+  /** Crea un índice normalizado de alias a acreedor usando los grupos configurados. */
   function buildAliasMap(config) {
     const map = new Map();
     if (!config.aliases) return map;
@@ -1624,12 +1680,14 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return map;
   }
 
+  /** Reemplaza un alias conocido por el nombre canónico del acreedor. */
   function resolveAlias(name, aliasMap) {
     const clean = cleanName(name);
     const normalized = normalizeForMatch(clean);
     return aliasMap.get(normalized) || clean;
   }
 
+  /** Busca la primera cuenta positiva que coincida posiblemente con el acreedor del inquiry. */
   function getLinkedAccount(name, map, aliasMap) {
     if (!name || !map.size) return null;
     const resolvedInquiry = resolveAlias(name, aliasMap);
@@ -1657,9 +1715,9 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
       const exact = wordsI.filter(w => wordsSetC.has(w));
       if (exact.length >= 2) return item;
-      // Strategy 3: ambos reducen a 1 sola palabra y coinciden (umbral 5 chars)
+      // Caso 3: ambos nombres tienen una sola palabra igual de al menos cinco caracteres.
       if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 5) return item;
-      // Strategy 3.5: inquiry tiene 1 sola palabra de 6+ chars que aparece en el acreedor
+      // Caso 3.5: el inquiry tiene una palabra larga que aparece dentro del nombre del acreedor.
       if (exact.length === 1 && wordsI.length === 1 && exact[0].length >= 6) return item;
 
       const prefixesC = new Set(getPrefixes(resolvedCreditor));
@@ -1669,15 +1727,16 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       if (resolvedInquiry.length >= 6 && resolvedCreditor.includes(resolvedInquiry)) return item;
       if (resolvedCreditor.length >= 6 && resolvedInquiry.includes(resolvedCreditor)) return item;
 
-      // Jaccard sobre palabras significativas (sin stop words)
+      // Compara la proporción de palabras significativas compartidas.
       const sim = jaccardSimilarity(wordsI.join(" "), wordsC.join(" "));
       if (sim >= 0.7) return item;
     }
     return null;
   }
 
-  function getExactLinkedAccount(name, map, aliasMap) {
-    if (!name || !map.size) return null;
+  /** Busca por nombre completo normalizado y, como alternativa, por acreedor. */
+  function getLinkedPositiveAccounts(name, map, aliasMap) {
+    if (!name || !map.size) return [];
     const getNameParts = value => {
       const separatorIndex = value.indexOf(" - ");
       return separatorIndex === -1
@@ -1692,17 +1751,18 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     const matchingNames = [...map].filter(([positiveName]) =>
       getNormalizedFullName(positiveName) === normalizedName
     );
-    if (matchingNames.length === 1) return matchingNames[0][1];
+    if (matchingNames.length) return matchingNames.map(([, item]) => item);
 
+    // Si el número difiere o está enmascarado de otra forma, devuelve todas las cuentas de ese acreedor.
     const [creditor] = getNameParts(name);
     const normalizedCreditor = normalizeForMatch(resolveAlias(creditor, aliasMap));
-    const matchingCreditors = [...map].filter(([positiveName]) => {
+    return [...map].filter(([positiveName]) => {
       const [positiveCreditor] = getNameParts(positiveName);
       return normalizeForMatch(resolveAlias(positiveCreditor, aliasMap)) === normalizedCreditor;
-    });
-    return matchingCreditors.length === 1 ? matchingCreditors[0][1] : null;
+    }).map(([, item]) => item);
   }
 
+  /** Lee los estados seleccionados para un buró en la fila compacta del reporte. */
   function getBuroStatus(item, buro) {
     return {
       indispute: !!queryOne(SELECTORS.compact.indispute(buro), item),
@@ -1713,6 +1773,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     };
   }
 
+  /** Marca los burós con estado disputado o negativo para procesar sus datos. */
   function getActiveColumns(item) {
     return BUROS.map(b => {
       const status = getBuroStatus(item, b);
@@ -1720,6 +1781,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     });
   }
 
+  /** Comprueba si algún buró o el indicador general marca el elemento como disputado. */
   function hasInDispute(item) {
     return BUROS.some(b => {
       const status = getBuroStatus(item, b);
@@ -1727,6 +1789,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }) || !!queryOne(".disputes-tab-compact-indispute-text-CTN", item);
   }
 
+  /** Evita expandir detalles si todos los burós están positivos, eliminados o sin estado. */
   function quickDetectStatus(item) {
     const isAllPositive = BUROS.every(b => {
       const status = getBuroStatus(item, b);
@@ -1735,11 +1798,13 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return { skip: isAllPositive };
   }
 
+  /** Obtiene el tipo de disputa seleccionado para una fila. */
   function getDisputeType(item) {
     const input = queryOne(SELECTORS.disputeType, item);
     return input?.value?.toLowerCase() || "";
   }
 
+  /** Extrae los datos de contacto y perfil del cliente desde la página actual. */
   function getClientData() {
     return {
       name: queryOne(SELECTORS.client.name)?.innerText.trim() || "",
@@ -1754,6 +1819,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     };
   }
 
+  /** Elige el primer valor utilizable de una fila entre los burós activos. */
   function getBestValue(row, activeCols) {
     for (let i = 0; i < 3; i++) {
       if (!activeCols[i]) continue;
@@ -1764,12 +1830,14 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return "";
   }
 
+  /** Devuelve los valores de una fila solo para los burós que se están procesando. */
   function getValues(blocks, index, activeCols) {
     return activeCols
       .map((active, i) => active ? (blocks[index + 1 + i]?.innerText || "").toLowerCase().trim() : null)
       .filter(v => v !== null);
   }
 
+  /** Interpreta los bloques de detalles y clasifica estados, saldos y direcciones. */
   function parseAccountBlocks(blocks, activeCols, config) {
     const result = {
       name: "", number: "", balance: "", dateOpened: "",
@@ -1841,7 +1909,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
     if (!hasNegative && (accountStatusMatch || paymentStatusMatch)) result.isClosedPositive = true;
 
-    // Track accounts that are derog but also closed/paid (positive)
+    // Conserva si una cuenta derogatoria también figura como cerrada o pagada.
     if (hasDerog && (accountStatusMatch || paymentStatusMatch)) result.isDerogClosed = true;
 
     result.addresses = [...new Set(
@@ -1855,6 +1923,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return result;
   }
 
+  /** Excluye elementos eliminados o sin estado positivo/Unspecified en todos los burós. */
   function isInactivePositiveItem(item) {
     if (!item) return true;
     if (item.classList.contains(SELECTORS.compact.deletedHeader)) return true;
@@ -1865,6 +1934,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     });
   }
 
+  /** Crea un índice de cuentas válidas de Positive Items por nombre completo. */
   function buildPositiveAccountsMap() {
     const map = new Map();
     const section = queryOne(SELECTORS.sections.positive);
@@ -1882,12 +1952,14 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return map;
   }
 
+  /** Comprueba si el nombre pertenece a una agencia configurada. */
   function isAgency(name, config) {
     if (!name) return false;
     const clean = name.toLowerCase();
     return config.agencies.some(a => clean.includes(a));
   }
 
+  /** Da formato a los campos seleccionados de una cuenta para el texto de salida. */
   function formatAccount(a, NL, config) {
     const order = config.fieldOrder || DEFAULT_CONFIG.fieldOrder;
     const fieldValues = {
@@ -1912,6 +1984,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return out + NL;
   }
 
+  /** Expande una fila seleccionada y espera que Pulse muestre sus detalles. */
   async function expandDisputeItem(link, item) {
     if (link.classList.contains(SELECTORS.compact.deletedHeader)) return false;
     if (!item) return false;
@@ -1940,6 +2013,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return true;
   }
 
+  /** Carga y expande las filas marcadas This Round, informando avances y tiempos agotados. */
   async function loadRoundDisputes(onProgress) {
     const section = queryOne(SELECTORS.sections.disputed);
     if (!section) return [];
@@ -1968,6 +2042,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     };
   }
 
+  /** Construye una tarjeta de cuenta editable, reordenable e incluible en el output. */
   function buildAccountEditorCard(acc, onRemove) {
     const card = document.createElement('div');
     card.className = 'cr-editor-card';
@@ -2036,6 +2111,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return card;
   }
 
+  /** Activa el reordenamiento por arrastre de las tarjetas de cuentas. */
   function setupEditorDrag(list) {
     let dragged = null;
     list.addEventListener('dragstart', e => {
@@ -2065,6 +2141,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     });
   }
 
+  /** Genera los indicadores resumidos del reporte para el encabezado del editor. */
   function buildCompactStats(stats) {
     const chips = [];
     if (stats.accounts) chips.push(`<span class="cr-stat"><b>${stats.accounts}</b> cuentas</span>`);
@@ -2079,7 +2156,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     return `<div class="cr-out-stats">${chips.join('')}</div>`;
   }
 
-  // Get set of account names from the last history entry for this client
+  /** Recupera los nombres de cuentas del reporte previo del cliente. */
   function getPrevAccountNames(clientName) {
     if (!clientName) return new Set();
     try {
@@ -2091,6 +2168,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     } catch(e) { return new Set(); }
   }
 
+  /** Muestra el output para editarlo y copiar solo los elementos seleccionados. */
   function showOutputEditor(data, stats, config) {
     document.getElementById('crOverlay')?.remove();
     document.getElementById('crOutputPanel')?.remove();
@@ -2119,11 +2197,13 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
     const body = panel.querySelector('#crEditorBody');
 
+    /** Guarda la asociación manual entre inquiry y cuenta como alias. */
     const onLinkInquiry = (inquiryName, accountName) => {
       addInquiryAlias(config, inquiryName, accountName);
       showToast(`🛡 "${inquiryName}" vinculada a "${accountName}" — alias guardado`, '#5eead4', 5000);
     };
 
+    /** Muestra un buscador para vincular manualmente un inquiry con una cuenta positiva. */
     function toggleLinkForm(item, inquiryName, positiveAccounts, onLink, updateBadge) {
       if (item.dataset.linkFormId) {
         document.getElementById(item.dataset.linkFormId)?.remove();
@@ -2184,12 +2264,13 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       form.querySelector('.cr-link-search').focus();
     }
 
-    // Get previous account names for marking new accounts
+    // Usa el reporte previo para identificar cuentas que no aparecían antes.
     const clientFirstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
     const clientName = clientFirstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
     const prevNames = getPrevAccountNames(clientName);
     const showNewBadge = config.showNewBadge !== false;
 
+    /** Renderiza tarjetas de cuentas con controles de inclusión y edición. */
     function buildAccountSection(title, accounts) {
       const section = document.createElement('div');
       section.className = 'cr-editor-section';
@@ -2214,7 +2295,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       accounts.forEach(acc => {
         const card = buildAccountEditorCard(acc, updateBadge);
         card.setAttribute('draggable', 'true');
-        // Mark as new if not found in previous report
+        // Marca como nueva la cuenta que no aparece en el reporte anterior.
         if (showNewBadge && prevNames.size > 0 && acc.name) {
           const isNew = ![...prevNames].some(line => line.includes(acc.name.toLowerCase()));
           if (isNew) {
@@ -2232,6 +2313,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       return section;
     }
 
+    /** Renderiza listas de inquiries, datos personales y elementos simples. */
     function buildStringSection(title, items, options = {}) {
       const { isInquiries = false, positiveAccounts = [], onLink } = options;
 
@@ -2345,7 +2427,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
       addHistoryEntry(output, stats, data.personalHeader);
 
-      // Auto-save to CreditFlow on copy
+      // Guarda el cliente en CreditFlow al copiar el reporte.
       const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
       const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
       if (nombre) {
@@ -2373,11 +2455,12 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
   /* ── Daily Report ── */
 
+  /** Genera el reporte diario de clientes procesados y permite copiarlo o compartirlo. */
   function showDailyReport() {
     const entries = loadHistory();
     const today = new Date().toISOString().slice(0, 10);
 
-    // Remove existing
+    // Evita duplicar el reporte si ya había una ventana abierta.
     document.getElementById('crReportOverlay')?.remove();
     document.getElementById('crReportModal')?.remove();
 
@@ -2391,17 +2474,20 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     modal.className = 'cr-report-modal';
     document.body.appendChild(modal);
 
+    /** Filtra las entradas guardadas dentro del día local seleccionado. */
     function getEntriesForDate(dateStr) {
       const dayStart = new Date(dateStr + 'T00:00:00').getTime();
       const dayEnd = dayStart + 86400000;
       return entries.filter(e => e.id >= dayStart && e.id < dayEnd);
     }
 
+    /** Formatea una fecha ISO para mostrarla en el reporte. */
     function fmtDateShort(dateStr) {
       const d = new Date(dateStr + 'T12:00:00');
       return (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear();
     }
 
+    /** Agrupa las entradas no reportadas por estado y compone el texto final. */
     function generateReport(dateStr) {
       const dayEntries = getEntriesForDate(dateStr).filter(e => !e.reported);
       const d = new Date(dateStr + 'T12:00:00');
@@ -2412,7 +2498,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       if (!dayEntries.length) {
         text += `\nSin clientes procesados.\n`;
       } else {
-        // Group by status
+        // Agrupa los clientes según el estado asignado.
         const groups = new Map();
         dayEntries.forEach(e => {
           const key = e.status || '';
@@ -2420,7 +2506,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
           groups.get(key).push(e);
         });
 
-        // Statuses first, then "sin estado" at the end
+        // Ordena los estados asignados antes de las entradas sin estado.
         const sorted = [...groups.entries()].sort((a, b) => {
           if (!a[0]) return 1;
           if (!b[0]) return -1;
@@ -2438,6 +2524,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       return { text, count: dayEntries.length, dateLabel, dayEntries };
     }
 
+    /** Dibuja el reporte para la fecha elegida y conecta sus controles. */
     function renderReport(dateStr) {
       const { text, count, dateLabel, dayEntries } = generateReport(dateStr);
 
@@ -2472,6 +2559,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
         renderReport(ev.target.value);
       };
 
+      /** Marca como reportados los clientes CFPB incluidos en esta vista. */
       const markCfpbReported = () => {
         dayEntries.filter(e => e.status === 'CFPB y FTC').forEach(e => { e.reported = true; });
         saveHistory(entries);
@@ -2508,6 +2596,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     renderReport(today);
   }
 
+  /** Muestra el historial, sus filtros, acciones de cliente y acceso al reporte diario. */
   function showHistoryPanel() {
     document.getElementById('crHistoryPanel')?.remove();
     const panel = document.createElement('div');
@@ -2542,12 +2631,14 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     let entries = loadHistory();
     const clientStatuses = (loadConfig().clientStatuses || []);
 
+    /** Convierte la marca de tiempo de una entrada en fecha y hora legibles. */
     function formatDate(ts) {
       const d = new Date(ts);
       return d.toLocaleDateString('es-US', { month: 'short', day: 'numeric', year: 'numeric' })
         + ' ' + d.toLocaleTimeString('es-US', { hour: '2-digit', minute: '2-digit' });
     }
 
+    /** Dibuja las entradas filtradas y sus acciones disponibles. */
     function renderList(filtered) {
       const body = document.getElementById('crHistBody');
       document.getElementById('crHistCount').textContent = `${filtered.length} entrada${filtered.length !== 1 ? 's' : ''}`;
@@ -2685,6 +2776,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       });
     }
 
+    /** Aplica el rango de fechas actual y actualiza la lista del historial. */
     function applyFilter() {
       const from = document.getElementById('crHistFrom').value;
       const to = document.getElementById('crHistTo').value;
@@ -2733,6 +2825,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
   let CONFIG = loadConfig();
 
+  /** Analiza las disputas de This Round, genera detecciones y abre el editor de salida. */
   async function run() {
     console.clear();
     console.log("🚀 CLASIFICADOR V" + SCRIPT_VERSION);
@@ -2796,36 +2889,25 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
         const compactName = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
         const realType = getDisputeType(item);
         const inDispute = hasInDispute(item);
-        const positiveItem = realType === "inquiry"
-          ? null
-          : getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+        const positiveItems = realType === "inquiry"
+          ? []
+          : getLinkedPositiveAccounts(compactName, positiveAccountsMap, aliasMap);
 
-        if (positiveItem) {
-          console.log(`🔵 Account in This Round matches Positive Items: ${compactName}`);
+        if (positiveItems.length) {
+          console.log(`🔵 Account in This Round matches ${positiveItems.length} Positive Items: ${compactName}`);
           highlight(item, CONFIG.colors.closedPositive);
-          highlight(positiveItem, CONFIG.colors.closedPositive);
+          positiveItems.forEach(positiveItem => highlight(positiveItem, CONFIG.colors.closedPositive));
           POSITIVE_THIS_ROUND++;
-          DETECTIONS.push({ name: compactName, label: "Coincidencia de cuenta en Positive Items", target: positiveItem });
+          const label = positiveItems.length > 1
+            ? `Coincidencia por acreedor (${positiveItems.length} cuentas candidatas)`
+            : "Coincidencia de cuenta en Positive Items";
+          positiveItems.forEach(positiveItem => {
+            DETECTIONS.push({ name: compactName, label, target: positiveItem });
+          });
         }
 
-        if (!inDispute) {
-          if (positiveItem) {
-            console.log(`⏭️ Positive account not in dispute: ${compactName}`);
-          }
-          continue;
-        }
-
-        updateProgress(idx + 1, total, compactName, "Procesando");
-
-        const activeCols = getActiveColumns(item);
-        const hasActive = activeCols.some(Boolean);
-
+        // Buscar el vínculo antes del filtro de disputa: un inquiry seleccionado puede mostrar Unspecified.
         if (realType === "inquiry") {
-          if (!hasActive) {
-            console.log(`⏭️ Inquiry skipped: ${compactName}`);
-            continue;
-          }
-
           const linkedItem = getLinkedAccount(compactName, positiveAccountsMap, aliasMap);
           if (linkedItem) {
             const currentResolved = resolveAlias(compactName, aliasMap).toLowerCase();
@@ -2842,18 +2924,36 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
               POSITIVE_CONFLICTS++;
               DETECTIONS.push({ name: compactName, label: "Conflicto: inquiry y cuenta positiva", target: linkedItem });
               INQUIRIES.push(compactName);
-              continue;
+            } else {
+              console.log(`🛡️ Escudo Protector: Inquiry omitido por estar ligado a cuenta positiva: ${compactName}`);
+              const color = "#f87171";
+              highlight(item, color);
+              highlight(linkedItem, color);
+              LINKED_INQUIRIES++;
+              DETECTIONS.push({ name: compactName, label: "Inquiry vinculada a cuenta positiva", target: linkedItem });
             }
-
-            console.log(`🛡️ Escudo Protector: Inquiry omitido por estar ligado a cuenta positiva: ${compactName}`);
-            const color = "#f87171";
-            highlight(item, color);
-            highlight(linkedItem, color);
-            LINKED_INQUIRIES++;
-            DETECTIONS.push({ name: compactName, label: "Inquiry vinculada a cuenta positiva", target: linkedItem });
-          } else {
-            INQUIRIES.push(compactName);
+            continue;
           }
+        }
+
+        if (!inDispute) {
+          if (positiveItems.length) {
+            console.log(`⏭️ Positive account not in dispute: ${compactName}`);
+          }
+          continue;
+        }
+
+        updateProgress(idx + 1, total, compactName, "Procesando");
+
+        const activeCols = getActiveColumns(item);
+        const hasActive = activeCols.some(Boolean);
+
+        if (realType === "inquiry") {
+          if (!hasActive) {
+            console.log(`⏭️ Inquiry skipped: ${compactName}`);
+            continue;
+          }
+          INQUIRIES.push(compactName);
           continue;
         }
 
@@ -2880,7 +2980,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
         const parsed = parseAccountBlocks(blocks, activeCols, CONFIG);
         const finalName = parsed.name || compactName;
 
-        // Skip open accounts UNLESS they have negative payment status (collection/charge)
+        // Las cuentas abiertas se omiten, excepto si sus pagos indican una cuenta negativa.
         const hasNegativePayment = parsed.isCollection || (parsed.paymentStatusNegative === true);
         if (parsed.isOpen && !hasNegativePayment) {
           console.log(`⏭️ Skipped (Open): ${finalName}`);
@@ -2893,10 +2993,10 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
         if (parsed.isClosedPositive && !(CONFIG.includeDerogPositive && parsed.isDerogClosed)) {
           console.log(`⏭️ Skipped (Closed Positive): ${finalName}`);
           highlight(item, CONFIG.colors.closedPositive);
-          const positiveItem = getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
-          if (positiveItem) highlight(positiveItem, CONFIG.colors.closedPositive);
+          const positiveItems = getLinkedPositiveAccounts(compactName, positiveAccountsMap, aliasMap);
+          positiveItems.forEach(positiveItem => highlight(positiveItem, CONFIG.colors.closedPositive));
           SKIPPED_CLOSED++;
-          DETECTIONS.push({ name: finalName, label: "Cuenta cerrada positiva", target: positiveItem || item });
+          DETECTIONS.push({ name: finalName, label: "Cuenta cerrada positiva", target: positiveItems[0] || item });
           continue;
         }
 
@@ -2980,6 +3080,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     }
   }
 
+  /** Agrega el botón que guarda al cliente en CreditFlow y marca sus tareas completas. */
   async function injectSaveCompleteButton() {
     const addDiv = await waitForElement('#addBtn');
     if (!addDiv || document.getElementById('crSaveCompleteBtn')) return;
@@ -3014,7 +3115,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     addDiv.appendChild(btn);
   }
 
-  // F4: Auto-sync phone from current Pulse page to existing CF record
+  /** Sincroniza el teléfono de Pulse con el registro CreditFlow existente. */
   function syncPhoneToRecord() {
     const CLIENT = getClientData();
     if (!CLIENT.name || !CLIENT.cell) return;
@@ -3031,11 +3132,12 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     } catch(e) {}
   }
 
-  // F5: Status badge — shows CF status inline, click to change
+  /** Muestra el estado CreditFlow del cliente y permite cambiarlo desde Pulse. */
   async function injectStatusBadge() {
     const container = await waitForElement('.client-dash-side-top');
     if (!container) return;
 
+    /** Lee el registro de CreditFlow asociado al cliente visible. */
     function readCFRecord(name) {
       try {
         const raw = GM_getValue('cf_records', null);
@@ -3043,6 +3145,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
         return records.find(r => r.nombre.toLowerCase() === name.toLowerCase()) || null;
       } catch(e) { return null; }
     }
+    /** Lee el catálogo de estados disponibles en CreditFlow. */
     function readCFStatuses() {
       try {
         const raw = GM_getValue('cf_statuses', null);
@@ -3050,6 +3153,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       } catch(e) { return []; }
     }
 
+    /** Actualiza la insignia y enlaza el menú para cambiar el estado del cliente. */
     function renderBadge() {
       document.getElementById('crStatusBadge')?.remove();
       const CLIENT = getClientData();
@@ -3097,19 +3201,23 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
           dd.appendChild(opt);
         });
         badge.appendChild(dd);
-        setTimeout(() => document.addEventListener('click', function h(){ dd.remove(); document.removeEventListener('click',h); }), 0);
+        setTimeout(() => document.addEventListener('click', function h(){
+          // Cierra el menú al detectar un clic fuera de la insignia.
+          dd.remove();
+          document.removeEventListener('click', h);
+        }), 0);
       };
       container.appendChild(badge);
     }
 
     renderBadge();
-    // Re-render when client changes
+    // Actualiza la insignia cuando Pulse cambia el cliente visible.
     const observer = new MutationObserver(() => { setTimeout(renderBadge, 300); });
     const nameEl = document.querySelector('.client_card_info_name');
     if (nameEl) observer.observe(nameEl, { childList:true, subtree:true, characterData:true });
   }
 
-  // F6: Hover summary tooltip
+  /** Muestra un resumen de CreditFlow al pasar el cursor sobre el nombre del cliente. */
   async function injectHoverSummary() {
     const nameEl = await waitForElement('.client_card_info_name');
     if (!nameEl) return;
@@ -3148,7 +3256,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     nameEl.addEventListener('mouseleave', () => { tooltip?.remove(); tooltip = null; });
   }
 
-  // F7: Copy personal info with 3 formats
+  /** Agrega accesos para copiar los datos personales en tres formatos. */
   async function injectPersonalCopyButton() {
     const container = await waitForElement('.client-dash-side-top');
     if (!container || document.getElementById('crCopyPersonalBtn')) return;
@@ -3212,6 +3320,7 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     else container.prepend(wrap);
   }
 
+  /** Inicializa estilos, controles, paneles e integraciones en Pulse. */
   function initClasificador() {
     injectStyles();
     checkVersionUpdate();
@@ -3229,7 +3338,9 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
     injectHoverSummary();
   }
 
+  // El mismo userscript se ejecuta en Pulse y en CreditFlow; cada sitio usa su inicializador.
   const IS_CREDITFLOW = window.location.hostname.includes('github.io');
+  /** Selecciona la inicialización correspondiente al sitio donde corre el userscript. */
   const init = IS_CREDITFLOW ? initCreditFlow : initClasificador;
 
   if (document.readyState === 'complete') {

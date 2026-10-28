@@ -1,5 +1,6 @@
 import { STORAGE_KEY, DEFAULT_CONFIG, HISTORY_KEY, HISTORY_MAX } from '../config/constants.js';
 
+/** Carga la configuración guardada y agrega valores predeterminados recientes. */
 export function loadConfig() {
   try {
     const saved = GM_getValue(STORAGE_KEY, null);
@@ -22,6 +23,7 @@ export function loadConfig() {
   return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 }
 
+/** Guarda la configuración del usuario en el almacenamiento de Tampermonkey. */
 export function saveConfig(config) {
   try {
     GM_setValue(STORAGE_KEY, JSON.stringify(config));
@@ -30,6 +32,7 @@ export function saveConfig(config) {
   }
 }
 
+/** Recupera el historial y lo reinicia si los datos guardados están dañados. */
 export function loadHistory() {
   try {
     const raw = GM_getValue(HISTORY_KEY, '[]');
@@ -41,6 +44,7 @@ export function loadHistory() {
   }
 }
 
+/** Guarda todas las entradas del historial de reportes. */
 export function saveHistory(entries) {
   try {
     GM_setValue(HISTORY_KEY, JSON.stringify(entries));
@@ -49,6 +53,7 @@ export function saveHistory(entries) {
   }
 }
 
+/** Lee un valor de CreditFlow y convierte JSON cuando hace falta. */
 export function loadCFData(key, def) {
   try {
     const v = GM_getValue(key, null);
@@ -56,10 +61,12 @@ export function loadCFData(key, def) {
   } catch(e) { return def; }
 }
 
+/** Convierte a JSON y guarda un valor de CreditFlow. */
 export function saveCFData(key, val) {
   try { GM_setValue(key, JSON.stringify(val)); } catch(e) {}
 }
 
+/** Agrega el reporte reciente al inicio del historial, respetando su límite. */
 export function addHistoryEntry(output, stats, personalHeader) {
   const firstLine = (personalHeader || '').split('\n').map(l => l.trim()).find(l => l) || 'Cliente';
   const clientName = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim() || 'Cliente';

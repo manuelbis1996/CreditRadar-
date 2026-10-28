@@ -6,6 +6,7 @@ import { showToast } from './toolbar.js';
 import { addInquiryAlias } from '../utils/aliases.js';
 import { saveToCreditFlow } from './creditflow-panel.js';
 
+/** Construye una tarjeta de cuenta editable, reordenable e incluible en el output. */
 function buildAccountEditorCard(acc, onRemove) {
   const card = document.createElement('div');
   card.className = 'cr-editor-card';
@@ -74,6 +75,7 @@ function buildAccountEditorCard(acc, onRemove) {
   return card;
 }
 
+/** Activa el reordenamiento por arrastre de las tarjetas de cuentas. */
 function setupEditorDrag(list) {
   let dragged = null;
   list.addEventListener('dragstart', e => {
@@ -103,6 +105,7 @@ function setupEditorDrag(list) {
   });
 }
 
+/** Genera los indicadores resumidos del reporte para el encabezado del editor. */
 function buildCompactStats(stats) {
   const chips = [];
   if (stats.accounts) chips.push(`<span class="cr-stat"><b>${stats.accounts}</b> cuentas</span>`);
@@ -117,7 +120,7 @@ function buildCompactStats(stats) {
   return `<div class="cr-out-stats">${chips.join('')}</div>`;
 }
 
-// Get set of account names from the last history entry for this client
+/** Recupera los nombres de cuentas del reporte previo del cliente. */
 function getPrevAccountNames(clientName) {
   if (!clientName) return new Set();
   try {
@@ -129,6 +132,7 @@ function getPrevAccountNames(clientName) {
   } catch(e) { return new Set(); }
 }
 
+/** Muestra el output para editarlo y copiar solo los elementos seleccionados. */
 export function showOutputEditor(data, stats, config) {
   document.getElementById('crOverlay')?.remove();
   document.getElementById('crOutputPanel')?.remove();
@@ -157,11 +161,13 @@ export function showOutputEditor(data, stats, config) {
 
   const body = panel.querySelector('#crEditorBody');
 
+  /** Guarda la asociación manual entre inquiry y cuenta como alias. */
   const onLinkInquiry = (inquiryName, accountName) => {
     addInquiryAlias(config, inquiryName, accountName);
     showToast(`🛡 "${inquiryName}" vinculada a "${accountName}" — alias guardado`, '#5eead4', 5000);
   };
 
+  /** Muestra un buscador para vincular manualmente un inquiry con una cuenta positiva. */
   function toggleLinkForm(item, inquiryName, positiveAccounts, onLink, updateBadge) {
     if (item.dataset.linkFormId) {
       document.getElementById(item.dataset.linkFormId)?.remove();
@@ -222,12 +228,13 @@ export function showOutputEditor(data, stats, config) {
     form.querySelector('.cr-link-search').focus();
   }
 
-  // Get previous account names for marking new accounts
+  // Usa el reporte previo para identificar cuentas que no aparecían antes.
   const clientFirstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
   const clientName = clientFirstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
   const prevNames = getPrevAccountNames(clientName);
   const showNewBadge = config.showNewBadge !== false;
 
+  /** Renderiza tarjetas de cuentas con controles de inclusión y edición. */
   function buildAccountSection(title, accounts) {
     const section = document.createElement('div');
     section.className = 'cr-editor-section';
@@ -252,7 +259,7 @@ export function showOutputEditor(data, stats, config) {
     accounts.forEach(acc => {
       const card = buildAccountEditorCard(acc, updateBadge);
       card.setAttribute('draggable', 'true');
-      // Mark as new if not found in previous report
+      // Marca como nueva la cuenta que no aparece en el reporte anterior.
       if (showNewBadge && prevNames.size > 0 && acc.name) {
         const isNew = ![...prevNames].some(line => line.includes(acc.name.toLowerCase()));
         if (isNew) {
@@ -270,6 +277,7 @@ export function showOutputEditor(data, stats, config) {
     return section;
   }
 
+  /** Renderiza listas de inquiries, datos personales y elementos simples. */
   function buildStringSection(title, items, options = {}) {
     const { isInquiries = false, positiveAccounts = [], onLink } = options;
 
@@ -383,7 +391,7 @@ export function showOutputEditor(data, stats, config) {
 
     addHistoryEntry(output, stats, data.personalHeader);
 
-    // Auto-save to CreditFlow on copy
+    // Guarda el cliente en CreditFlow al copiar el reporte.
     const firstLine = (data.personalHeader || '').split(/[\r\n]+/).map(l => l.trim()).find(l => l) || '';
     const nombre = firstLine.replace(/^Name:\s*/i, '').replace(/^Nombre:\s*/i, '').trim();
     if (nombre) {

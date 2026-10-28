@@ -2,11 +2,13 @@ import { SELECTORS, IGNORE_VALUES, BUROS, DEFAULT_CONFIG } from '../config/const
 import { queryOne, queryAll, waitForElement } from '../utils/dom.js';
 import { quickDetectStatus, getBuroStatus } from './matcher.js';
 
+/** Obtiene el tipo de disputa seleccionado para una fila. */
 export function getDisputeType(item) {
   const input = queryOne(SELECTORS.disputeType, item);
   return input?.value?.toLowerCase() || "";
 }
 
+/** Extrae los datos de contacto y perfil del cliente desde la página actual. */
 export function getClientData() {
   return {
     name: queryOne(SELECTORS.client.name)?.innerText.trim() || "",
@@ -21,6 +23,7 @@ export function getClientData() {
   };
 }
 
+/** Elige el primer valor utilizable de una fila entre los burós activos. */
 export function getBestValue(row, activeCols) {
   for (let i = 0; i < 3; i++) {
     if (!activeCols[i]) continue;
@@ -31,12 +34,14 @@ export function getBestValue(row, activeCols) {
   return "";
 }
 
+/** Devuelve los valores de una fila solo para los burós que se están procesando. */
 export function getValues(blocks, index, activeCols) {
   return activeCols
     .map((active, i) => active ? (blocks[index + 1 + i]?.innerText || "").toLowerCase().trim() : null)
     .filter(v => v !== null);
 }
 
+/** Interpreta los bloques de detalles y clasifica estados, saldos y direcciones. */
 export function parseAccountBlocks(blocks, activeCols, config) {
   const result = {
     name: "", number: "", balance: "", dateOpened: "",
@@ -108,7 +113,7 @@ export function parseAccountBlocks(blocks, activeCols, config) {
 
   if (!hasNegative && (accountStatusMatch || paymentStatusMatch)) result.isClosedPositive = true;
 
-  // Track accounts that are derog but also closed/paid (positive)
+  // Conserva si una cuenta derogatoria también figura como cerrada o pagada.
   if (hasDerog && (accountStatusMatch || paymentStatusMatch)) result.isDerogClosed = true;
 
   result.addresses = [...new Set(
@@ -122,6 +127,7 @@ export function parseAccountBlocks(blocks, activeCols, config) {
   return result;
 }
 
+/** Excluye elementos eliminados o sin estado positivo/Unspecified en todos los burós. */
 export function isInactivePositiveItem(item) {
   if (!item) return true;
   if (item.classList.contains(SELECTORS.compact.deletedHeader)) return true;
@@ -132,6 +138,7 @@ export function isInactivePositiveItem(item) {
   });
 }
 
+/** Crea un índice de cuentas válidas de Positive Items por nombre completo. */
 export function buildPositiveAccountsMap() {
   const map = new Map();
   const section = queryOne(SELECTORS.sections.positive);
@@ -149,12 +156,14 @@ export function buildPositiveAccountsMap() {
   return map;
 }
 
+/** Comprueba si el nombre pertenece a una agencia configurada. */
 export function isAgency(name, config) {
   if (!name) return false;
   const clean = name.toLowerCase();
   return config.agencies.some(a => clean.includes(a));
 }
 
+/** Da formato a los campos seleccionados de una cuenta para el texto de salida. */
 export function formatAccount(a, NL, config) {
   const order = config.fieldOrder || DEFAULT_CONFIG.fieldOrder;
   const fieldValues = {
@@ -179,6 +188,7 @@ export function formatAccount(a, NL, config) {
   return out + NL;
 }
 
+/** Expande una fila seleccionada y espera que Pulse muestre sus detalles. */
 export async function expandDisputeItem(link, item) {
   if (link.classList.contains(SELECTORS.compact.deletedHeader)) return false;
   if (!item) return false;
@@ -207,6 +217,7 @@ export async function expandDisputeItem(link, item) {
   return true;
 }
 
+/** Carga y expande las filas marcadas This Round, informando avances y tiempos agotados. */
 export async function loadRoundDisputes(onProgress) {
   const section = queryOne(SELECTORS.sections.disputed);
   if (!section) return [];

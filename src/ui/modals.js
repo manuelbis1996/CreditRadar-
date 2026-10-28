@@ -1,6 +1,7 @@
 import { SCRIPT_VERSION, VERSION_NOTES } from '../config/constants.js';
 import { bindClose } from '../utils/dom.js';
 
+/** Crea o reemplaza un fondo modal que cubre la página. */
 export function createOverlay(id) {
   document.getElementById(id)?.remove();
   const overlay = document.createElement('div');
@@ -10,6 +11,7 @@ export function createOverlay(id) {
   return overlay;
 }
 
+/** Crea o reemplaza un contenedor modal con estilos opcionales. */
 export function createModal(id, cssText) {
   document.getElementById(id)?.remove();
   const modal = document.createElement('div');
@@ -19,6 +21,7 @@ export function createModal(id, cssText) {
   return modal;
 }
 
+/** Muestra las notas de versión y resalta la versión instalada. */
 export function showVersionModal() {
   const overlay = createOverlay('crVersionOverlay');
   const modal = createModal('crVersionModal');
@@ -46,6 +49,7 @@ export function showVersionModal() {
   bindClose(close, overlay, document.getElementById('crVmClose'), document.getElementById('crVmOk'));
 }
 
+/** Muestra las notas de versión cuando cambia la versión guardada. */
 export function checkVersionUpdate() {
   const versionKey = "clasificador_lastVersion";
   const lastVersion = GM_getValue(versionKey, null);
@@ -56,6 +60,7 @@ export function checkVersionUpdate() {
   }
 }
 
+/** Compara versiones numéricas por segmento, sin convertirlas a decimales. */
 export function compareVersions(a, b) {
   const pa = a.split(".").map(Number);
   const pb = b.split(".").map(Number);
@@ -68,6 +73,7 @@ export function compareVersions(a, b) {
   return 0;
 }
 
+/** Presenta las opciones para instalar o posponer una actualización disponible. */
 export function showUpdateAvailableModal(latestVer) {
   const overlay = createOverlay('crUpdateOverlay');
   const modal = createModal('crUpdateModal', 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#161616;color:#fff;border-radius:12px;z-index:9999999;width:400px;max-width:94vw;border:1px solid #2a2a2a;box-shadow:0 16px 48px rgba(0,0,0,0.55);animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1);overflow:hidden;');
@@ -97,6 +103,7 @@ export function showUpdateAvailableModal(latestVer) {
   };
 }
 
+/** Consulta la versión publicada y avisa si supera la versión instalada. */
 export function checkForUpdates() {
   const GITHUB_URL = "https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditradar.user.js";
 

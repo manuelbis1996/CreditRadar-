@@ -1,6 +1,9 @@
-export const SCRIPT_VERSION = "20.52";
+export const SCRIPT_VERSION = "20.54";
 
+// Notas mostradas en el modal de novedades; deben mantenerse sincronizadas con la versión.
 export const VERSION_NOTES = {
+  "20.54": "🔗 Vincula cuentas por acreedor y marca todas las candidatas cuando el número difiere",
+  "20.53": "🔧 Fix: detecta inquiries vinculadas aunque su estado sea Unspecified",
   "20.52": "🔧 Fix: distingue cuentas diferentes del mismo acreedor en Positive Items",
   "20.51": "🔗 Detecta cuentas negativas en This Round que coinciden con cuentas de Positive Items",
   "20.50": "🔧 Fix: detecta cuentas positivas aunque un buró muestre Unspecified",
@@ -73,6 +76,7 @@ export const VERSION_NOTES = {
   "18.1": "📋 Versión visible en botón"
 };
 
+// Configuración del clasificador y reglas comunes de limpieza de nombres.
 export const STORAGE_KEY = "pulse_clasificador_config";
 export const BUROS = ["equifax", "experian", "transunion"];
 export const STOP_WORDS = new Set(["the", "of", "and", "for", "inc", "llc", "na", "bank", "usa", "corp", "co", "ltd"]);
@@ -105,6 +109,7 @@ export const ACCOUNT_FIELDS = [
   { key: "dateOpened", label: "Date Opened" }
 ];
 
+// Acreedores canónicos y nombres alternativos usados por el emparejamiento.
 export const DEFAULT_ALIASES = `
 capital one = cap one, cap1, capone, capitalone, capital one bank, capital one na, capitalone bank, cof, cap1 auto, cap1 bank
 chase = chase, chase bank, chase card, jpmcb, jpmcb card, jp morgan, jpmorgan chase, chase auto, chase slate
@@ -160,6 +165,7 @@ hdfc = hdfc bank, hdfc, hdfc credit card
 synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 `.trim();
 
+// Valores iniciales editables desde el panel de configuración.
 export const DEFAULT_CONFIG = {
   agencies: [
     "lvnv", "midland", "portfolio", "cavalry", "jefferson",
@@ -211,7 +217,7 @@ export const DEFAULT_CONFIG = {
 export const HISTORY_KEY = "cr_history";
 export const HISTORY_MAX = 50;
 
-// CreditFlow CRM storage keys
+// Claves de almacenamiento y catálogos predeterminados del CRM CreditFlow.
 export const CF_RECORDS_KEY = "cf_records";
 export const CF_LOG_KEY = "cf_log";
 export const CF_STATUSES_KEY = "cf_statuses";
@@ -230,6 +236,7 @@ export const CF_DEFAULT_TEMPLATES = [
   { id: 't3', statusId: 'carta',      label: 'Carta enviada', msg: 'Hola {nombre}, le confirmamos que su carta de disputa ha sido enviada exitosamente. El proceso puede tomar de 30 a 45 días. Le avisaremos cuando tengamos respuesta.' },
 ];
 
+// Selectores del DOM de Pulse utilizados por el parser y el flujo principal.
 export const SELECTORS = {
   compact: {
     container: ".dispute-outer-sample-container",

@@ -1,5 +1,15 @@
 # CreditRadar Changelog
 
+## v20.54 (2026-10-28)
+🔗 **Cuentas vinculadas por acreedor** — Si no coincide el nombre completo/número de cuenta, las cuentas de This Round se vinculan con todas las Positive Items del mismo acreedor. Así se muestran todas las candidatas en lugar de omitir la coincidencia por números distintos.
+
+---
+
+## v20.53 (2026-10-28)
+🔧 **Inquiries vinculadas con estado Unspecified** — La búsqueda de cuentas positivas ocurre antes de filtrar inquiries por estado activo o disputa. Los inquiries seleccionados en This Round ahora se detectan aunque sus burós indiquen “Unspecified”.
+
+---
+
 ## v20.52 (2026-10-27)
 🔧 **Cuentas múltiples del mismo acreedor** — Positive Items conserva cada cuenta. El vínculo prefiere el nombre completo y evita escoger una cuenta arbitraria si hay varias del mismo acreedor.
 

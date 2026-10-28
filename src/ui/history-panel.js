@@ -8,11 +8,12 @@ import { getClientData } from '../core/parser.js';
 
 /* ── Daily Report ── */
 
+/** Genera el reporte diario de clientes procesados y permite copiarlo o compartirlo. */
 function showDailyReport() {
   const entries = loadHistory();
   const today = new Date().toISOString().slice(0, 10);
 
-  // Remove existing
+  // Evita duplicar el reporte si ya había una ventana abierta.
   document.getElementById('crReportOverlay')?.remove();
   document.getElementById('crReportModal')?.remove();
 
@@ -26,17 +27,20 @@ function showDailyReport() {
   modal.className = 'cr-report-modal';
   document.body.appendChild(modal);
 
+  /** Filtra las entradas guardadas dentro del día local seleccionado. */
   function getEntriesForDate(dateStr) {
     const dayStart = new Date(dateStr + 'T00:00:00').getTime();
     const dayEnd = dayStart + 86400000;
     return entries.filter(e => e.id >= dayStart && e.id < dayEnd);
   }
 
+  /** Formatea una fecha ISO para mostrarla en el reporte. */
   function fmtDateShort(dateStr) {
     const d = new Date(dateStr + 'T12:00:00');
     return (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear();
   }
 
+  /** Agrupa las entradas no reportadas por estado y compone el texto final. */
   function generateReport(dateStr) {
     const dayEntries = getEntriesForDate(dateStr).filter(e => !e.reported);
     const d = new Date(dateStr + 'T12:00:00');
@@ -47,7 +51,7 @@ function showDailyReport() {
     if (!dayEntries.length) {
       text += `\nSin clientes procesados.\n`;
     } else {
-      // Group by status
+      // Agrupa los clientes según el estado asignado.
       const groups = new Map();
       dayEntries.forEach(e => {
         const key = e.status || '';
@@ -55,7 +59,7 @@ function showDailyReport() {
         groups.get(key).push(e);
       });
 
-      // Statuses first, then "sin estado" at the end
+      // Ordena los estados asignados antes de las entradas sin estado.
       const sorted = [...groups.entries()].sort((a, b) => {
         if (!a[0]) return 1;
         if (!b[0]) return -1;
@@ -73,6 +77,7 @@ function showDailyReport() {
     return { text, count: dayEntries.length, dateLabel, dayEntries };
   }
 
+  /** Dibuja el reporte para la fecha elegida y conecta sus controles. */
   function renderReport(dateStr) {
     const { text, count, dateLabel, dayEntries } = generateReport(dateStr);
 
@@ -107,6 +112,7 @@ function showDailyReport() {
       renderReport(ev.target.value);
     };
 
+    /** Marca como reportados los clientes CFPB incluidos en esta vista. */
     const markCfpbReported = () => {
       dayEntries.filter(e => e.status === 'CFPB y FTC').forEach(e => { e.reported = true; });
       saveHistory(entries);
@@ -143,6 +149,7 @@ function showDailyReport() {
   renderReport(today);
 }
 
+/** Muestra el historial, sus filtros, acciones de cliente y acceso al reporte diario. */
 export function showHistoryPanel() {
   document.getElementById('crHistoryPanel')?.remove();
   const panel = document.createElement('div');
@@ -177,12 +184,14 @@ export function showHistoryPanel() {
   let entries = loadHistory();
   const clientStatuses = (loadConfig().clientStatuses || []);
 
+  /** Convierte la marca de tiempo de una entrada en fecha y hora legibles. */
   function formatDate(ts) {
     const d = new Date(ts);
     return d.toLocaleDateString('es-US', { month: 'short', day: 'numeric', year: 'numeric' })
       + ' ' + d.toLocaleTimeString('es-US', { hour: '2-digit', minute: '2-digit' });
   }
 
+  /** Dibuja las entradas filtradas y sus acciones disponibles. */
   function renderList(filtered) {
     const body = document.getElementById('crHistBody');
     document.getElementById('crHistCount').textContent = `${filtered.length} entrada${filtered.length !== 1 ? 's' : ''}`;
@@ -320,6 +329,7 @@ export function showHistoryPanel() {
     });
   }
 
+  /** Aplica el rango de fechas actual y actualiza la lista del historial. */
   function applyFilter() {
     const from = document.getElementById('crHistFrom').value;
     const to = document.getElementById('crHistTo').value;

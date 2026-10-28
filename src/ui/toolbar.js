@@ -1,6 +1,7 @@
 import { SCRIPT_VERSION } from '../config/constants.js';
 import { waitForElement } from '../utils/dom.js';
 
+/** Cambia el estado visual y la disponibilidad del botón principal. */
 export function setButtonAnimation(status) {
   const btn = document.getElementById('clasificadorBTN');
   if (!btn) return;
@@ -26,6 +27,7 @@ export function setButtonAnimation(status) {
   }
 }
 
+/** Inserta la barra de herramientas y conecta sus acciones a los controles. */
 export async function addButton(config, runFn, openConfigFn, showHistoryFn) {
   if (document.getElementById('crToolbar')) return;
 
@@ -56,6 +58,7 @@ export async function addButton(config, runFn, openConfigFn, showHistoryFn) {
   setButtonAnimation('idle');
 }
 
+/** Presenta un aviso temporal en la esquina de la página. */
 export function showToast(message, color = "#5eead4", duration = 5000) {
   document.getElementById("clasificadorToast")?.remove();
   const toast = document.createElement("div");
@@ -78,6 +81,7 @@ export function showToast(message, color = "#5eead4", duration = 5000) {
   }, duration);
 }
 
+/** Permite recorrer detecciones, abrir sus filas en Pulse y volver al editor. */
 export function showDetectionNotice(detections, summary) {
   document.getElementById("crDetectionNotice")?.remove();
   document.getElementById("crDetectionReturn")?.remove();
@@ -231,6 +235,7 @@ export function showDetectionNotice(detections, summary) {
   closeButton.focus();
 }
 
+/** Crea el indicador flotante que muestra el avance del análisis. */
 export function createProgressPanel() {
   const panel = document.createElement("div");
   panel.id = "clasificadorProgress";
@@ -249,6 +254,7 @@ export function createProgressPanel() {
   document.body.appendChild(panel);
 }
 
+/** Actualiza el texto y contador del indicador de avance. */
 export function updateProgress(current, total, name, label = "Procesando") {
   const escapeHtml = str => (str||"").replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const lEl = document.getElementById("progressLabel");
@@ -259,6 +265,7 @@ export function updateProgress(current, total, name, label = "Procesando") {
   if (nEl) nEl.innerHTML = escapeHtml(name);
 }
 
+/** Quita del documento el indicador de avance. */
 export function removeProgressPanel() {
   document.getElementById("clasificadorProgress")?.remove();
 }

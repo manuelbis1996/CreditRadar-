@@ -1,9 +1,11 @@
+// Hoja de estilos centralizada para los paneles y controles inyectados por el userscript.
 export const buttonAnimationStyles = `
+  /* Animaciones reutilizadas por paneles y modales. */
   @keyframes crSlideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
   @keyframes crFadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
   @keyframes crScaleIn { from{opacity:0;transform:translate(-50%,-50%) scale(0.93)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
 
-  /* Toolbar */
+  /* Barra de herramientas */
   #crToolbar { display:flex; flex-direction:column; align-items:center; gap:0; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 4px 16px rgba(0,0,0,0.4); transition:padding 0.2s ease, opacity 0.2s ease; margin:4px auto; }
   #crToolbar:hover { padding:10px 8px; }
   #clasificadorBTN { width:48px; height:48px; background:#111; color:#fff; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
@@ -18,7 +20,7 @@ export const buttonAnimationStyles = `
   .clasificador-pulse { opacity:0.7; }
   .clasificador-success { border-color:#5eead4 !important; }
 
-  /* Config Panel */
+  /* Panel de configuración */
   #clasificadorConfigPanel { position:fixed; top:70px; right:70px; z-index:999999; background:#161616; color:#fff; border-radius:12px; width:440px; max-height:88vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.45); animation:crSlideIn 0.25s ease; overflow:hidden; }
   .cr-ph { padding:15px 16px 0; display:flex; justify-content:space-between; align-items:center; cursor:grab; flex-shrink:0; }
   .cr-ph:active { cursor:grabbing; }
@@ -72,7 +74,7 @@ export const buttonAnimationStyles = `
   .cr-btn-rst { background:transparent; color:#555; border:1px solid #2a2a2a; flex:0 0 auto; padding:10px 18px; }
   .cr-btn-rst:hover { background:#1e1e1e; color:#ccc; }
 
-  /* Version Modal */
+  /* Modal de versión */
   #crVersionModal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:12px; z-index:9999999; width:420px; max-width:94vw; max-height:85vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 16px 48px rgba(0,0,0,0.55); animation:crScaleIn 0.28s cubic-bezier(.16,1,.3,1); overflow:hidden; }
   .cr-vm-header { padding:28px 26px 20px; background:#111; border-top:2px solid #5eead4; border-bottom:1px solid #1e1e1e; position:relative; }
   .cr-vm-badge { display:inline-flex; align-items:center; gap:6px; background:#5eead418; border:1px solid #5eead440; color:#5eead4; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; margin-bottom:10px; }
@@ -93,7 +95,7 @@ export const buttonAnimationStyles = `
   .cr-vm-btn { width:100%; padding:12px; background:#5eead4; color:#0f172a; border:none; border-radius:8px; cursor:pointer; font-weight:700; font-size:14px; transition:all 0.2s; letter-spacing:0.2px; }
   .cr-vm-btn:hover { background:#2dd4bf; }
 
-  /* Output Preview */
+  /* Vista previa del output */
   #crOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:999997; animation:crFadeIn 0.2s ease; }
   #crOutputPanel { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:12px; z-index:999999; width:540px; max-width:92vw; max-height:90vh; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.5); display:flex; flex-direction:column; animation:crScaleIn 0.22s ease; }
   .cr-out-head { padding:15px 18px; border-bottom:1px solid #1e1e1e; display:flex; justify-content:space-between; align-items:center; }
@@ -110,7 +112,7 @@ export const buttonAnimationStyles = `
   .cr-dismiss-btn { padding:11px 16px; background:#1e1e1e; color:#666; border:1px solid #2a2a2a; border-radius:9px; cursor:pointer; font-size:13px; transition:all 0.2s; }
   .cr-dismiss-btn:hover { background:#252525; color:#ccc; }
 
-  /* Alias Cards */
+  /* Tarjetas de alias */
   .cr-alias-card { background:#1a1a1a; border:1px solid #222; border-radius:9px; margin-bottom:7px; overflow:hidden; transition:border-color 0.2s; }
   .cr-alias-card.expanded { border-color:#2e2e2e; }
   .cr-alias-head { display:flex; align-items:center; gap:8px; padding:9px 12px; }
@@ -138,7 +140,7 @@ export const buttonAnimationStyles = `
   .cr-alias-add-btn:hover { background:#2dd4bf; }
   .cr-alias-empty { text-align:center; color:#444; font-size:12px; padding:20px 0; }
 
-  /* Output Editor */
+  /* Editor del output */
   .cr-editor-section { margin-bottom:16px; }
   .cr-editor-section-head { display:flex; align-items:center; gap:8px; margin-bottom:7px; padding-bottom:6px; border-bottom:1px solid #1e1e1e; }
   .cr-editor-section-title { font-size:11px; color:#555; text-transform:uppercase; letter-spacing:0.5px; flex:1; }
@@ -178,7 +180,7 @@ export const buttonAnimationStyles = `
   .cr-editor-dragging { opacity:0.35; }
   .cr-editor-dragover { border-color:#5eead4 !important; background:#0d1e1d; }
 
-  /* History Panel */
+  /* Panel de historial */
   #crHistoryPanel { position:fixed; top:70px; right:130px; z-index:999999; background:#161616; color:#fff; border-radius:12px; width:440px; max-height:88vh; display:flex; flex-direction:column; border:1px solid #2a2a2a; box-shadow:0 8px 32px rgba(0,0,0,0.45); animation:crSlideIn 0.25s ease; overflow:hidden; }
   #crCFBtn { width:48px; height:48px; background:#0d1e1d; color:#fff; border:1px solid #34d39940; border-radius:8px; cursor:pointer; font-size:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:all 0.25s ease; line-height:1; }
   #crCFBtn:hover { background:#112420; border-color:#34d399; }
@@ -213,7 +215,7 @@ export const buttonAnimationStyles = `
   .cr-hist-clear-btn { width:100%; padding:9px; background:transparent; color:#555; border:1px solid #2a2a2a; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; }
   .cr-hist-clear-btn:hover { background:#f8717122; color:#f87171; border-color:#f8717144; }
 
-  /* Daily Report */
+  /* Reporte diario */
   .cr-report-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:9999998; animation:crFadeIn 0.15s ease; }
   .cr-report-modal { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#161616; color:#fff; border-radius:14px; z-index:9999999; width:520px; max-width:92vw; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,0.8); animation:crScaleIn 0.22s ease; overflow:hidden; }
   .cr-report-head { padding:18px 20px 14px; border-bottom:1px solid #1e1e1e; display:flex; justify-content:space-between; align-items:center; }
@@ -241,7 +243,7 @@ export const buttonAnimationStyles = `
   .cr-hist-report-btn { width:100%; padding:9px; background:#0d1e1d; color:#5eead4; border:1px solid #5eead430; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s; margin-bottom:8px; }
   .cr-hist-report-btn:hover { background:#5eead4; color:#0f172a; }
 
-  /* Client Status */
+  /* Estado del cliente */
   .cr-hist-status-row { position:relative; margin-bottom:6px; }
   .cr-hist-status-btn { padding:3px 10px; border-radius:20px; border:1px solid #2a2a2a; background:#1a1a1a; color:#555; font-size:11px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:5px; }
   .cr-hist-status-btn:hover { border-color:#444; color:#888; }
@@ -257,6 +259,7 @@ export const buttonAnimationStyles = `
   .cr-cstatus-del:hover { background:#f87171; color:#fff; }
 `;
 
+/** Inserta una sola vez los estilos de los componentes del userscript. */
 export function injectStyles() {
   if (document.getElementById('cr-styles')) return;
   const styleEl = document.createElement('style');

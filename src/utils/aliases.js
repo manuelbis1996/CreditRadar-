@@ -1,5 +1,6 @@
 import { saveConfig } from '../core/storage.js';
 
+/** Interpreta grupos de alias con el formato `principal = alias, alias`. */
 export function parseAliasGroups(text) {
   if (!text) return [];
   return text.split('\n').map(l => l.trim()).filter(l => l && l.includes('=')).map(l => {
@@ -10,10 +11,12 @@ export function parseAliasGroups(text) {
   });
 }
 
+/** Convierte los grupos de alias al formato guardado en la configuración. */
 export function serializeAliasGroups(groups) {
   return groups.map(g => `${g.main} = ${g.aliases.join(', ')}`).join('\n');
 }
 
+/** Agrega el nombre de un inquiry como alias de una cuenta y guarda la configuración. */
 export function addInquiryAlias(config, inquiryName, accountName) {
   const groups = parseAliasGroups(config.aliases || '');
   const accLower = accountName.trim().toLowerCase();

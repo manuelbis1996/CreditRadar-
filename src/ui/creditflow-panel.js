@@ -1,11 +1,12 @@
 import { CF_RECORDS_KEY, CF_LOG_KEY } from '../config/constants.js';
 import { loadCFData, saveCFData } from '../core/storage.js';
 
+/** Devuelve la fecha actual en formato ISO YYYY-MM-DD. */
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 
 /**
- * Saves a client from CreditRadar output directly into CreditFlow GM storage.
- * Returns true if added, false if already existed.
+ * Guarda en CreditFlow un cliente encontrado en el output de CreditRadar.
+ * Devuelve true si lo agregó o false si ya existía.
  */
 export function saveToCreditFlow(nombre, nombreResp, phone) {
   if (!nombre) return false;
@@ -31,9 +32,8 @@ export function saveToCreditFlow(nombre, nombreResp, phone) {
 }
 
 /**
- * Saves a client and marks carta as complete (carta: true).
- * If the client already exists, just marks carta = true.
- * Returns 'added' | 'updated' | 'already_complete'
+ * Guarda un cliente y marca la carta y CFPB como completos.
+ * Devuelve `added`, `updated` o `already_complete` según el resultado.
  */
 export function saveAndComplete(nombre, nombreResp, phone) {
   if (!nombre) return 'error';
@@ -72,9 +72,8 @@ export function saveAndComplete(nombre, nombreResp, phone) {
 }
 
 /**
- * Entry point when userscript detects it's on the CreditFlow GitHub Pages.
- * Exposes GM_getValue/GM_setValue to the page context via unsafeWindow so
- * creditflow.html's storage bridge can use GM storage instead of localStorage.
+ * Inicializa el puente de almacenamiento cuando el userscript está en CreditFlow.
+ * Expone las funciones GM al contexto de la página para evitar localStorage.
  */
 export function initCreditFlow() {
   try {

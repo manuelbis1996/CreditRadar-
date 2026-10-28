@@ -2,6 +2,7 @@ import { BUROS, IGNORE_VALUES, SELECTORS } from '../config/constants.js';
 import { cleanName, normalizeForMatch, getWords, getPrefixes, jaccardSimilarity } from '../utils/string.js';
 import { queryOne } from '../utils/dom.js';
 
+/** Crea un índice normalizado de alias a acreedor usando los grupos configurados. */
 export function buildAliasMap(config) {
   const map = new Map();
   if (!config.aliases) return map;
@@ -23,12 +24,14 @@ export function buildAliasMap(config) {
   return map;
 }
 
+/** Reemplaza un alias conocido por el nombre canónico del acreedor. */
 export function resolveAlias(name, aliasMap) {
   const clean = cleanName(name);
   const normalized = normalizeForMatch(clean);
   return aliasMap.get(normalized) || clean;
 }
 
+/** Busca la primera cuenta positiva que coincida posiblemente con el acreedor del inquiry. */
 export function getLinkedAccount(name, map, aliasMap) {
   if (!name || !map.size) return null;
   const resolvedInquiry = resolveAlias(name, aliasMap);
@@ -56,9 +59,9 @@ export function getLinkedAccount(name, map, aliasMap) {
 
     const exact = wordsI.filter(w => wordsSetC.has(w));
     if (exact.length >= 2) return item;
-    // Strategy 3: ambos reducen a 1 sola palabra y coinciden (umbral 5 chars)
+    // Caso 3: ambos nombres tienen una sola palabra igual de al menos cinco caracteres.
     if (exact.length === 1 && wordsI.length === 1 && wordsC.length === 1 && exact[0].length >= 5) return item;
-    // Strategy 3.5: inquiry tiene 1 sola palabra de 6+ chars que aparece en el acreedor
+    // Caso 3.5: el inquiry tiene una palabra larga que aparece dentro del nombre del acreedor.
     if (exact.length === 1 && wordsI.length === 1 && exact[0].length >= 6) return item;
 
     const prefixesC = new Set(getPrefixes(resolvedCreditor));
@@ -68,15 +71,16 @@ export function getLinkedAccount(name, map, aliasMap) {
     if (resolvedInquiry.length >= 6 && resolvedCreditor.includes(resolvedInquiry)) return item;
     if (resolvedCreditor.length >= 6 && resolvedInquiry.includes(resolvedCreditor)) return item;
 
-    // Jaccard sobre palabras significativas (sin stop words)
+    // Compara la proporción de palabras significativas compartidas.
     const sim = jaccardSimilarity(wordsI.join(" "), wordsC.join(" "));
     if (sim >= 0.7) return item;
   }
   return null;
 }
 
-export function getExactLinkedAccount(name, map, aliasMap) {
-  if (!name || !map.size) return null;
+/** Busca por nombre completo normalizado y, como alternativa, por acreedor. */
+export function getLinkedPositiveAccounts(name, map, aliasMap) {
+  if (!name || !map.size) return [];
   const getNameParts = value => {
     const separatorIndex = value.indexOf(" - ");
     return separatorIndex === -1
@@ -91,17 +95,18 @@ export function getExactLinkedAccount(name, map, aliasMap) {
   const matchingNames = [...map].filter(([positiveName]) =>
     getNormalizedFullName(positiveName) === normalizedName
   );
-  if (matchingNames.length === 1) return matchingNames[0][1];
+  if (matchingNames.length) return matchingNames.map(([, item]) => item);
 
+  // Si el número difiere o está enmascarado de otra forma, devuelve todas las cuentas de ese acreedor.
   const [creditor] = getNameParts(name);
   const normalizedCreditor = normalizeForMatch(resolveAlias(creditor, aliasMap));
-  const matchingCreditors = [...map].filter(([positiveName]) => {
+  return [...map].filter(([positiveName]) => {
     const [positiveCreditor] = getNameParts(positiveName);
     return normalizeForMatch(resolveAlias(positiveCreditor, aliasMap)) === normalizedCreditor;
-  });
-  return matchingCreditors.length === 1 ? matchingCreditors[0][1] : null;
+  }).map(([, item]) => item);
 }
 
+/** Lee los estados seleccionados para un buró en la fila compacta del reporte. */
 export function getBuroStatus(item, buro) {
   return {
     indispute: !!queryOne(SELECTORS.compact.indispute(buro), item),
@@ -112,6 +117,7 @@ export function getBuroStatus(item, buro) {
   };
 }
 
+/** Marca los burós con estado disputado o negativo para procesar sus datos. */
 export function getActiveColumns(item) {
   return BUROS.map(b => {
     const status = getBuroStatus(item, b);
@@ -119,6 +125,7 @@ export function getActiveColumns(item) {
   });
 }
 
+/** Comprueba si algún buró o el indicador general marca el elemento como disputado. */
 export function hasInDispute(item) {
   return BUROS.some(b => {
     const status = getBuroStatus(item, b);
@@ -126,6 +133,7 @@ export function hasInDispute(item) {
   }) || !!queryOne(".disputes-tab-compact-indispute-text-CTN", item);
 }
 
+/** Evita expandir detalles si todos los burós están positivos, eliminados o sin estado. */
 export function quickDetectStatus(item) {
   const isAllPositive = BUROS.every(b => {
     const status = getBuroStatus(item, b);

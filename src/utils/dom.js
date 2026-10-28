@@ -1,3 +1,4 @@
+/** Espera un elemento coincidente y devuelve null si vence el tiempo límite. */
 export function waitForElement(selector, parent = document, timeout = 8000) {
   return new Promise(resolve => {
     try {
@@ -20,6 +21,7 @@ export function waitForElement(selector, parent = document, timeout = 8000) {
   });
 }
 
+/** Consulta de forma segura todos los descendientes coincidentes y devuelve un arreglo. */
 export function queryAll(selector, parent = document) {
   try {
     return [...parent.querySelectorAll(selector)];
@@ -29,6 +31,7 @@ export function queryAll(selector, parent = document) {
   }
 }
 
+/** Consulta de forma segura el primer descendiente coincidente. */
 export function queryOne(selector, parent = document) {
   try {
     return parent.querySelector(selector);
@@ -38,22 +41,26 @@ export function queryOne(selector, parent = document) {
   }
 }
 
+/** Aplica el borde y brillo que identifican visualmente un elemento coincidente. */
 export function highlight(item, color) {
   item.style.border = `3px solid ${color}`;
   item.style.borderRadius = "8px";
   item.style.boxShadow = `0 0 10px ${color}66`;
 }
 
+/** Quita los estilos visuales aplicados a un elemento resaltado. */
 export function clearHighlight(item) {
   item.style.border = "";
   item.style.borderRadius = "";
   item.style.boxShadow = "";
 }
 
+/** Quita los resaltados de todas las filas compactas de disputas. */
 export function clearAllHighlights() {
   document.querySelectorAll(".dispute-outer-sample-container").forEach(clearHighlight);
 }
 
+/** Permite arrastrar un panel y notifica su posición final. */
 export function makeDraggable(panel, handle, onDragEnd) {
   let ox = 0, oy = 0, mx = 0, my = 0;
   handle.addEventListener('mousedown', e => {
@@ -78,6 +85,7 @@ export function makeDraggable(panel, handle, onDragEnd) {
   });
 }
 
+/** Asigna la misma acción de cierre a cada control recibido. */
 export function bindClose(closeFn, ...elements) {
   elements.forEach(el => { if (el) el.onclick = closeFn; });
 }

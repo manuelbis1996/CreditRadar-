@@ -7,13 +7,14 @@ import { checkVersionUpdate, checkForUpdates } from './ui/modals.js';
 import { openConfigPanel } from './ui/config-panel.js';
 import { showOutputEditor } from './ui/output-editor.js';
 import { showHistoryPanel } from './ui/history-panel.js';
-import { buildAliasMap, getExactLinkedAccount, getLinkedAccount, resolveAlias } from './core/matcher.js';
+import { buildAliasMap, getLinkedPositiveAccounts, getLinkedAccount, resolveAlias } from './core/matcher.js';
 import { getDisputeType, getClientData, parseAccountBlocks, buildPositiveAccountsMap, isAgency, loadRoundDisputes } from './core/parser.js';
 import { getActiveColumns, hasInDispute } from './core/matcher.js';
 import { clearAllHighlights, highlight, queryOne, queryAll, waitForElement } from './utils/dom.js';
 
 let CONFIG = loadConfig();
 
+/** Analiza las disputas de This Round, genera detecciones y abre el editor de salida. */
 async function run() {
   console.clear();
   console.log("🚀 CLASIFICADOR V" + SCRIPT_VERSION);
@@ -77,36 +78,25 @@ async function run() {
       const compactName = queryOne(SELECTORS.compact.name, item)?.innerText.trim() || "";
       const realType = getDisputeType(item);
       const inDispute = hasInDispute(item);
-      const positiveItem = realType === "inquiry"
-        ? null
-        : getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
+      const positiveItems = realType === "inquiry"
+        ? []
+        : getLinkedPositiveAccounts(compactName, positiveAccountsMap, aliasMap);
 
-      if (positiveItem) {
-        console.log(`🔵 Account in This Round matches Positive Items: ${compactName}`);
+      if (positiveItems.length) {
+        console.log(`🔵 Account in This Round matches ${positiveItems.length} Positive Items: ${compactName}`);
         highlight(item, CONFIG.colors.closedPositive);
-        highlight(positiveItem, CONFIG.colors.closedPositive);
+        positiveItems.forEach(positiveItem => highlight(positiveItem, CONFIG.colors.closedPositive));
         POSITIVE_THIS_ROUND++;
-        DETECTIONS.push({ name: compactName, label: "Coincidencia de cuenta en Positive Items", target: positiveItem });
+        const label = positiveItems.length > 1
+          ? `Coincidencia por acreedor (${positiveItems.length} cuentas candidatas)`
+          : "Coincidencia de cuenta en Positive Items";
+        positiveItems.forEach(positiveItem => {
+          DETECTIONS.push({ name: compactName, label, target: positiveItem });
+        });
       }
 
-      if (!inDispute) {
-        if (positiveItem) {
-          console.log(`⏭️ Positive account not in dispute: ${compactName}`);
-        }
-        continue;
-      }
-
-      updateProgress(idx + 1, total, compactName, "Procesando");
-
-      const activeCols = getActiveColumns(item);
-      const hasActive = activeCols.some(Boolean);
-
+      // Buscar el vínculo antes del filtro de disputa: un inquiry seleccionado puede mostrar Unspecified.
       if (realType === "inquiry") {
-        if (!hasActive) {
-          console.log(`⏭️ Inquiry skipped: ${compactName}`);
-          continue;
-        }
-
         const linkedItem = getLinkedAccount(compactName, positiveAccountsMap, aliasMap);
         if (linkedItem) {
           const currentResolved = resolveAlias(compactName, aliasMap).toLowerCase();
@@ -123,18 +113,36 @@ async function run() {
             POSITIVE_CONFLICTS++;
             DETECTIONS.push({ name: compactName, label: "Conflicto: inquiry y cuenta positiva", target: linkedItem });
             INQUIRIES.push(compactName);
-            continue;
+          } else {
+            console.log(`🛡️ Escudo Protector: Inquiry omitido por estar ligado a cuenta positiva: ${compactName}`);
+            const color = "#f87171";
+            highlight(item, color);
+            highlight(linkedItem, color);
+            LINKED_INQUIRIES++;
+            DETECTIONS.push({ name: compactName, label: "Inquiry vinculada a cuenta positiva", target: linkedItem });
           }
-
-          console.log(`🛡️ Escudo Protector: Inquiry omitido por estar ligado a cuenta positiva: ${compactName}`);
-          const color = "#f87171";
-          highlight(item, color);
-          highlight(linkedItem, color);
-          LINKED_INQUIRIES++;
-          DETECTIONS.push({ name: compactName, label: "Inquiry vinculada a cuenta positiva", target: linkedItem });
-        } else {
-          INQUIRIES.push(compactName);
+          continue;
         }
+      }
+
+      if (!inDispute) {
+        if (positiveItems.length) {
+          console.log(`⏭️ Positive account not in dispute: ${compactName}`);
+        }
+        continue;
+      }
+
+      updateProgress(idx + 1, total, compactName, "Procesando");
+
+      const activeCols = getActiveColumns(item);
+      const hasActive = activeCols.some(Boolean);
+
+      if (realType === "inquiry") {
+        if (!hasActive) {
+          console.log(`⏭️ Inquiry skipped: ${compactName}`);
+          continue;
+        }
+        INQUIRIES.push(compactName);
         continue;
       }
 
@@ -161,7 +169,7 @@ async function run() {
       const parsed = parseAccountBlocks(blocks, activeCols, CONFIG);
       const finalName = parsed.name || compactName;
 
-      // Skip open accounts UNLESS they have negative payment status (collection/charge)
+      // Las cuentas abiertas se omiten, excepto si sus pagos indican una cuenta negativa.
       const hasNegativePayment = parsed.isCollection || (parsed.paymentStatusNegative === true);
       if (parsed.isOpen && !hasNegativePayment) {
         console.log(`⏭️ Skipped (Open): ${finalName}`);
@@ -174,10 +182,10 @@ async function run() {
       if (parsed.isClosedPositive && !(CONFIG.includeDerogPositive && parsed.isDerogClosed)) {
         console.log(`⏭️ Skipped (Closed Positive): ${finalName}`);
         highlight(item, CONFIG.colors.closedPositive);
-        const positiveItem = getExactLinkedAccount(compactName, positiveAccountsMap, aliasMap);
-        if (positiveItem) highlight(positiveItem, CONFIG.colors.closedPositive);
+        const positiveItems = getLinkedPositiveAccounts(compactName, positiveAccountsMap, aliasMap);
+        positiveItems.forEach(positiveItem => highlight(positiveItem, CONFIG.colors.closedPositive));
         SKIPPED_CLOSED++;
-        DETECTIONS.push({ name: finalName, label: "Cuenta cerrada positiva", target: positiveItem || item });
+        DETECTIONS.push({ name: finalName, label: "Cuenta cerrada positiva", target: positiveItems[0] || item });
         continue;
       }
 
@@ -261,6 +269,7 @@ async function run() {
   }
 }
 
+/** Agrega el botón que guarda al cliente en CreditFlow y marca sus tareas completas. */
 async function injectSaveCompleteButton() {
   const addDiv = await waitForElement('#addBtn');
   if (!addDiv || document.getElementById('crSaveCompleteBtn')) return;
@@ -295,7 +304,7 @@ async function injectSaveCompleteButton() {
   addDiv.appendChild(btn);
 }
 
-// F4: Auto-sync phone from current Pulse page to existing CF record
+/** Sincroniza el teléfono de Pulse con el registro CreditFlow existente. */
 function syncPhoneToRecord() {
   const CLIENT = getClientData();
   if (!CLIENT.name || !CLIENT.cell) return;
@@ -312,11 +321,12 @@ function syncPhoneToRecord() {
   } catch(e) {}
 }
 
-// F5: Status badge — shows CF status inline, click to change
+/** Muestra el estado CreditFlow del cliente y permite cambiarlo desde Pulse. */
 async function injectStatusBadge() {
   const container = await waitForElement('.client-dash-side-top');
   if (!container) return;
 
+  /** Lee el registro de CreditFlow asociado al cliente visible. */
   function readCFRecord(name) {
     try {
       const raw = GM_getValue('cf_records', null);
@@ -324,6 +334,7 @@ async function injectStatusBadge() {
       return records.find(r => r.nombre.toLowerCase() === name.toLowerCase()) || null;
     } catch(e) { return null; }
   }
+  /** Lee el catálogo de estados disponibles en CreditFlow. */
   function readCFStatuses() {
     try {
       const raw = GM_getValue('cf_statuses', null);
@@ -331,6 +342,7 @@ async function injectStatusBadge() {
     } catch(e) { return []; }
   }
 
+  /** Actualiza la insignia y enlaza el menú para cambiar el estado del cliente. */
   function renderBadge() {
     document.getElementById('crStatusBadge')?.remove();
     const CLIENT = getClientData();
@@ -378,19 +390,23 @@ async function injectStatusBadge() {
         dd.appendChild(opt);
       });
       badge.appendChild(dd);
-      setTimeout(() => document.addEventListener('click', function h(){ dd.remove(); document.removeEventListener('click',h); }), 0);
+      setTimeout(() => document.addEventListener('click', function h(){
+        // Cierra el menú al detectar un clic fuera de la insignia.
+        dd.remove();
+        document.removeEventListener('click', h);
+      }), 0);
     };
     container.appendChild(badge);
   }
 
   renderBadge();
-  // Re-render when client changes
+  // Actualiza la insignia cuando Pulse cambia el cliente visible.
   const observer = new MutationObserver(() => { setTimeout(renderBadge, 300); });
   const nameEl = document.querySelector('.client_card_info_name');
   if (nameEl) observer.observe(nameEl, { childList:true, subtree:true, characterData:true });
 }
 
-// F6: Hover summary tooltip
+/** Muestra un resumen de CreditFlow al pasar el cursor sobre el nombre del cliente. */
 async function injectHoverSummary() {
   const nameEl = await waitForElement('.client_card_info_name');
   if (!nameEl) return;
@@ -429,7 +445,7 @@ async function injectHoverSummary() {
   nameEl.addEventListener('mouseleave', () => { tooltip?.remove(); tooltip = null; });
 }
 
-// F7: Copy personal info with 3 formats
+/** Agrega accesos para copiar los datos personales en tres formatos. */
 async function injectPersonalCopyButton() {
   const container = await waitForElement('.client-dash-side-top');
   if (!container || document.getElementById('crCopyPersonalBtn')) return;
@@ -493,6 +509,7 @@ async function injectPersonalCopyButton() {
   else container.prepend(wrap);
 }
 
+/** Inicializa estilos, controles, paneles e integraciones en Pulse. */
 function initClasificador() {
   injectStyles();
   checkVersionUpdate();
@@ -510,7 +527,9 @@ function initClasificador() {
   injectHoverSummary();
 }
 
+// El mismo userscript se ejecuta en Pulse y en CreditFlow; cada sitio usa su inicializador.
 const IS_CREDITFLOW = window.location.hostname.includes('github.io');
+/** Selecciona la inicialización correspondiente al sitio donde corre el userscript. */
 const init = IS_CREDITFLOW ? initCreditFlow : initClasificador;
 
 if (document.readyState === 'complete') {
