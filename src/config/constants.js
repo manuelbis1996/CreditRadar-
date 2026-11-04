@@ -1,7 +1,8 @@
-export const SCRIPT_VERSION = "20.55";
+export const SCRIPT_VERSION = "20.56";
 
 // Notas mostradas en el modal de novedades; deben mantenerse sincronizadas con la versión.
 export const VERSION_NOTES = {
+  "20.56": "🔄 CreditFlow abre con URL única para evitar servir una página guardada en caché",
   "20.55": "🔄 CreditFlow avisa cuando hay una versión publicada y permite actualizar al recargar",
   "20.54": "🔗 Vincula cuentas por acreedor y marca todas las candidatas cuando el número difiere",
   "20.53": "🔧 Fix: detecta inquiries vinculadas aunque su estado sea Unspecified",

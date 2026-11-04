@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.55
+// @version      20.56
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,10 +20,11 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.55";
+  const SCRIPT_VERSION = "20.56";
 
   // Notas mostradas en el modal de novedades; deben mantenerse sincronizadas con la versión.
   const VERSION_NOTES = {
+    "20.56": "🔄 CreditFlow abre con URL única para evitar servir una página guardada en caché",
     "20.55": "🔄 CreditFlow avisa cuando hay una versión publicada y permite actualizar al recargar",
     "20.54": "🔗 Vincula cuentas por acreedor y marca todas las candidatas cuando el número difiere",
     "20.53": "🔧 Fix: detecta inquiries vinculadas aunque su estado sea Unspecified",
@@ -887,7 +888,11 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
 
     document.getElementById('clasificadorBTN').onclick = runFn;
     document.getElementById('crHistoryBtn').onclick = showHistoryFn;
-    document.getElementById('crCFBtn').onclick = () => window.open('https://manuelbis1996.github.io/CreditRadar-/creditflow.html', '_blank');
+    document.getElementById('crCFBtn').onclick = () => {
+      const url = new URL('https://manuelbis1996.github.io/CreditRadar-/creditflow.html');
+      url.searchParams.set('v', Date.now().toString());
+      window.open(url.href, '_blank');
+    };
     document.getElementById('crSettingsBtn').onclick = openConfigFn;
     setButtonAnimation('idle');
   }

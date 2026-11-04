@@ -1,5 +1,10 @@
 # CreditRadar Changelog
 
+## v20.56 (2026-11-04)
+🔄 **CreditFlow sin caché antigua** — El botón de CreditRadar abre CreditFlow con un parámetro único para solicitar la versión publicada más reciente.
+
+---
+
 ## v20.55 (2026-11-04)
 🔄 **Actualización de CreditFlow desde CreditRadar** — En GitHub Pages, CreditRadar comprueba periódicamente la versión publicada de CreditFlow y permite recargar la página cuando hay una versión más reciente.
 

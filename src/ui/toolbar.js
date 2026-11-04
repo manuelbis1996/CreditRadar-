@@ -53,7 +53,11 @@ export async function addButton(config, runFn, openConfigFn, showHistoryFn) {
 
   document.getElementById('clasificadorBTN').onclick = runFn;
   document.getElementById('crHistoryBtn').onclick = showHistoryFn;
-  document.getElementById('crCFBtn').onclick = () => window.open('https://manuelbis1996.github.io/CreditRadar-/creditflow.html', '_blank');
+  document.getElementById('crCFBtn').onclick = () => {
+    const url = new URL('https://manuelbis1996.github.io/CreditRadar-/creditflow.html');
+    url.searchParams.set('v', Date.now().toString());
+    window.open(url.href, '_blank');
+  };
   document.getElementById('crSettingsBtn').onclick = openConfigFn;
   setButtonAnimation('idle');
 }
