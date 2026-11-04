@@ -81,6 +81,29 @@ export function initCreditFlow() {
     unsafeWindow.GM_getValue = GM_getValue;
     unsafeWindow.GM_setValue = GM_setValue;
     unsafeWindow.GM_addValueChangeListener = GM_addValueChangeListener;
+    unsafeWindow.CreditFlowCheckLatest = () => {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: `https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditflow.html?t=${Date.now()}`,
+        onload(response) {
+          if (response.status !== 200) {
+            console.warn('[CreditFlow] No se pudo comprobar la versión publicada:', response.status);
+            return;
+          }
+          const match = response.responseText.match(/const CREDITFLOW_VERSION\s*=\s*['"]([0-9.]+)['"]/);
+          if (!match) {
+            console.warn('[CreditFlow] La página publicada no contiene una versión válida.');
+            return;
+          }
+          unsafeWindow.dispatchEvent(new CustomEvent('cr-creditflow-update-check', {
+            detail: {version: match[1]}
+          }));
+        },
+        onerror(error) {
+          console.warn('[CreditFlow] Error al consultar actualizaciones:', error);
+        }
+      });
+    };
     unsafeWindow.dispatchEvent(new CustomEvent('cr-gm-ready'));
   } catch(e) {
     console.warn('[CreditFlow] No se pudo exponer GM storage al contexto de página:', e);

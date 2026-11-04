@@ -188,6 +188,10 @@ th{position:sticky;top:0;background:var(--surface);z-index:1}
 .report-flow-hint{margin:0 0 14px;padding:10px 12px;border-radius:10px;background:var(--surface-2);color:var(--text-2);font-size:12px}
 .report-flow-hint.warning{background:var(--amber-bg);color:var(--amber)}
 .backup-reminder{padding:12px 14px;border:1px solid var(--amber);border-radius:11px;background:var(--amber-bg);color:var(--text);font-size:12px;margin-bottom:14px}
+.cf-update-notice{position:fixed;top:14px;left:50%;z-index:120;display:flex;align-items:center;gap:12px;width:min(620px,calc(100vw - 24px));padding:12px 14px;transform:translateX(-50%);border:1px solid var(--accent);border-radius:14px;background:var(--surface);box-shadow:0 12px 36px #1e293b30;color:var(--text);font-size:13px}
+.cf-update-notice span{flex:1}
+.cf-update-notice button{min-height:38px;padding:8px 12px;border:0;border-radius:9px;background:var(--accent);color:#fff;font:600 12px 'DM Sans',sans-serif;cursor:pointer}
+.cf-update-notice button.cf-update-later{background:var(--surface-2);color:var(--text)}
 @media(max-width:900px){
   .report-controls{grid-template-columns:repeat(2,minmax(0,1fr))}
   .report-name-field{grid-column:1/-1}
@@ -342,7 +346,7 @@ button:disabled{opacity:.5;cursor:not-allowed;transform:none!important;box-shado
       <span>Ajustes</span>
     </div>
     <div class="sidebar-footer">
-      <p style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:5px">CreditFlow v1.1</p>
+      <p id="creditflow-version-label" style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:5px">CreditFlow</p>
       <p id="storage-label" role="status" aria-live="polite">Revisando almacenamiento…</p>
     </div>
     <button class="nav-item mobile-more-trigger" id="mobileMoreTrigger" type="button" aria-label="Más opciones" aria-expanded="false" aria-controls="mobileMoreMenu" onclick="toggleMobileMore()">
@@ -370,6 +374,9 @@ button:disabled{opacity:.5;cursor:not-allowed;transform:none!important;box-shado
 <div id="toast-root"></div>
 
 <script>
+const CREDITFLOW_VERSION = '1.2';
+document.getElementById('creditflow-version-label').textContent = `CreditFlow v${CREDITFLOW_VERSION}`;
+
 // ─── STORAGE BRIDGE ───
 const CF_STORAGE_KEYS = ['cf_records', 'cf_log', 'cf_statuses', 'cf_templates', 'cf_reports', 'cf_report_name'];
 const store = {
@@ -400,6 +407,51 @@ function escapeHtml(value) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[char]);
 }
+
+function compareCreditFlowVersions(a, b) {
+  const left = String(a).split('.').map(Number);
+  const right = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const difference = (left[i] || 0) - (right[i] || 0);
+    if (difference) return difference;
+  }
+  return 0;
+}
+
+function showCreditFlowUpdate(version) {
+  if (!version || compareCreditFlowVersions(version, CREDITFLOW_VERSION) <= 0 ||
+      document.getElementById('cf-update-notice') ||
+      sessionStorage.getItem('cf-dismissed-update') === version) return;
+  const notice = document.createElement('div');
+  notice.id = 'cf-update-notice';
+  notice.className = 'cf-update-notice';
+  notice.setAttribute('role', 'status');
+  const message = document.createElement('span');
+  message.textContent = `CreditFlow ${version} está disponible. Guarda cualquier edición abierta antes de actualizar.`;
+  const update = document.createElement('button');
+  update.type = 'button';
+  update.textContent = 'Actualizar ahora';
+  update.addEventListener('click', () => {
+    if (!confirm('La página se recargará. ¿Guardaste los cambios del formulario que tienes abierto?')) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('v', version);
+    window.location.replace(url.href);
+  });
+  const later = document.createElement('button');
+  later.type = 'button';
+  later.className = 'cf-update-later';
+  later.textContent = 'Más tarde';
+  later.addEventListener('click', () => {
+    sessionStorage.setItem('cf-dismissed-update', version);
+    notice.remove();
+  });
+  notice.append(message, update, later);
+  document.body.appendChild(notice);
+}
+
+window.addEventListener('cr-creditflow-update-check', event => {
+  showCreditFlowUpdate(event.detail?.version);
+});
 
 function eventId(value) {
   return encodeURIComponent(String(value)).replace(/'/g, '%27');
@@ -2071,6 +2123,12 @@ function registerGMListeners() {
   });
 }
 registerGMListeners();
+function checkCreditFlowUpdate() {
+  if (typeof CreditFlowCheckLatest === 'function') CreditFlowCheckLatest();
+}
+window.addEventListener('cr-gm-ready', checkCreditFlowUpdate);
+checkCreditFlowUpdate();
+setInterval(checkCreditFlowUpdate, 10 * 60 * 1000);
 // On page load GM may not be exposed yet; attach the listeners when the bridge signals ready.
 window.addEventListener('cr-gm-ready', () => {
   registerGMListeners();

@@ -1,5 +1,10 @@
 # CreditRadar Changelog
 
+## v20.55 (2026-11-04)
+🔄 **Actualización de CreditFlow desde CreditRadar** — En GitHub Pages, CreditRadar comprueba periódicamente la versión publicada de CreditFlow y permite recargar la página cuando hay una versión más reciente.
+
+---
+
 ## v20.54 (2026-10-28)
 🔗 **Cuentas vinculadas por acreedor** — Si no coincide el nombre completo/número de cuenta, las cuentas de This Round se vinculan con todas las Positive Items del mismo acreedor. Así se muestran todas las candidatas en lugar de omitir la coincidencia por números distintos.
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CreditRadar 📶
 // @namespace    http://tampermonkey.net/
-// @version      20.54
+// @version      20.55
 // @description  Organizador inteligente de disputes - clasifica colecciones, acreedores, inquiries e información personal automáticamente
 // @author       MAnuelbis Encarnacion Abreu  
 // @match        https://pulse.disputeprocess.com/*
@@ -20,10 +20,11 @@
 (function () {
   'use strict';
 
-  const SCRIPT_VERSION = "20.54";
+  const SCRIPT_VERSION = "20.55";
 
   // Notas mostradas en el modal de novedades; deben mantenerse sincronizadas con la versión.
   const VERSION_NOTES = {
+    "20.55": "🔄 CreditFlow avisa cuando hay una versión publicada y permite actualizar al recargar",
     "20.54": "🔗 Vincula cuentas por acreedor y marca todas las candidatas cuando el número difiere",
     "20.53": "🔧 Fix: detecta inquiries vinculadas aunque su estado sea Unspecified",
     "20.52": "🔧 Fix: distingue cuentas diferentes del mismo acreedor en Positive Items",
@@ -441,6 +442,29 @@ synchrony financial = synchrony, synchrony bank, synchrony financial, syncb
       unsafeWindow.GM_getValue = GM_getValue;
       unsafeWindow.GM_setValue = GM_setValue;
       unsafeWindow.GM_addValueChangeListener = GM_addValueChangeListener;
+      unsafeWindow.CreditFlowCheckLatest = () => {
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: `https://raw.githubusercontent.com/manuelbis1996/CreditRadar-/main/creditflow.html?t=${Date.now()}`,
+          onload(response) {
+            if (response.status !== 200) {
+              console.warn('[CreditFlow] No se pudo comprobar la versión publicada:', response.status);
+              return;
+            }
+            const match = response.responseText.match(/const CREDITFLOW_VERSION\s*=\s*['"]([0-9.]+)['"]/);
+            if (!match) {
+              console.warn('[CreditFlow] La página publicada no contiene una versión válida.');
+              return;
+            }
+            unsafeWindow.dispatchEvent(new CustomEvent('cr-creditflow-update-check', {
+              detail: {version: match[1]}
+            }));
+          },
+          onerror(error) {
+            console.warn('[CreditFlow] Error al consultar actualizaciones:', error);
+          }
+        });
+      };
       unsafeWindow.dispatchEvent(new CustomEvent('cr-gm-ready'));
     } catch(e) {
       console.warn('[CreditFlow] No se pudo exponer GM storage al contexto de página:', e);
