@@ -5,7 +5,7 @@ import { loadCFData, saveCFData } from '../core/storage.js';
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 
 /**
- * Guarda en CreditFlow un cliente encontrado en el output de CreditRadar.
+ * Registra en CreditFlow un cliente encontrado en el output de CreditRadar sin marcar una carta.
  * Devuelve true si lo agregó o false si ya existía.
  */
 export function saveToCreditFlow(nombre, nombreResp, phone) {
@@ -17,9 +17,9 @@ export function saveToCreditFlow(nombre, nombreResp, phone) {
     nombre,
     nombreResp: nombreResp || 'Manuelbis',
     phone: (phone || '').replace(/\D/g,''),
-    estatus: 'carta',
+    estatus: '',
     carta: false, cfbp: false,
-    cartaFecha: todayStr(), cfbpFecha: '',
+    cartaFecha: '', cfbpFecha: '',
     comentario: '',
     link: window.location.href,
     createdAt: new Date().toISOString(),
@@ -32,24 +32,120 @@ export function saveToCreditFlow(nombre, nombreResp, phone) {
 }
 
 /**
+ * Marca como hecha hoy la carta del proceso abierto más reciente del cliente.
+ * Si no hay un proceso abierto, crea uno nuevo ya marcado con la carta.
+ */
+export function markLetterInCreditFlow(nombre, nombreResp, phone) {
+  if (!nombre) return 'error';
+  const normalize = value => String(value || '').trim().replace(/\s+/g, ' ')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
+  const records = loadCFData(CF_RECORDS_KEY, []);
+  if (!Array.isArray(records)) {
+    console.error('[CreditFlow] Los registros no tienen el formato esperado; no se marcó la carta.');
+    return 'error';
+  }
+  const nameKey = normalize(nombre);
+  const openCases = records
+    .map((record, index) => ({record, index}))
+    .filter(({record}) =>
+      !record.archived && normalize(record.nombre) === nameKey && !(record.carta && record.cfbp)
+    )
+    .sort((a, b) => {
+      const aTime = Date.parse(a.record.createdAt || '') || 0;
+      const bTime = Date.parse(b.record.createdAt || '') || 0;
+      return bTime - aTime || b.index - a.index;
+    });
+
+  if (openCases.length) {
+    const record = openCases[0].record;
+    const letterDate = todayStr();
+    const alreadyMarked = record.carta && record.cartaFecha === letterDate && record.estatus === 'carta';
+    const phoneAdded = Boolean(phone && !record.phone);
+    record.carta = true;
+    record.cartaFecha = letterDate;
+    record.estatus = 'carta';
+    if (phoneAdded) record.phone = phone.replace(/\D/g, '');
+    if (alreadyMarked && !phoneAdded) return 'already_marked';
+    if (!saveCFData(CF_RECORDS_KEY, records)) return 'error';
+    const log = loadCFData(CF_LOG_KEY, []);
+    log.push({
+      id: `${Date.now()}l`,
+      type: 'carta',
+      desc: 'Carta hecha tras reimportación: ' + record.nombre,
+      ts: new Date().toISOString()
+    });
+    if (!saveCFData(CF_LOG_KEY, log)) return 'marked_log_failed';
+    return 'marked';
+  }
+
+  const now = new Date();
+  records.push({
+    id: now.getTime().toString(),
+    nombre,
+    nombreResp: nombreResp || 'Manuelbis',
+    phone: (phone || '').replace(/\D/g, ''),
+    estatus: 'carta',
+    carta: true,
+    cfbp: false,
+    cartaFecha: todayStr(),
+    cfbpFecha: '',
+    comentario: '',
+    link: window.location.href,
+    createdAt: now.toISOString()
+  });
+  if (!saveCFData(CF_RECORDS_KEY, records)) return 'error';
+  const log = loadCFData(CF_LOG_KEY, []);
+  log.push({
+    id: `${now.getTime()}l`,
+    type: 'carta',
+    desc: 'Reimportación registrada como carta: ' + nombre,
+    ts: now.toISOString()
+  });
+  if (!saveCFData(CF_LOG_KEY, log)) return 'added_log_failed';
+  return 'added';
+}
+
+function normalizeClientName(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
+}
+
+function findLatestCase(records, nombre) {
+  const nameKey = normalizeClientName(nombre);
+  return records
+    .map((record, index) => ({record, index}))
+    .filter(({record}) => !record.archived && normalizeClientName(record.nombre) === nameKey)
+    .sort((a, b) => {
+      const aTime = Date.parse(a.record.createdAt || '') || 0;
+      const bTime = Date.parse(b.record.createdAt || '') || 0;
+      return bTime - aTime || b.index - a.index;
+    })[0]?.record;
+}
+
+/**
  * Guarda un cliente y marca la carta y CFPB como completos.
  * Devuelve `added`, `updated` o `already_complete` según el resultado.
  */
 export function saveAndComplete(nombre, nombreResp, phone) {
   if (!nombre) return 'error';
   const records = loadCFData(CF_RECORDS_KEY, []);
-  const idx = records.findIndex(r => r.nombre.toLowerCase() === nombre.toLowerCase());
-  if (idx > -1) {
-    if (records[idx].carta && records[idx].cfbp) return 'already_complete';
-    records[idx].carta = true;
-    records[idx].cfbp  = true;
-    records[idx].cartaFecha = records[idx].cartaFecha || todayStr();
-    records[idx].cfbpFecha  = todayStr();
-    if (phone && !records[idx].phone) records[idx].phone = phone.replace(/\D/g,'');
-    saveCFData(CF_RECORDS_KEY, records);
+  if (!Array.isArray(records)) {
+    console.error('[CreditFlow] Los registros no tienen el formato esperado; no se marcó el cliente como completo.');
+    return 'error';
+  }
+  const record = findLatestCase(records, nombre);
+  if (record) {
+    if (record.carta && record.cfbp) return 'already_complete';
+    if (!record.carta || !record.cartaFecha) record.cartaFecha = todayStr();
+    record.carta = true;
+    record.cfbp = true;
+    record.cfbpFecha = todayStr();
+    record.estatus = 'cfpb_ftc';
+    if (phone && !record.phone) record.phone = phone.replace(/\D/g,'');
+    if (!saveCFData(CF_RECORDS_KEY, records)) return 'error';
     const log = loadCFData(CF_LOG_KEY, []);
-    log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Completado (carta + CFBP): ' + nombre, ts: new Date().toISOString() });
-    saveCFData(CF_LOG_KEY, log);
+    log.push({ id: Date.now() + 'l', type: 'edit', desc: 'Completado (carta + CFBP): ' + record.nombre, ts: new Date().toISOString() });
+    if (!saveCFData(CF_LOG_KEY, log)) return 'updated_log_failed';
     return 'updated';
   }
   records.push({
@@ -57,17 +153,17 @@ export function saveAndComplete(nombre, nombreResp, phone) {
     nombre,
     nombreResp: nombreResp || 'Manuelbis',
     phone: (phone || '').replace(/\D/g,''),
-    estatus: 'carta',
+    estatus: 'cfpb_ftc',
     carta: true, cfbp: true,
     cartaFecha: todayStr(), cfbpFecha: todayStr(),
     comentario: '',
     link: window.location.href,
     createdAt: new Date().toISOString(),
   });
-  saveCFData(CF_RECORDS_KEY, records);
+  if (!saveCFData(CF_RECORDS_KEY, records)) return 'error';
   const log = loadCFData(CF_LOG_KEY, []);
   log.push({ id: Date.now() + 'l', type: 'add', desc: 'Guardado y completado: ' + nombre, ts: new Date().toISOString() });
-  saveCFData(CF_LOG_KEY, log);
+  if (!saveCFData(CF_LOG_KEY, log)) return 'added_log_failed';
   return 'added';
 }
 

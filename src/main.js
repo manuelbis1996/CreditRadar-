@@ -1,5 +1,5 @@
 import { SCRIPT_VERSION, SELECTORS, DEFAULT_CONFIG } from './config/constants.js';
-import { initCreditFlow, saveAndComplete } from './ui/creditflow-panel.js';
+import { initCreditFlow, saveAndComplete, markLetterInCreditFlow } from './ui/creditflow-panel.js';
 import { loadConfig } from './core/storage.js';
 import { injectStyles } from './ui/styles.js';
 import { addButton, setButtonAnimation, showToast, showDetectionNotice, createProgressPanel, updateProgress, removeProgressPanel } from './ui/toolbar.js';
@@ -294,10 +294,16 @@ async function injectSaveCompleteButton() {
     const msgs = {
       added:            `✅ "${nombre}" guardado — carta + CFBP marcados`,
       updated:          `✅ "${nombre}" — carta + CFBP marcados`,
-      already_complete: `✓ "${nombre}" ya estaba completo`
+      already_complete: `✓ "${nombre}" ya estaba completo`,
+      updated_log_failed: `⚠️ "${nombre}" se completó, pero no se pudo guardar la actividad`,
+      added_log_failed:   `⚠️ "${nombre}" se registró completo, pero no se pudo guardar la actividad`,
+      error:              `⚠️ No se pudieron guardar los cambios de "${nombre}"`
     };
-    const colors = { added: '#34d399', updated: '#34d399', already_complete: '#fbbf24' };
-    showToast(msgs[result] || '⚠️ Error', colors[result] || '#f87171', 3500);
+    const colors = {
+      added: '#34d399', updated: '#34d399', already_complete: '#fbbf24',
+      updated_log_failed: '#fbbf24', added_log_failed: '#fbbf24', error: '#f87171'
+    };
+    showToast(msgs[result] || msgs.error, colors[result] || '#f87171', 3500);
     document.getElementById('addClientBTN')?.click();
   };
 
@@ -522,9 +528,41 @@ function initClasificador() {
   );
   injectPersonalCopyButton();
   injectSaveCompleteButton();
+  trackLetterOnReimport();
   syncPhoneToRecord();
   injectStatusBadge();
   injectHoverSummary();
+}
+
+let reimportListenerRegistered = false;
+function trackLetterOnReimport() {
+  if (reimportListenerRegistered) return;
+  reimportListenerRegistered = true;
+  document.addEventListener('click', event => {
+    const button = event.target?.closest?.('#globalImport');
+    if (!button) return;
+    const client = getClientData();
+    if (!client.name) {
+      showToast('⚠️ No se detectó el cliente; no se marcó la carta en CreditFlow', '#f87171', 4000);
+      return;
+    }
+    setTimeout(() => {
+      const result = markLetterInCreditFlow(client.name, undefined, client.cell);
+      const messages = {
+        added: `📄 "${client.name}" registrado en CreditFlow con carta de hoy`,
+        marked: `📄 "${client.name}" marcado con carta hecha hoy`,
+        already_marked: `✓ "${client.name}" ya tenía la carta marcada para hoy`,
+        marked_log_failed: `⚠️ La carta de "${client.name}" se marcó, pero no se pudo guardar la actividad`,
+        added_log_failed: `⚠️ "${client.name}" se registró con carta, pero no se pudo guardar la actividad`,
+        error: `⚠️ No se pudo marcar la carta de "${client.name}" en CreditFlow`
+      };
+      const colors = {
+        added: '#34d399', marked: '#34d399', already_marked: '#fbbf24',
+        marked_log_failed: '#fbbf24', added_log_failed: '#fbbf24', error: '#f87171'
+      };
+      showToast(messages[result] || messages.error, colors[result] || colors.error, 4000);
+    }, 0);
+  }, true);
 }
 
 // El mismo userscript se ejecuta en Pulse y en CreditFlow; cada sitio usa su inicializador.

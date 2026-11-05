@@ -1,5 +1,20 @@
 # CreditRadar Changelog
 
+## v20.59 (2026-11-05)
+🎨 **CreditFlow adaptable en PC** — Rediseño visual de toda la aplicación y tarjetas de reparación que se ajustan al ancho de pantalla; se mantiene la tabla en monitores amplios.
+
+---
+
+## v20.58 (2026-11-05)
+✅ **Finalización manual coherente** — Al marcar Carta o CFPB/FTC, se actualiza la fecha de esa acción; completar desde Pulse selecciona el proceso abierto más reciente y lo pone en CFPB/FTC.
+
+---
+
+## v20.57 (2026-11-05)
+📝 **Carta marcada al reimportar** — Copiar un reporte registra el cliente sin marcar su carta; al usar `RE-IMPORT CREDIT REPORT`, CreditFlow marca la carta del proceso abierto con la fecha actual.
+
+---
+
 ## v20.56 (2026-11-04)
 🔄 **CreditFlow sin caché antigua** — El botón de CreditRadar abre CreditFlow con un parámetro único para solicitar la versión publicada más reciente.
 

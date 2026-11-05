@@ -63,7 +63,13 @@ export function loadCFData(key, def) {
 
 /** Convierte a JSON y guarda un valor de CreditFlow. */
 export function saveCFData(key, val) {
-  try { GM_setValue(key, JSON.stringify(val)); } catch(e) {}
+  try {
+    GM_setValue(key, JSON.stringify(val));
+    return true;
+  } catch (error) {
+    console.error(`[CreditFlow] Error guardando ${key}:`, error);
+    return false;
+  }
 }
 
 /** Agrega el reporte reciente al inicio del historial, respetando su límite. */
